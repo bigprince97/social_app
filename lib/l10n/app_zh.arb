@@ -1,0 +1,762 @@
+{
+  "@@locale": "zh",
+  "loadFailed": "加载失败：{error}",
+  "@loadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "contents": "目录",
+  "noChapterContent": "暂无章节内容",
+  "continueReading": "继续阅读",
+  "startReading": "开始阅读",
+  "chaptersCountLabel": "{chaptersCount} 章",
+  "@chaptersCountLabel": {
+    "placeholders": {
+      "chaptersCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "readPercent": "已读 {percent}%",
+  "@readPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "Object"
+      }
+    }
+  },
+  "bookGenesis": "创世记",
+  "bookExodus": "出埃及记",
+  "bookLeviticus": "利未记",
+  "bookNumbers": "民数记",
+  "bookDeuteronomy": "申命记",
+  "bookJoshua": "约书亚记",
+  "bookJudges": "士师记",
+  "bookRuth": "路得记",
+  "book1Samuel": "撒母耳记上",
+  "book2Samuel": "撒母耳记下",
+  "book1Kings": "列王纪上",
+  "book2Kings": "列王纪下",
+  "book1Chronicles": "历代志上",
+  "book2Chronicles": "历代志下",
+  "bookEzra": "以斯拉记",
+  "bookNehemiah": "尼希米记",
+  "bookEsther": "以斯帖记",
+  "bookJob": "约伯记",
+  "bookPsalms": "诗篇",
+  "bookProverbs": "箴言",
+  "bookEcclesiastes": "传道书",
+  "bookSongOfSongs": "雅歌",
+  "bookIsaiah": "以赛亚书",
+  "bookJeremiah": "耶利米书",
+  "bookLamentations": "耶利米哀歌",
+  "bookEzekiel": "以西结书",
+  "bookDaniel": "但以理书",
+  "bookHosea": "何西阿书",
+  "bookJoel": "约珥书",
+  "bookAmos": "阿摩司书",
+  "bookObadiah": "俄巴底亚书",
+  "bookJonah": "约拿书",
+  "bookMicah": "弥迦书",
+  "bookNahum": "那鸿书",
+  "bookHabakkuk": "哈巴谷书",
+  "bookZephaniah": "西番雅书",
+  "bookHaggai": "哈该书",
+  "bookZechariah": "撒迦利亚书",
+  "bookMalachi": "玛拉基书",
+  "bookMatthew": "马太福音",
+  "bookMark": "马可福音",
+  "bookLuke": "路加福音",
+  "bookJohn": "约翰福音",
+  "bookActs": "使徒行传",
+  "bookRomans": "罗马书",
+  "book1Corinthians": "哥林多前书",
+  "book2Corinthians": "哥林多后书",
+  "bookGalatians": "加拉太书",
+  "bookEphesians": "以弗所书",
+  "bookPhilippians": "腓立比书",
+  "bookColossians": "歌罗西书",
+  "book1Thessalonians": "帖撒罗尼迦前书",
+  "book2Thessalonians": "帖撒罗尼迦后书",
+  "book1Timothy": "提摩太前书",
+  "book2Timothy": "提摩太后书",
+  "bookTitus": "提多书",
+  "bookPhilemon": "腓利门书",
+  "bookHebrews": "希伯来书",
+  "bookJames": "雅各书",
+  "book1Peter": "彼得前书",
+  "book2Peter": "彼得后书",
+  "book1John": "约翰一书",
+  "book2John": "约翰二书",
+  "book3John": "约翰三书",
+  "bookJude": "犹大书",
+  "bookRevelation": "启示录",
+  "books": "书卷",
+  "chapters": "章",
+  "oldTestament": "旧约",
+  "newTestament": "新约",
+  "selectBookFirst": "请先从书卷中选择一本书",
+  "volumeCount": "{count}卷",
+  "@volumeCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "bookChapterDisplay": "{bookName} 第{chapterNumber}章",
+  "@bookChapterDisplay": {
+    "placeholders": {
+      "bookName": {
+        "type": "Object"
+      },
+      "chapterNumber": {
+        "type": "Object"
+      }
+    }
+  },
+  "editGroupAnnouncement": "编辑群公告",
+  "announcementHint": "输入群公告内容...",
+  "cancel": "取消",
+  "save": "保存",
+  "saveFailed": "保存失败：{error}",
+  "@saveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "removeFromGroup": "移出群聊",
+  "removedFromGroup": "已移出群聊",
+  "operationFailed": "操作失败：{error}",
+  "@operationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "promoteToAdmin": "设为管理员",
+  "promotedToAdmin": "已设为管理员",
+  "demoteAdmin": "撤销管理员",
+  "demotedAdmin": "已撤销管理员权限",
+  "leaveGroup": "退出群聊",
+  "confirmLeaveGroup": "确定要退出此群聊吗？",
+  "leaveFailed": "退出失败：{error}",
+  "@leaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "disbandGroup": "解散群聊",
+  "confirmDisbandGroup": "解散后所有成员将被移出，聊天记录将被删除，此操作不可恢复。确定要解散吗？",
+  "groupInfo": "群聊信息",
+  "group": "群聊",
+  "memberCount": "{count} 名成员",
+  "@memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "announcement": "群公告",
+  "clickToSetAnnouncement": "点击设置群公告",
+  "noAnnouncement": "暂无公告",
+  "groupFiles": "群文件",
+  "members": "成员 ({count})",
+  "@members": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "you": "你",
+  "admin": "管理员",
+  "createFailed": "新建失败：{error}",
+  "@createFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "deleteFolder": "删除文件夹",
+  "confirmDeleteFolder": "确定删除「{folderName}」吗？文件夹内的文件会移回根目录，不会被删除。",
+  "@confirmDeleteFolder": {
+    "placeholders": {
+      "folderName": {
+        "type": "Object"
+      }
+    }
+  },
+  "delete": "删除",
+  "deleteFailed": "删除失败：{error}",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "renameFailed": "重命名失败：{error}",
+  "@renameFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "createFolder": "新建文件夹",
+  "renameFolder": "重命名文件夹",
+  "folderName": "文件夹名称",
+  "confirm": "确定",
+  "moveFileTo": "移动「{fileName}」到",
+  "@moveFileTo": {
+    "placeholders": {
+      "fileName": {
+        "type": "Object"
+      }
+    }
+  },
+  "rootDirectory": "根目录",
+  "moveFailed": "移动失败：{error}",
+  "@moveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "cannotOpenFile": "无法打开文件",
+  "files": "文件",
+  "noSharedFiles": "暂无共享文件",
+  "folderEmpty": "该文件夹为空",
+  "emptyFilesHint": "在聊天中发送文件后会显示在这里\n点右上角可新建文件夹",
+  "longPressToMoveFile": "长按文件可移动到这里",
+  "rename": "重命名",
+  "fileCount": "{count} 个文件",
+  "@fileCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "moveToFolder": "移动到文件夹",
+  "unknownFile": "未知文件",
+  "copiedToClipboard": "已复制到剪贴板",
+  "selectConversation": "选择会话",
+  "privateChat": "私聊",
+  "sentToChat": "已发送到聊天",
+  "noteTitle": "笔记 · {chapterTitle}",
+  "@noteTitle": {
+    "placeholders": {
+      "chapterTitle": {
+        "type": "Object"
+      }
+    }
+  },
+  "noteHint": "写下你的感悟...",
+  "copyScripture": "复制经文",
+  "sendToChat": "发送到聊天",
+  "selectedVerses": "已选 {count} 节",
+  "@selectedVerses": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "copy": "复制",
+  "quoteToChat": "引用到聊天",
+  "fontSizeSmall": "小字",
+  "fontSizeNormal": "标准",
+  "fontSizeLarge": "大字",
+  "fontSizeExtraLarge": "特大",
+  "previousChapter": "上章",
+  "note": "笔记",
+  "highlight": "划线",
+  "bookmark": "收藏",
+  "quote": "引用",
+  "nextChapter": "下章",
+  "oldTestamentCount": "旧约 {count}",
+  "@oldTestamentCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "crossReferenceTitle": "{chapterTitle} 第{verse}节 · 引用旧约",
+  "@crossReferenceTitle": {
+    "placeholders": {
+      "chapterTitle": {
+        "type": "Object"
+      },
+      "verse": {
+        "type": "Object"
+      }
+    }
+  },
+  "chapterNotFound": "未找到对应章节",
+  "scripture": "经书",
+  "myBookmarks": "我的书签",
+  "lastReading": "上次阅读",
+  "allScriptures": "全部经书",
+  "continueLabel": "继续",
+  "chapterCount": "{count} 章",
+  "@chapterCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "noScriptureContent": "暂无经书内容",
+  "noBookmarks": "还没有书签",
+  "bookmarkHint": "阅读经文时点击书签图标即可收藏",
+  "deletedChapter": "已删除章节",
+  "blockUserTitle": "拉黑用户",
+  "blockUserConfirm": "确定拉黑 {displayName} 吗？",
+  "@blockUserConfirm": {
+    "placeholders": {
+      "displayName": {
+        "type": "Object"
+      }
+    }
+  },
+  "block": "拉黑",
+  "userBlocked": "已拉黑该用户",
+  "directMessageFailed": "发起私信失败：{error}",
+  "@directMessageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "settings": "设置",
+  "editProfile": "编辑资料",
+  "languageSettings": "语言 / Language",
+  "logout": "退出登录",
+  "confirmLogout": "确定要退出登录吗？",
+  "confirmButton": "退出",
+  "userNotFound": "用户不存在",
+  "noPosts": "还没有发帖",
+  "posts": "帖子",
+  "followers": "粉丝",
+  "following": "关注",
+  "alreadyFollowing": "已关注",
+  "directMessage": "私信",
+  "displayNameRequired": "昵称不能为空",
+  "savingSucceeded": "保存成功",
+  "clickToChangeAvatar": "点击更换头像",
+  "displayName": "昵称",
+  "bio": "个人简介",
+  "region": "所在地区",
+  "notSet": "不设置",
+  "languagePreference": "语言偏好",
+  "languageChinese": "中文",
+  "languageEnglish": "English",
+  "regionBeijing": "北京",
+  "regionShanghai": "上海",
+  "regionGuangdong": "广东",
+  "regionZhejiang": "浙江",
+  "regionJiangsu": "江苏",
+  "regionSichuan": "四川",
+  "regionHongKong": "香港",
+  "regionTaiwan": "台湾",
+  "regionSingapore": "新加坡",
+  "regionMalaysia": "马来西亚",
+  "regionUSA": "美国",
+  "regionCanada": "加拿大",
+  "regionAustralia": "澳大利亚",
+  "regionUK": "英国",
+  "regionJapan": "日本",
+  "regionSouthKorea": "韩国",
+  "regionOther": "其他",
+  "followersList": "{displayName}的粉丝",
+  "@followersList": {
+    "placeholders": {
+      "displayName": {
+        "type": "Object"
+      }
+    }
+  },
+  "followingList": "{displayName}的关注",
+  "@followingList": {
+    "placeholders": {
+      "displayName": {
+        "type": "Object"
+      }
+    }
+  },
+  "noFollowers": "暂无粉丝",
+  "noFollowing": "还没有关注任何人",
+  "followerCount": "{count} 粉丝",
+  "@followerCount": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "joinLivestreamFailed": "加入直播失败：{error}",
+  "@joinLivestreamFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "sendFailed": "发送失败：{error}",
+  "@sendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "microphonePermissionRequired": "需要麦克风权限才能录音",
+  "attachmentTitle": "发送内容",
+  "attachmentPhoto": "图片",
+  "attachmentVideo": "视频",
+  "attachmentCamera": "拍摄",
+  "blockUserConfirm2": "确定要拉黑 {name} 吗？",
+  "@blockUserConfirm2": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "userBlocked2": "已拉黑 {name}",
+  "@userBlocked2": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "online": "在线",
+  "voiceCall": "语音通话",
+  "videoCall": "视频通话",
+  "startLivestream": "开始直播",
+  "groupLivestreamOngoing": "群内正在直播",
+  "joinLivestream": "点击加入",
+  "sendFirstMessage": "发送第一条消息吧！",
+  "recording": "录音中",
+  "messages": "消息",
+  "searchConversations": "搜索聊天...",
+  "noMessages": "还没有消息",
+  "noSearchResults": "没有找到相关会话",
+  "createNewChat": "点击右上角发起新的聊天吧",
+  "noMessagePreview": "暂无消息",
+  "searchUsers": "搜索用户名或昵称",
+  "groupChatName": "群聊名称",
+  "searchMembers": "搜索添加成员",
+  "createFailed2": "创建失败：{error}",
+  "@createFailed2": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "createGroupButton": "创建群聊（{count} 人）",
+  "@createGroupButton": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "recall": "撤回",
+  "recallTimeLimit": "消息仅2分钟内可撤回",
+  "messageDeleted": "消息已撤回",
+  "audioPlayFailed": "播放失败：{error}",
+  "@audioPlayFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "scriptureQuote": "《{scripture}》{chapter}",
+  "@scriptureQuote": {
+    "placeholders": {
+      "scripture": {
+        "type": "Object"
+      },
+      "chapter": {
+        "type": "Object"
+      }
+    }
+  },
+  "downloading": "正在下载…",
+  "cannotOpen": "无法打开：{message}",
+  "@cannotOpen": {
+    "placeholders": {
+      "message": {
+        "type": "Object"
+      }
+    }
+  },
+  "openFailed": "打开失败：{error}",
+  "@openFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "today": "今天",
+  "yesterday": "昨天",
+  "square": "广场",
+  "latest": "最新",
+  "hot": "热门",
+  "topics": "话题",
+  "emptyFollowingSubtitle": "去广场发现有趣的人吧！",
+  "emptyPostsHint": "还没有帖子，来发第一条吧！",
+  "newPostsNotification": "有 {count} 条新帖子，点击刷新",
+  "@newPostsNotification": {
+    "placeholders": {
+      "count": {
+        "type": "Object"
+      }
+    }
+  },
+  "emptyTopicPosts": "该话题暂无帖子",
+  "searchTopicsHint": "搜索话题...",
+  "emptyTopics": "暂无话题",
+  "hotTopics": "热门话题",
+  "postTitle": "发帖",
+  "publish": "发布",
+  "shareThoughtsHint": "分享你的想法...",
+  "addTopicHint": "添加话题 #",
+  "postDetail": "帖子详情",
+  "comments": "评论",
+  "emptyComments": "暂无评论，来第一个评论吧！",
+  "writeCommentHint": "写评论...",
+  "commentFailed": "评论失败：{error}",
+  "@commentFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "deletePost": "删除帖子",
+  "deletePostConfirm": "确定要删除这条帖子吗？此操作无法撤销。",
+  "unknownUser": "未知用户",
+  "searchHint": "搜索用户、动态、经书...",
+  "users": "用户",
+  "posts2": "动态",
+  "search": "搜索",
+  "searchEmptySubtitle": "查找用户、动态或经书",
+  "emptyUsers": "没有找到相关用户",
+  "emptyPosts": "没有找到相关动态",
+  "emptyScriptures": "没有找到相关经书",
+  "notifications": "通知",
+  "markAllRead": "全部已读",
+  "emptyNotifications": "暂无通知",
+  "emptyNotificationsSubtitle": "有新的互动会在这里提醒你",
+  "publishFailed": "发布失败：{error}",
+  "@publishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "connectionFailed": "连接失败：{error}",
+  "@connectionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "inCall": "通话中",
+  "ringing": "呼叫中...",
+  "callDeclined": "对方已拒绝",
+  "callEnded": "通话已结束",
+  "connecting": "连接中...",
+  "mute": "静音",
+  "unmute": "取消静音",
+  "cameraOff": "关摄像头",
+  "cameraOn": "开摄像头",
+  "earpiece": "听筒",
+  "speaker": "扬声器",
+  "waitingForHost": "等待主播开始直播...",
+  "micOn": "开麦",
+  "flipCamera": "翻转",
+  "endLivestream": "结束直播",
+  "incomingCall": "来电",
+  "livestreamInvite": "直播邀请",
+  "callInvitation": "{typeLabel}邀请…",
+  "@callInvitation": {
+    "placeholders": {
+      "typeLabel": {
+        "type": "Object"
+      }
+    }
+  },
+  "decline": "拒绝",
+  "accept": "接听",
+  "appName": "教会社群",
+  "appTagline": "经典传承，社区共建",
+  "welcomeBack": "欢迎回来",
+  "email": "邮箱",
+  "invalidEmailError": "请输入有效邮箱",
+  "password": "密码",
+  "passwordTooShortError": "密码至少6位",
+  "login": "登录",
+  "noAccountRegisterNow": "还没有账号？立即注册",
+  "loginFailed": "登录失败：{error}",
+  "@loginFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "createAccount": "创建账号",
+  "nicknameRequiredError": "请输入昵称",
+  "register": "注册",
+  "hasAccountGoLogin": "已有账号？去登录",
+  "registerFailed": "注册失败：{error}",
+  "@registerFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "tabProfile": "我的",
+  "acceptCallFailed": "接听失败：{error}",
+  "@acceptCallFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "imagePlaceholder": "[图片]",
+  "videoPlaceholder": "[视频]",
+  "filePlaceholder": "[文件]",
+  "audioPlaceholder": "[语音]",
+  "scripturePlaceholder": "[经文引用]",
+  "notificationLiked": "{actor} 点赞了你的帖子",
+  "@notificationLiked": {
+    "placeholders": {
+      "actor": {
+        "type": "Object"
+      }
+    }
+  },
+  "notificationCommented": "{actor} 评论了你的帖子",
+  "@notificationCommented": {
+    "placeholders": {
+      "actor": {
+        "type": "Object"
+      }
+    }
+  },
+  "notificationFollowed": "{actor} 关注了你",
+  "@notificationFollowed": {
+    "placeholders": {
+      "actor": {
+        "type": "Object"
+      }
+    }
+  },
+  "someone": "有人",
+  "newNotification": "你有一条新通知",
+  "action": "操作",
+  "blockUserConfirm3": "确定拉黑 {name} 吗？",
+  "@blockUserConfirm3": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "unblock": "解除拉黑",
+  "categoryDaoism": "道家",
+  "categoryBuddhism": "佛经",
+  "categoryChrisiandity": "基督教",
+  "crossRefVerse": "{chapterTitle} {verse}节",
+  "@crossRefVerse": {
+    "placeholders": {
+      "chapterTitle": {
+        "type": "Object"
+      },
+      "verse": {
+        "type": "Object"
+      }
+    }
+  },
+  "crossRefVerseRange": "{chapterTitle} {verseStart}-{verseEnd}节",
+  "@crossRefVerseRange": {
+    "placeholders": {
+      "chapterTitle": {
+        "type": "Object"
+      },
+      "verseStart": {
+        "type": "Object"
+      },
+      "verseEnd": {
+        "type": "Object"
+      }
+    }
+  },
+  "send": "发送",
+  "messageHint": "输入消息...",
+  "thisUser": "该用户",
+  "callStartFailed": "发起通话失败：{error}",
+  "@callStartFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "livestreamStartFailed": "发起直播失败：{error}",
+  "@livestreamStartFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "regionCNBJ": "北京",
+  "regionCNSH": "上海",
+  "regionCNGD": "广东",
+  "regionCNZJ": "浙江",
+  "regionCNJS": "江苏",
+  "regionCNSC": "四川",
+  "regionHK": "香港",
+  "regionTW": "台湾",
+  "regionSG": "新加坡",
+  "regionMY": "马来西亚",
+  "regionUS": "美国",
+  "regionCA": "加拿大",
+  "regionAU": "澳大利亚",
+  "regionGB": "英国",
+  "regionJP": "日本",
+  "regionKR": "韩国",
+  "regionOTHER": "其他",
+  "recordingTooShort": "录音太短，未发送",
+  "onlineMembers": "在线成员",
+  "me": "我",
+  "hostLabel": "主播"
+}

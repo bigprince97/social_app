@@ -1,0 +1,505 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import '../services/locale_controller.dart';
+import '../l10n/app_localizations.dart';
+import '../models/post.dart';
+import '../services/event_bus.dart';
+import '../services/post_service.dart';
+import '../theme/app_style.dart';
+import 'image_viewer.dart';
+import 'premium_action_sheet.dart';
+import 'video_player_widget.dart';
+
+// ─── Instagram / premium style PostCard ──────────────────────────────────────
+
+class PostCard extends StatefulWidget {
+  final Post post;
+  final VoidCallback? onDeleted;
+  final void Function(String topic)? onTopicTap;
+
+  const PostCard({super.key, required this.post, this.onDeleted, this.onTopicTap});
+
+  @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard>
+    with SingleTickerProviderStateMixin {
+  late bool _isLiked;
+  late int _likesCount;
+  final _postService = PostService();
+  late final bool _isOwn;
+
+  // Heart animation
+  late final AnimationController _heartCtrl;
+  late final Animation<double> _heartScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _isLiked = widget.post.isLiked;
+    _likesCount = widget.post.likesCount;
+    final myId = _postService.currentUserId;
+    _isOwn = myId != null && myId == widget.post.userId;
+
+    _heartCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _heartScale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _heartCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _heartCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleLike() async {
+    setState(() {
+      _isLiked = !_isLiked;
+      _likesCount += _isLiked ? 1 : -1;
+    });
+    if (_isLiked) _heartCtrl.forward(from: 0);
+    try {
+      if (_isLiked) {
+        await _postService.likePost(widget.post.id);
+      } else {
+        await _postService.unlikePost(widget.post.id);
+      }
+      notifyPostInteracted();
+    } catch (_) {
+      setState(() {
+        _isLiked = !_isLiked;
+        _likesCount += _isLiked ? 1 : -1;
+      });
+    }
+  }
+
+  Future<void> _delete() async {
+    final ok = await showPremiumConfirm(
+      context,
+      icon: Icons.delete_outline_rounded,
+      title: AppLocalizations.of(context).deletePost,
+      message: AppLocalizations.of(context).deletePostConfirm,
+      confirmLabel: AppLocalizations.of(context).delete,
+      destructive: true,
+    );
+    if (!ok) return;
+    await _postService.deletePost(widget.post.id);
+    widget.onDeleted?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final author = widget.post.author;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(AppStyle.rLg),
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(8),
+          width: 0.6,
+        ),
+        boxShadow: AppStyle.softShadow(isDark),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+            child: Row(
+              children: [
+                // Avatar with gradient ring
+                GestureDetector(
+                  onTap: () => context.push('/profile/${widget.post.userId}'),
+                  child: _GradientAvatar(
+                    url: author?.avatarUrl,
+                    initial: author?.displayName[0].toUpperCase() ?? '?',
+                    radius: 19,
+                    hasRing: !_isOwn,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () =>
+                        context.push('/profile/${widget.post.userId}'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          author?.displayName ?? AppLocalizations.of(context).unknownUser,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13.5),
+                        ),
+                        if (author?.username != null)
+                          Text(
+                            '@${author!.username}',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: isDark
+                                    ? Colors.grey.shade500
+                                    : Colors.grey.shade500),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                Text(
+                  timeago.format(widget.post.createdAt, locale: LocaleController.instance.timeagoLocale),
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.grey.shade500),
+                ),
+                if (_isOwn)
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz, size: 20),
+                    onPressed: () => showPremiumActionSheet(
+                      context,
+                      actions: [
+                        PremiumAction(
+                          icon: Icons.delete_outline_rounded,
+                          label: AppLocalizations.of(context).delete,
+                          destructive: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _delete();
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(width: 8),
+              ],
+            ),
+          ),
+
+          // ── Scripture quote ──────────────────────────────────────────────
+          if (widget.post.scriptureQuote != null)
+            _ScriptureCard(
+                quote: widget.post.scriptureQuote!, isDark: isDark),
+
+          // ── Content text ─────────────────────────────────────────────────
+          if (widget.post.content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              child: Text(
+                widget.post.content,
+                style: TextStyle(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: isDark ? Colors.white : Colors.black87),
+              ),
+            ),
+
+          // ── Media ────────────────────────────────────────────────────────
+          if (widget.post.videoUrl != null) ...[
+            VideoThumbnailWidget(url: widget.post.videoUrl!),
+            const SizedBox(height: 2),
+          ] else if (widget.post.imageUrls.isNotEmpty) ...[
+            _buildImageGrid(),
+            const SizedBox(height: 2),
+          ],
+
+          // ── Topics ───────────────────────────────────────────────────────
+          if (widget.post.topics.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                children: widget.post.topics
+                    .map((t) => GestureDetector(
+                          onTap: () => widget.onTopicTap?.call(t),
+                          child: Text(
+                            '#$t',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+
+          // ── Action bar ───────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
+            child: Row(
+              children: [
+                // Like
+                _ActionButton(
+                  icon: ScaleTransition(
+                    scale: _heartScale,
+                    child: Icon(
+                      _isLiked ? Icons.favorite : Icons.favorite_border,
+                      size: 22,
+                      color: _isLiked ? Colors.red : Colors.grey.shade600,
+                    ),
+                  ),
+                  label: _likesCount > 0 ? '$_likesCount' : '',
+                  onTap: _toggleLike,
+                ),
+                // Comment
+                _ActionButton(
+                  icon: Icon(Icons.chat_bubble_outline_rounded,
+                      size: 21, color: Colors.grey.shade600),
+                  label: widget.post.commentsCount > 0
+                      ? '${widget.post.commentsCount}'
+                      : '',
+                  onTap: () => context.push('/post/${widget.post.id}'),
+                ),
+                const Spacer(),
+                // Bookmark (visual only, premium feel)
+                Icon(Icons.bookmark_border_rounded,
+                    size: 21, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageGrid() {
+    final images = widget.post.imageUrls;
+    if (images.length == 1) {
+      return GestureDetector(
+        onTap: () => ImageViewer.show(context, imageUrls: images),
+        child: CachedNetworkImage(
+          imageUrl: images[0],
+          width: double.infinity,
+          height: 320,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    if (images.length == 2) {
+      return Row(
+        children: images.take(2).toList().asMap().entries.map((e) {
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => ImageViewer.show(context,
+                  imageUrls: images, initialIndex: e.key),
+              child: Container(
+                margin: EdgeInsets.only(left: e.key == 0 ? 0 : 1),
+                child: CachedNetworkImage(
+                  imageUrl: e.value,
+                  height: 240,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      );
+    }
+    // 3+ images: 3-col or 2+1 layout
+    final display = images.take(9).toList();
+    final cols = display.length == 3 ? 3 : 3;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cols,
+        crossAxisSpacing: 1.5,
+        mainAxisSpacing: 1.5,
+      ),
+      itemCount: display.length > 9 ? 9 : display.length,
+      itemBuilder: (context, i) => GestureDetector(
+        onTap: () =>
+            ImageViewer.show(context, imageUrls: images, initialIndex: i),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(imageUrl: display[i], fit: BoxFit.cover),
+            if (i == 8 && images.length > 9)
+              Container(
+                color: Colors.black.withAlpha(160),
+                child: Center(
+                  child: Text(
+                    '+${images.length - 9}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Gradient avatar ring (Instagram story style) ─────────────────────────────
+
+class _GradientAvatar extends StatelessWidget {
+  final String? url;
+  final String initial;
+  final double radius;
+  final bool hasRing;
+
+  const _GradientAvatar({
+    required this.url,
+    required this.initial,
+    required this.radius,
+    this.hasRing = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF9575CD),
+      backgroundImage:
+          url != null ? CachedNetworkImageProvider(url!) : null,
+      child: url == null
+          ? Text(initial,
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: radius * 0.7,
+                  fontWeight: FontWeight.bold))
+          : null,
+    );
+
+    if (!hasRing) return avatar;
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFF9575CD), Color(0xFFE040FB), Color(0xFFFF6D00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(1.5),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Theme.of(context).scaffoldBackgroundColor,
+        ),
+        child: avatar,
+      ),
+    );
+  }
+}
+
+// ─── Scripture quote card ─────────────────────────────────────────────────────
+
+class _ScriptureCard extends StatelessWidget {
+  final Map<String, dynamic> quote;
+  final bool isDark;
+
+  const _ScriptureCard({required this.quote, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2A1F3D), const Color(0xFF1E1E2E)]
+                : [const Color(0xFFF3EDF9), const Color(0xFFEDE7F6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? const Color(0xFF5E3F8E).withAlpha(80)
+                : const Color(0xFFCE93D8).withAlpha(100),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_stories_rounded,
+                    size: 13, color: Color(0xFF9575CD)),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context).scriptureQuote(quote['scripture'] ?? '', quote['chapter'] ?? ''),
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF9575CD),
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              quote['text'] as String? ?? '',
+              style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.65,
+                  fontStyle: FontStyle.italic,
+                  color: isDark ? Colors.white70 : const Color(0xFF3E2060)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Action button row ────────────────────────────────────────────────────────
+
+class _ActionButton extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionButton(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

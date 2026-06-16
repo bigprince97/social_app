@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "387100034743",
+    "project_id": "omega-6c05a",
+    "storage_bucket": "omega-6c05a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387100034743:android:d81f86014339360174af32",
+        "android_client_info": {
+          "package_name": "com.example.omega"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARr5AnLiG0fx9mgTO0XT6Njdi3sFs410I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387100034743:android:da06e9fdf1b8e74a74af32",
+        "android_client_info": {
+          "package_name": "com.socialapp.social_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARr5AnLiG0fx9mgTO0XT6Njdi3sFs410I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
