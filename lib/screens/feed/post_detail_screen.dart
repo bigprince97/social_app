@@ -8,7 +8,12 @@ import '../../services/local_cache.dart';
 import '../../models/post.dart';
 import '../../services/event_bus.dart';
 import '../../services/post_service.dart';
+import '../../services/report_service.dart';
 import '../../widgets/post_card.dart';
+import '../../utils/content_filter.dart';
+import '../../widgets/premium_action_sheet.dart';
+import '../../widgets/premium_toast.dart';
+import '../../theme/app_style.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
@@ -49,8 +54,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         _postService.getComments(widget.postId),
       ]);
       setState(() {
-        _post = results[0] as Post;
+        final post = results[0] as Post;
         _comments = results[1] as List<PostComment>;
+        _post = post.copyWith(commentsCount: _comments.length);
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -60,6 +66,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _submitComment() async {
     final content = _commentCtrl.text.trim();
     if (content.isEmpty) return;
+    if (ContentFilter.hasBanned(content)) {
+      showPremiumToast(context, AppLocalizations.of(context).contentBlocked,
+          kind: ToastKind.error);
+      return;
+    }
     setState(() => _submitting = true);
     _commentCtrl.clear();
     try {
@@ -67,11 +78,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         postId: widget.postId,
         content: content,
       );
-      notifyPostInteracted();
-      setState(() {
-        _comments.add(comment);
-        _post = _post?.copyWith(commentsCount: _comments.length);
-      });
+      if (mounted) {
+        setState(() {
+          _comments.add(comment);
+          _post = _post?.copyWith(commentsCount: _comments.length);
+        });
+      }
+      if (_post != null) {
+        notifyPostInteracted(_post!);
+      }
       // 发送后收起键盘（不强制滑到最新，键盘收起后新评论一般已在可视区）
       if (mounted) FocusScope.of(context).unfocus();
     } catch (e) {
@@ -81,6 +96,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _deleteCommentAt(int index) async {
+    final comment = _comments[index];
+    try {
+      await _postService.deleteComment(comment.id);
+      if (mounted) {
+        setState(() {
+          _comments.removeAt(index);
+          _post = _post?.copyWith(commentsCount: _comments.length);
+        });
+      }
+      if (_post != null) {
+        notifyPostInteracted(_post!);
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).deleteFailed(e));
+      }
     }
   }
 
@@ -99,6 +134,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: RefreshIndicator(
                     onRefresh: _load,
                     child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       controller: _scrollController,
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
@@ -115,7 +151,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                             child: Text(
-                              '评论 (${_comments.length})',
+                              '${AppLocalizations.of(context).comments} (${_comments.length})',
                               style: Theme.of(context)
                                   .textTheme
                                   .titleSmall
@@ -133,7 +169,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             : SliverList(
                                 delegate: SliverChildBuilderDelegate(
                                   (context, i) =>
-                                      _CommentTile(comment: _comments[i]),
+                                      _CommentTile(
+                                        comment: _comments[i],
+                                        onDeleted: () => _deleteCommentAt(i),
+                                      ),
                                   childCount: _comments.length,
                                 ),
                               ),
@@ -221,58 +260,185 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
 class _CommentTile extends StatelessWidget {
   final PostComment comment;
+  final VoidCallback? onDeleted;
 
-  const _CommentTile({required this.comment});
+  const _CommentTile({required this.comment, this.onDeleted});
+
+  void _showMenu(BuildContext context, bool isOwn) {
+    final t = AppLocalizations.of(context);
+    showPremiumActionSheet(
+      context,
+      actions: [
+        if (isOwn)
+          PremiumAction(
+            icon: Icons.delete_outline_rounded,
+            label: t.delete,
+            destructive: true,
+            onTap: () async {
+              Navigator.pop(context);
+              final ok = await showPremiumConfirm(
+                context,
+                icon: Icons.delete_outline_rounded,
+                title: t.deleteComment,
+                message: t.deleteCommentConfirm,
+                confirmLabel: t.delete,
+                destructive: true,
+              );
+              if (ok) {
+                onDeleted?.call();
+              }
+            },
+          )
+        else
+          PremiumAction(
+            icon: Icons.report_problem_outlined,
+            label: t.report,
+            destructive: true,
+            onTap: () {
+              Navigator.pop(context);
+              _showReportMenu(context);
+            },
+          ),
+      ],
+    );
+  }
+
+  void _showReportMenu(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    showPremiumActionSheet(
+      context,
+      title: t.reportReason,
+      actions: [
+        PremiumAction(
+          icon: Icons.announcement_outlined,
+          label: t.reportReasonSpam,
+          onTap: () {
+            Navigator.pop(context);
+            _reportComment(context, t.reportReasonSpam);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.sentiment_very_dissatisfied_outlined,
+          label: t.reportReasonHarassment,
+          onTap: () {
+            Navigator.pop(context);
+            _reportComment(context, t.reportReasonHarassment);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.gavel_outlined,
+          label: t.reportReasonObjectionable,
+          onTap: () {
+            Navigator.pop(context);
+            _reportComment(context, t.reportReasonObjectionable);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.report_problem_outlined,
+          label: t.reportReasonViolence,
+          onTap: () {
+            Navigator.pop(context);
+            _reportComment(context, t.reportReasonViolence);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.help_outline_rounded,
+          label: t.reportReasonOther,
+          onTap: () {
+            Navigator.pop(context);
+            _reportComment(context, t.reportReasonOther);
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _reportComment(BuildContext context, String reason) async {
+    try {
+      await ReportService().reportContent(
+        targetType: 'comment',
+        targetId: comment.id,
+        reason: reason,
+      );
+      if (context.mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportSuccess,
+          kind: ToastKind.success,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportFailed(''),
+          kind: ToastKind.error,
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = PostService().currentUserId;
+    final isOwn = currentUserId != null && currentUserId == comment.userId;
     final author = comment.author;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => context.push('/profile/${comment.userId}'),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundImage: author?.avatarUrl != null
-                  ? CachedNetworkImageProvider(author!.avatarUrl!)
-                  : null,
-              child: author?.avatarUrl == null
-                  ? Text(author?.displayName[0].toUpperCase() ?? '?',
-                      style: const TextStyle(fontSize: 12))
-                  : null,
+    return GestureDetector(
+      onLongPress: () => _showMenu(context, isOwn),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () => context.push('/profile/${comment.userId}'),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundImage: author?.avatarUrl != null
+                    ? CachedNetworkImageProvider(author!.avatarUrl!)
+                    : null,
+                child: author?.avatarUrl == null
+                    ? Text(author?.displayName[0].toUpperCase() ?? '?',
+                        style: const TextStyle(fontSize: 12))
+                    : null,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.push('/profile/${comment.userId}'),
-                      child: Text(
-                        author?.displayName ?? AppLocalizations.of(context).unknownUser,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 13),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.push('/profile/${comment.userId}'),
+                        child: Text(
+                          author?.displayName ?? AppLocalizations.of(context).unknownUser,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      timeago.format(comment.createdAt, locale: LocaleController.instance.timeagoLocale),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(comment.content),
-              ],
+                      const SizedBox(width: 8),
+                      Text(
+                        timeago.format(comment.createdAt, locale: LocaleController.instance.timeagoLocale),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(comment.content),
+                ],
+              ),
             ),
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.more_horiz_rounded, size: 18, color: Colors.grey),
+              onPressed: () => _showMenu(context, isOwn),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
       ),
     );
   }

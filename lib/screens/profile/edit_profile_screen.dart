@@ -112,8 +112,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child:
-                        CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Text(AppLocalizations.of(context).save),
           ),
@@ -134,7 +133,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           backgroundImage: _newAvatarFile != null
                               ? (kIsWeb
                                   ? NetworkImage(_newAvatarFile!.path)
-                                  : FileImage(// dart:io File — non-web only
+                                  : FileImage(
                                       // ignore: avoid_dynamic_calls
                                       File(_newAvatarFile!.path)) as ImageProvider)
                               : _profile?.avatarUrl != null
@@ -145,8 +144,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: _newAvatarFile == null &&
                                   _profile?.avatarUrl == null
                               ? Text(
-                                  _profile?.displayName[0].toUpperCase() ??
-                                      '?',
+                                  _profile?.displayName[0].toUpperCase() ?? '?',
                                   style: const TextStyle(fontSize: 36),
                                 )
                               : null,
@@ -182,17 +180,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
                       floatingLabelStyle:
                           const TextStyle(color: Color(0xFF9575CD)),
-                      border: const OutlineInputBorder(),
-                      enabledBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFFCFCFD4)),
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
                       ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: Color(0xFF9575CD), width: 2),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF9575CD), width: 1.5),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _bioCtrl,
                     maxLines: 4,
@@ -205,13 +212,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       floatingLabelStyle:
                           const TextStyle(color: Color(0xFF9575CD)),
                       alignLabelWithHint: true,
-                      border: const OutlineInputBorder(),
-                      enabledBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFFCFCFD4)),
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
                       ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: Color(0xFF9575CD), width: 2),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF9575CD), width: 1.5),
                       ),
                     ),
                   ),

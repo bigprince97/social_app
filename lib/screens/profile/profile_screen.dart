@@ -19,6 +19,7 @@ import '../../widgets/post_card.dart';
 import '../../widgets/premium_action_sheet.dart';
 import 'follow_list_screen.dart';
 import 'my_posts_screen.dart';
+import '../settings/blocked_users_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -45,7 +46,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _dmLoading = false;
   StreamSubscription<void>? _postCreatedSub;
   StreamSubscription<void>? _profileUpdatedSub;
-  StreamSubscription<void>? _postInteractedSub;
+  StreamSubscription<Post>? _postInteractedSub;
+  StreamSubscription<String>? _postDeletedSub;
 
   late final bool _isMe;
 
@@ -62,8 +64,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _profileUpdatedSub = onProfileUpdated.listen((_) {
         if (mounted) _loadData();
       });
-    _postInteractedSub = onPostInteracted.listen((_) {
-      if (mounted) _loadData();
+    _postInteractedSub = onPostInteracted.listen((updatedPost) {
+      if (mounted) {
+        setState(() {
+          final index = _posts.indexWhere((p) => p.id == updatedPost.id);
+          if (index != -1) {
+            _posts[index] = updatedPost;
+          }
+        });
+      }
+    });
+    _postDeletedSub = onPostDeleted.listen((postId) {
+      if (mounted) {
+        setState(() {
+          _posts.removeWhere((p) => p.id == postId);
+        });
+      }
     });
   }
 
@@ -72,6 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _postCreatedSub?.cancel();
     _profileUpdatedSub?.cancel();
     _postInteractedSub?.cancel();
+    _postDeletedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -181,12 +198,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
         PremiumAction(
+          icon: Icons.block_rounded,
+          label: AppLocalizations.of(context).blockedUsers,
+          color: const Color(0xFFFF9F0A),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const BlockedUsersScreen()),
+            );
+          },
+        ),
+        PremiumAction(
           icon: Icons.logout_rounded,
           label: AppLocalizations.of(context).logout,
           destructive: true,
           onTap: () {
             Navigator.pop(context);
             _confirmLogout();
+          },
+        ),
+        PremiumAction(
+          icon: Icons.person_remove_rounded,
+          label: AppLocalizations.of(context).deleteAccount,
+          destructive: true,
+          onTap: () {
+            Navigator.pop(context);
+            _confirmDeleteAccount();
           },
         ),
       ],
@@ -222,6 +261,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
       destructive: true,
     );
     if (confirm) await _authService.signOut();
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirm = await showPremiumConfirm(
+      context,
+      icon: Icons.person_remove_rounded,
+      title: AppLocalizations.of(context).deleteAccount,
+      message: AppLocalizations.of(context).deleteAccountConfirm,
+      confirmLabel: AppLocalizations.of(context).deleteAccount,
+      destructive: true,
+    );
+    if (confirm) {
+      try {
+        await _authService.deleteAccount();
+        if (mounted) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).deleteAccountSuccess,
+            kind: ToastKind.success,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).deleteAccountFailed(e.toString()),
+            kind: ToastKind.error,
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -274,6 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
@@ -574,7 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final col = Column(
       children: [
         Text(
-          count.toString(),
+          (count < 0 ? 0 : count).toString(),
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
         const SizedBox(height: 2),

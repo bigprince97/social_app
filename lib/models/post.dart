@@ -31,6 +31,26 @@ class Post {
     this.isLiked = false,
   });
 
+  static int _parseLikesCount(Map<String, dynamic> json) {
+    if (json['post_likes'] != null) {
+      final list = json['post_likes'] as List;
+      if (list.isNotEmpty && list.first is Map && (list.first as Map).containsKey('count')) {
+        return (list.first['count'] as int?) ?? 0;
+      }
+    }
+    return (json['likes_count'] as int?) ?? 0;
+  }
+
+  static int _parseCommentsCount(Map<String, dynamic> json) {
+    if (json['post_comments'] != null) {
+      final list = json['post_comments'] as List;
+      if (list.isNotEmpty && list.first is Map && (list.first as Map).containsKey('count')) {
+        return (list.first['count'] as int?) ?? 0;
+      }
+    }
+    return (json['comments_count'] as int?) ?? 0;
+  }
+
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: json['id'] as String,
         userId: json['user_id'] as String,
@@ -46,8 +66,8 @@ class Post {
                 .toList() ??
             [],
         scriptureQuote: json['scripture_quote'] as Map<String, dynamic>?,
-        likesCount: (json['likes_count'] as int?) ?? 0,
-        commentsCount: (json['comments_count'] as int?) ?? 0,
+        likesCount: _parseLikesCount(json),
+        commentsCount: _parseCommentsCount(json),
         createdAt: DateTime.parse(json['created_at'] as String),
         author: json['profiles'] != null
             ? Profile.fromJson(json['profiles'] as Map<String, dynamic>)

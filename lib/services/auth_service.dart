@@ -34,4 +34,33 @@ class AuthService {
   Future<void> signOut() async {
     await _client.auth.signOut();
   }
+
+  /// 忘记密码 - 第一步：发送重置验证码到邮箱。
+  /// (需 Supabase「Reset Password」邮件模板含 {{ .Token }} + SMTP 已配置)
+  Future<void> sendPasswordResetCode(String email) async {
+    await _client.auth.resetPasswordForEmail(email.trim());
+  }
+
+  /// 忘记密码 - 第二步：校验验证码并设置新密码。
+  Future<void> verifyResetAndUpdatePassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    // 用 recovery OTP 校验，成功后会建立临时会话
+    await _client.auth.verifyOTP(
+      email: email.trim(),
+      token: code.trim(),
+      type: OtpType.recovery,
+    );
+    // 更新密码
+    await _client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  Future<void> deleteAccount() async {
+    await _client.rpc('delete_current_user');
+    await signOut();
+  }
 }

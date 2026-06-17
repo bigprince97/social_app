@@ -4,14 +4,32 @@
   "conversationDeleted": "会話を削除しました",
   "noOneSharingCamera": "まだ誰もカメラをオンにしていません",
   "unblockConfirm": "{name}のブロックを解除しますか？相手は再びメッセージを送れます。",
-  "@unblockConfirm": { "placeholders": { "name": { "type": "Object" } } },
+  "@unblockConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "userUnblocked": "{name}のブロックを解除しました",
-  "@userUnblocked": { "placeholders": { "name": { "type": "Object" } } },
+  "@userUnblocked": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "downloadForOffline": "オフライン用にダウンロード",
   "downloadedOffline": "ダウンロード済み（オフライン閲覧可）",
   "downloadComplete": "ダウンロード完了、オフラインで閲覧可能",
   "downloadFailed": "ダウンロード失敗：{error}",
-  "@downloadFailed": { "placeholders": { "error": { "type": "Object" } } },
+  "@downloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatFiles": "チャットファイル",
   "addMembers": "メンバーを追加",
   "membersAdded": "メンバーを追加しました",
@@ -295,6 +313,8 @@
   "commentFailed": "コメントに失敗しました：{error}",
   "deletePost": "投稿を削除",
   "deletePostConfirm": "この投稿を削除しますか？この操作は取り消せません。",
+  "deleteComment": "コメントを削除",
+  "deleteCommentConfirm": "このコメントを削除しますか？この操作は取り消せません。",
   "unknownUser": "不明なユーザー",
   "searchHint": "ユーザー・投稿・聖書を検索...",
   "users": "ユーザー",
@@ -390,5 +410,52 @@
   "recordingTooShort": "録音が短すぎるため送信されませんでした",
   "onlineMembers": "オンラインメンバー",
   "me": "自分",
-  "hostLabel": "配信者"
+  "hostLabel": "配信者",
+  "deleteAccount": "アカウントを削除",
+  "deleteAccountConfirm": "アカウントを削除してもよろしいですか？この操作は取り消せません。削除すると、すべての投稿、コメント、メッセージ、およびプロフィールデータが永久に削除されます。",
+  "deleteAccountSuccess": "アカウントが削除されました。",
+  "deleteAccountFailed": "アカウント削除に失敗しました：{error}",
+  "@deleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "report": "通報",
+  "reportReason": "通報の理由を選択してください",
+  "reportReasonSpam": "スパムまたは広告",
+  "reportReasonHarassment": "嫌がらせやヘイトスピーチ",
+  "reportReasonObjectionable": "不適切または有害なコンテンツ",
+  "reportReasonViolence": "暴力または不穏な表現",
+  "reportReasonOther": "その他の問題",
+  "reportSuccess": "通報が送信されました。24時間以内に審査いたします。",
+  "reportFailed": "通報に失敗しました。後でもう一度お試しください。{error}",
+  "@reportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "eulaMustAgree": "先に利用規約とプライバシーポリシーに同意してください",
+  "agreeIntro": "以下に同意します：",
+  "userAgreement": "利用規約",
+  "privacyPolicy": "プライバシーポリシー",
+  "and": "と",
+  "blockedUsers": "ブロックしたユーザー",
+  "noBlockedUsers": "ブロックしたユーザーはいません",
+  "contentBlocked": "不適切な語句が含まれています。修正してください。",
+  "forgotPassword": "パスワードをお忘れですか？",
+  "resetPassword": "パスワードを再設定",
+  "resetEmailHint": "登録メールを入力",
+  "sendCode": "コードを送信",
+  "resendCode": "再送信",
+  "codeHint": "6桁のコード",
+  "newPasswordHint": "新しいパスワード（6文字以上）",
+  "resetCodeSent": "コードを送信しました。メールをご確認ください。",
+  "resetSuccess": "パスワードを再設定しました。新しいパスワードでログインしてください。",
+  "resetFailed": "再設定に失敗しました。コードを確認するか後でお試しください。",
+  "emailRequired": "メールを入力してください",
+  "codeRequired": "コードを入力してください"
 }

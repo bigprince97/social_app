@@ -4,14 +4,32 @@
   "conversationDeleted": "已删除对话",
   "noOneSharingCamera": "还没有人开启摄像头",
   "unblockConfirm": "确定取消拉黑「{name}」吗？取消后对方可以再次给你发消息。",
-  "@unblockConfirm": { "placeholders": { "name": { "type": "Object" } } },
+  "@unblockConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "userUnblocked": "已取消拉黑「{name}」",
-  "@userUnblocked": { "placeholders": { "name": { "type": "Object" } } },
+  "@userUnblocked": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "downloadForOffline": "下载离线",
   "downloadedOffline": "已下载，可离线阅读",
   "downloadComplete": "下载完成，可离线阅读",
   "downloadFailed": "下载失败：{error}",
-  "@downloadFailed": { "placeholders": { "error": { "type": "Object" } } },
+  "@downloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatFiles": "聊天文件",
   "addMembers": "添加成员",
   "membersAdded": "已添加成员",
@@ -577,6 +595,8 @@
   },
   "deletePost": "删除帖子",
   "deletePostConfirm": "确定要删除这条帖子吗？此操作无法撤销。",
+  "deleteComment": "删除评论",
+  "deleteCommentConfirm": "确定要删除这条评论吗？此操作无法撤销。",
   "unknownUser": "未知用户",
   "searchHint": "搜索用户、动态、经书...",
   "users": "用户",
@@ -779,5 +799,52 @@
   "recordingTooShort": "录音太短，未发送",
   "onlineMembers": "在线成员",
   "me": "我",
-  "hostLabel": "主播"
+  "hostLabel": "主播",
+  "deleteAccount": "注销账号",
+  "deleteAccountConfirm": "确定要注销账号吗？此操作无法撤销。注销后，您的所有帖子、评论、消息和个人资料都将被永久删除。",
+  "deleteAccountSuccess": "账号注销成功。",
+  "deleteAccountFailed": "注销失败：{error}",
+  "@deleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "report": "举报",
+  "reportReason": "选择举报原因",
+  "reportReasonSpam": "垃圾广告或营销",
+  "reportReasonHarassment": "骚扰或仇恨言论",
+  "reportReasonObjectionable": "不良或不当内容",
+  "reportReasonViolence": "暴力或血腥内容",
+  "reportReasonOther": "其他问题",
+  "reportSuccess": "举报成功，我们将在 24 小时内进行审核处理。",
+  "reportFailed": "举报失败，请稍后重试{error}",
+  "@reportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "eulaMustAgree": "请先阅读并同意用户协议与隐私政策",
+  "agreeIntro": "我已阅读并同意",
+  "userAgreement": "《用户协议》",
+  "privacyPolicy": "《隐私政策》",
+  "and": "和",
+  "blockedUsers": "拉黑用户",
+  "noBlockedUsers": "还没有拉黑任何人",
+  "contentBlocked": "内容含违规词，请修改后再发",
+  "forgotPassword": "忘记密码？",
+  "resetPassword": "重置密码",
+  "resetEmailHint": "输入注册邮箱",
+  "sendCode": "发送验证码",
+  "resendCode": "重新发送",
+  "codeHint": "6位验证码",
+  "newPasswordHint": "设置新密码（至少6位）",
+  "resetCodeSent": "验证码已发送，请查收邮箱",
+  "resetSuccess": "密码已重置，请用新密码登录",
+  "resetFailed": "重置失败，请检查验证码或稍后重试",
+  "emailRequired": "请输入邮箱",
+  "codeRequired": "请输入验证码"
 }

@@ -970,6 +970,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get deletePostConfirm => 'この投稿を削除しますか？この操作は取り消せません。';
 
   @override
+  String get deleteComment => 'コメントを削除';
+
+  @override
+  String get deleteCommentConfirm => 'このコメントを削除しますか？この操作は取り消せません。';
+
+  @override
   String get unknownUser => '不明なユーザー';
 
   @override
@@ -1288,4 +1294,108 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get hostLabel => '配信者';
+
+  @override
+  String get deleteAccount => 'アカウントを削除';
+
+  @override
+  String get deleteAccountConfirm =>
+      'アカウントを削除してもよろしいですか？この操作は取り消せません。削除すると、すべての投稿、コメント、メッセージ、およびプロフィールデータが永久に削除されます。';
+
+  @override
+  String get deleteAccountSuccess => 'アカウントが削除されました。';
+
+  @override
+  String deleteAccountFailed(Object error) {
+    return 'アカウント削除に失敗しました：$error';
+  }
+
+  @override
+  String get report => '通報';
+
+  @override
+  String get reportReason => '通報の理由を選択してください';
+
+  @override
+  String get reportReasonSpam => 'スパムまたは広告';
+
+  @override
+  String get reportReasonHarassment => '嫌がらせやヘイトスピーチ';
+
+  @override
+  String get reportReasonObjectionable => '不適切または有害なコンテンツ';
+
+  @override
+  String get reportReasonViolence => '暴力または不穏な表現';
+
+  @override
+  String get reportReasonOther => 'その他の問題';
+
+  @override
+  String get reportSuccess => '通報が送信されました。24時間以内に審査いたします。';
+
+  @override
+  String reportFailed(Object error) {
+    return '通報に失敗しました。後でもう一度お試しください。$error';
+  }
+
+  @override
+  String get eulaMustAgree => '先に利用規約とプライバシーポリシーに同意してください';
+
+  @override
+  String get agreeIntro => '以下に同意します：';
+
+  @override
+  String get userAgreement => '利用規約';
+
+  @override
+  String get privacyPolicy => 'プライバシーポリシー';
+
+  @override
+  String get and => 'と';
+
+  @override
+  String get blockedUsers => 'ブロックしたユーザー';
+
+  @override
+  String get noBlockedUsers => 'ブロックしたユーザーはいません';
+
+  @override
+  String get contentBlocked => '不適切な語句が含まれています。修正してください。';
+
+  @override
+  String get forgotPassword => 'パスワードをお忘れですか？';
+
+  @override
+  String get resetPassword => 'パスワードを再設定';
+
+  @override
+  String get resetEmailHint => '登録メールを入力';
+
+  @override
+  String get sendCode => 'コードを送信';
+
+  @override
+  String get resendCode => '再送信';
+
+  @override
+  String get codeHint => '6桁のコード';
+
+  @override
+  String get newPasswordHint => '新しいパスワード（6文字以上）';
+
+  @override
+  String get resetCodeSent => 'コードを送信しました。メールをご確認ください。';
+
+  @override
+  String get resetSuccess => 'パスワードを再設定しました。新しいパスワードでログインしてください。';
+
+  @override
+  String get resetFailed => '再設定に失敗しました。コードを確認するか後でお試しください。';
+
+  @override
+  String get emailRequired => 'メールを入力してください';
+
+  @override
+  String get codeRequired => 'コードを入力してください';
 }

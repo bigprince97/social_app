@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../models/post.dart';
 
 final _postCreatedController = StreamController<void>.broadcast();
 
@@ -12,8 +13,14 @@ Stream<void> get onProfileUpdated => _profileUpdatedController.stream;
 
 void notifyProfileUpdated() => _profileUpdatedController.add(null);
 
-final _postInteractedController = StreamController<void>.broadcast();
+final _postInteractedController = StreamController<Post>.broadcast();
 
-Stream<void> get onPostInteracted => _postInteractedController.stream;
+Stream<Post> get onPostInteracted => _postInteractedController.stream;
 
-void notifyPostInteracted() => _postInteractedController.add(null);
+void notifyPostInteracted(Post post) => _postInteractedController.add(post);
+
+final _postDeletedController = StreamController<String>.broadcast();
+
+Stream<String> get onPostDeleted => _postDeletedController.stream;
+
+void notifyPostDeleted(String postId) => _postDeletedController.add(postId);

@@ -117,6 +117,17 @@ void main() {
       expect(post.commentsCount, 0);
     });
 
+    test('parses dynamic relationship counts from post_likes and post_comments', () {
+      final json = Map<String, dynamic>.from(basePost)
+        ..remove('likes_count')
+        ..remove('comments_count')
+        ..['post_likes'] = [{'count': 5}]
+        ..['post_comments'] = [{'count': 12}];
+      final post = Post.fromJson(json);
+      expect(post.likesCount, 5);
+      expect(post.commentsCount, 12);
+    });
+
     test('parses nested profile author', () {
       final json = Map<String, dynamic>.from(basePost)
         ..['profiles'] = {

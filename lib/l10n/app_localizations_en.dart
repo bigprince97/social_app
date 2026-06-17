@@ -977,6 +977,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Delete this post? This action cannot be undone.';
 
   @override
+  String get deleteComment => 'Delete Comment';
+
+  @override
+  String get deleteCommentConfirm =>
+      'Delete this comment? This action cannot be undone.';
+
+  @override
   String get unknownUser => 'Unknown User';
 
   @override
@@ -1295,4 +1302,113 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hostLabel => 'Host';
+
+  @override
+  String get deleteAccount => 'Delete Account';
+
+  @override
+  String get deleteAccountConfirm =>
+      'Are you sure you want to delete your account? This action is permanent and cannot be undone. All your posts, comments, messages, and profile data will be deleted.';
+
+  @override
+  String get deleteAccountSuccess => 'Account deleted successfully.';
+
+  @override
+  String deleteAccountFailed(Object error) {
+    return 'Failed to delete account: $error';
+  }
+
+  @override
+  String get report => 'Report';
+
+  @override
+  String get reportReason => 'Select a reason to report';
+
+  @override
+  String get reportReasonSpam => 'Spam or advertisement';
+
+  @override
+  String get reportReasonHarassment => 'Harassment or hate speech';
+
+  @override
+  String get reportReasonObjectionable =>
+      'Objectionable or inappropriate content';
+
+  @override
+  String get reportReasonViolence => 'Violence or graphic content';
+
+  @override
+  String get reportReasonOther => 'Other issues';
+
+  @override
+  String get reportSuccess =>
+      'Content reported successfully. We will review it within 24 hours.';
+
+  @override
+  String reportFailed(Object error) {
+    return 'Report failed. Please try again later.$error';
+  }
+
+  @override
+  String get eulaMustAgree =>
+      'Please read and agree to the Terms and Privacy Policy first';
+
+  @override
+  String get agreeIntro => 'I have read and agree to the ';
+
+  @override
+  String get userAgreement => 'Terms of Service';
+
+  @override
+  String get privacyPolicy => 'Privacy Policy';
+
+  @override
+  String get and => ' and ';
+
+  @override
+  String get blockedUsers => 'Blocked Users';
+
+  @override
+  String get noBlockedUsers => 'No blocked users yet';
+
+  @override
+  String get contentBlocked =>
+      'Your content contains prohibited words. Please edit and try again.';
+
+  @override
+  String get forgotPassword => 'Forgot password?';
+
+  @override
+  String get resetPassword => 'Reset Password';
+
+  @override
+  String get resetEmailHint => 'Enter your email';
+
+  @override
+  String get sendCode => 'Send code';
+
+  @override
+  String get resendCode => 'Resend';
+
+  @override
+  String get codeHint => '6-digit code';
+
+  @override
+  String get newPasswordHint => 'New password (min 6 chars)';
+
+  @override
+  String get resetCodeSent => 'Code sent. Please check your email.';
+
+  @override
+  String get resetSuccess =>
+      'Password reset. Please sign in with the new password.';
+
+  @override
+  String get resetFailed => 'Reset failed. Check the code or try again later.';
+
+  @override
+  String get emailRequired => 'Please enter your email';
+
+  @override
+  String get codeRequired => 'Please enter the code';
 }

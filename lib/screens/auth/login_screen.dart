@@ -149,10 +149,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       loading: _loading,
                       onTap: _loading ? null : _login,
                     ),
-                    const SizedBox(height: 14),
-                    TextButton(
-                      onPressed: () => context.go('/register'),
-                      child: Text(AppLocalizations.of(context).noAccountRegisterNow),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () => context.go('/register'),
+                          child: Text(AppLocalizations.of(context)
+                              .noAccountRegisterNow),
+                        ),
+                        TextButton(
+                          onPressed: () => context.push('/forgot-password'),
+                          child: Text(
+                              AppLocalizations.of(context).forgotPassword),
+                        ),
+                      ],
                     ),
                   ],
                 ),

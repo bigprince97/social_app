@@ -4,14 +4,32 @@
   "conversationDeleted": "已刪除對話",
   "noOneSharingCamera": "還沒有人開啟攝像頭",
   "unblockConfirm": "確定取消封鎖「{name}」嗎？取消後對方可再次傳訊給你。",
-  "@unblockConfirm": { "placeholders": { "name": { "type": "Object" } } },
+  "@unblockConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "userUnblocked": "已取消封鎖「{name}」",
-  "@userUnblocked": { "placeholders": { "name": { "type": "Object" } } },
+  "@userUnblocked": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "downloadForOffline": "下載離線",
   "downloadedOffline": "已下載，可離線閱讀",
   "downloadComplete": "下載完成，可離線閱讀",
   "downloadFailed": "下載失敗：{error}",
-  "@downloadFailed": { "placeholders": { "error": { "type": "Object" } } },
+  "@downloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatFiles": "聊天檔案",
   "addMembers": "新增成員",
   "membersAdded": "已新增成員",
@@ -295,6 +313,8 @@
   "commentFailed": "留言失敗：{error}",
   "deletePost": "刪除貼文",
   "deletePostConfirm": "確定要刪除這則貼文嗎？此操作無法復原。",
+  "deleteComment": "刪除留言",
+  "deleteCommentConfirm": "確定要刪除這條留言嗎？此操作無法復原。",
   "unknownUser": "未知使用者",
   "searchHint": "搜尋使用者、動態、經書...",
   "users": "使用者",
@@ -390,5 +410,52 @@
   "recordingTooShort": "錄音太短，未傳送",
   "onlineMembers": "線上成員",
   "me": "我",
-  "hostLabel": "主播"
+  "hostLabel": "主播",
+  "deleteAccount": "註銷帳號",
+  "deleteAccountConfirm": "確定要註銷帳號嗎？此操作無法撤銷。註銷後，您的所有貼文、留言、訊息和個人資料都將被永久刪除。",
+  "deleteAccountSuccess": "帳號註銷成功。",
+  "deleteAccountFailed": "註銷失敗：{error}",
+  "@deleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "report": "檢舉",
+  "reportReason": "選擇檢舉原因",
+  "reportReasonSpam": "垃圾廣告或行銷",
+  "reportReasonHarassment": "骚扰或仇恨言論",
+  "reportReasonObjectionable": "不良或不當內容",
+  "reportReasonViolence": "暴力或血腥內容",
+  "reportReasonOther": "其他問題",
+  "reportSuccess": "檢舉成功，我們將在 24 小時內進行審核處理。",
+  "reportFailed": "檢舉失敗，請稍後重試{error}",
+  "@reportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "eulaMustAgree": "請先閱讀並同意用戶協議與隱私政策",
+  "agreeIntro": "我已閱讀並同意",
+  "userAgreement": "《用戶協議》",
+  "privacyPolicy": "《隱私政策》",
+  "and": "和",
+  "blockedUsers": "封鎖用戶",
+  "noBlockedUsers": "還沒有封鎖任何人",
+  "contentBlocked": "內容含違規詞，請修改後再發",
+  "forgotPassword": "忘記密碼？",
+  "resetPassword": "重設密碼",
+  "resetEmailHint": "輸入註冊郵箱",
+  "sendCode": "發送驗證碼",
+  "resendCode": "重新發送",
+  "codeHint": "6位驗證碼",
+  "newPasswordHint": "設定新密碼（至少6位）",
+  "resetCodeSent": "驗證碼已發送，請查收郵箱",
+  "resetSuccess": "密碼已重設，請用新密碼登入",
+  "resetFailed": "重設失敗，請檢查驗證碼或稍後重試",
+  "emailRequired": "請輸入郵箱",
+  "codeRequired": "請輸入驗證碼"
 }

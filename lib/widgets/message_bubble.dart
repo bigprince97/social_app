@@ -10,7 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/premium_toast.dart';
 import '../models/message.dart';
+import '../services/report_service.dart';
 import 'image_viewer.dart';
+import 'premium_action_sheet.dart';
 import 'video_player_widget.dart';
 
 // ─── Telegram-style palette ───────────────────────────────────────────────────
@@ -144,13 +146,11 @@ class MessageBubble extends StatelessWidget {
                     ),
 
                   // ── Action buttons ───────────────────────────────────
-                  if (isText || _canRecall)
+                  if (isText || _canRecall || !isMe)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                       child: Row(
-                        mainAxisAlignment: isText && _canRecall
-                            ? MainAxisAlignment.spaceEvenly
-                            : MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           if (isText)
                             _MenuActionBtn(
@@ -170,7 +170,7 @@ class MessageBubble extends StatelessWidget {
                                 );
                               },
                             ),
-                          if (isText && _canRecall)
+                          if (isText && (_canRecall || !isMe))
                             Container(width: 1, height: 40, color: divColor),
                           if (_canRecall && onDelete != null)
                             _MenuActionBtn(
@@ -181,6 +181,19 @@ class MessageBubble extends StatelessWidget {
                               onTap: () {
                                 Navigator.pop(context);
                                 onDelete?.call();
+                              },
+                            ),
+                          if (_canRecall && !isMe)
+                            Container(width: 1, height: 40, color: divColor),
+                          if (!isMe)
+                            _MenuActionBtn(
+                              icon: Icons.report_problem_outlined,
+                              label: AppLocalizations.of(context).report,
+                              color: const Color(0xFFFF9500),
+                              isDark: isDark,
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showReportMenu(context);
                               },
                             ),
                         ],
@@ -251,13 +264,88 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  void _showReportMenu(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    showPremiumActionSheet(
+      context,
+      title: t.reportReason,
+      actions: [
+        PremiumAction(
+          icon: Icons.announcement_outlined,
+          label: t.reportReasonSpam,
+          onTap: () {
+            Navigator.pop(context);
+            _reportMessage(context, t.reportReasonSpam);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.sentiment_very_dissatisfied_outlined,
+          label: t.reportReasonHarassment,
+          onTap: () {
+            Navigator.pop(context);
+            _reportMessage(context, t.reportReasonHarassment);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.gavel_outlined,
+          label: t.reportReasonObjectionable,
+          onTap: () {
+            Navigator.pop(context);
+            _reportMessage(context, t.reportReasonObjectionable);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.report_problem_outlined,
+          label: t.reportReasonViolence,
+          onTap: () {
+            Navigator.pop(context);
+            _reportMessage(context, t.reportReasonViolence);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.help_outline_rounded,
+          label: t.reportReasonOther,
+          onTap: () {
+            Navigator.pop(context);
+            _reportMessage(context, t.reportReasonOther);
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _reportMessage(BuildContext context, String reason) async {
+    try {
+      await ReportService().reportContent(
+        targetType: 'message',
+        targetId: message.id,
+        reason: reason,
+      );
+      if (context.mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportSuccess,
+          kind: ToastKind.success,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportFailed(''),
+          kind: ToastKind.error,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         if (showDateSeparator) _DateSeparator(date: message.createdAt),
         GestureDetector(
-          onLongPress: () => _showMenu(context),
+          onLongPress: message.isDeleted ? null : () => _showMenu(context),
           child: Padding(
             padding: EdgeInsets.only(
               left: isMe ? 56 : 8,

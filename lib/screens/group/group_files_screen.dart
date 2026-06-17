@@ -415,6 +415,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   // 文件夹（仅根目录显示）：聊天文件虚拟夹 + 真实文件夹
                   if (_currentFolderId == null &&

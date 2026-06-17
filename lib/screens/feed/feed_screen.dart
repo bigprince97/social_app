@@ -9,6 +9,8 @@ import 'package:video_player/video_player.dart';
 import '../../models/post.dart';
 import '../../services/event_bus.dart';
 import '../../services/post_service.dart';
+import '../../utils/content_filter.dart';
+import '../../widgets/premium_toast.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/post_card.dart';
@@ -182,7 +184,8 @@ class _PostListState extends State<_PostList>
   @override
   bool get wantKeepAlive => true;
 
-  StreamSubscription<void>? _interactedSub;
+  StreamSubscription<Post>? _interactedSub;
+  StreamSubscription<String>? _deletedSub;
 
   @override
   void initState() {
@@ -191,8 +194,22 @@ class _PostListState extends State<_PostList>
     _scrollController.addListener(_onScroll);
     _subscribeToNew();
     // 评论/点赞等互动后刷新列表，使评论数等即时更新
-    _interactedSub = onPostInteracted.listen((_) {
-      if (mounted) _loadPosts();
+    _interactedSub = onPostInteracted.listen((updatedPost) {
+      if (mounted) {
+        setState(() {
+          final index = _posts.indexWhere((p) => p.id == updatedPost.id);
+          if (index != -1) {
+            _posts[index] = updatedPost;
+          }
+        });
+      }
+    });
+    _deletedSub = onPostDeleted.listen((postId) {
+      if (mounted) {
+        setState(() {
+          _posts.removeWhere((p) => p.id == postId);
+        });
+      }
     });
   }
 
@@ -200,6 +217,7 @@ class _PostListState extends State<_PostList>
   void dispose() {
     _realtimeChannel?.unsubscribe();
     _interactedSub?.cancel();
+    _deletedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -233,8 +251,10 @@ class _PostListState extends State<_PostList>
     }
   }
 
-  Future<void> _loadPosts() async {
-    setState(() => _loading = true);
+  Future<void> _loadPosts({bool showFullLoading = true}) async {
+    if (showFullLoading) {
+      setState(() => _loading = true);
+    }
     try {
       final posts = await widget.loader(0);
       if (mounted) {
@@ -252,7 +272,9 @@ class _PostListState extends State<_PostList>
         showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && showFullLoading) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -267,6 +289,10 @@ class _PostListState extends State<_PostList>
           _hasMore = posts.length == 20;
         });
       }
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+      }
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -279,7 +305,7 @@ class _PostListState extends State<_PostList>
     return Stack(
       children: [
         RefreshIndicator(
-          onRefresh: _loadPosts,
+          onRefresh: () => _loadPosts(showFullLoading: false),
           child: _posts.isEmpty
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -296,6 +322,7 @@ class _PostListState extends State<_PostList>
                   ],
                 )
               : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   controller: _scrollController,
                   itemCount: _posts.length + (_loadingMore ? 1 : 0),
                   itemBuilder: (context, i) {
@@ -329,15 +356,14 @@ class _PostListState extends State<_PostList>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: Offset(0, 2))
-                    ],
-                  ),
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 8,
+                            offset: Offset(0, 2))
+                      ]),
                   child: Text(
                     AppLocalizations.of(context).newPostsNotification(_newPostCount),
                     style: const TextStyle(
@@ -372,21 +398,44 @@ class _TopicsTabState extends State<_TopicsTab> {
   List<Post> _topicPosts = [];
   bool _loadingPosts = false;
   final _postService = PostService();
+  StreamSubscription<Post>? _interactedSub;
+  StreamSubscription<String>? _deletedSub;
 
   @override
   void initState() {
     super.initState();
     _loadHotTopics();
+    _interactedSub = onPostInteracted.listen((updatedPost) {
+      if (mounted) {
+        setState(() {
+          final index = _topicPosts.indexWhere((p) => p.id == updatedPost.id);
+          if (index != -1) {
+            _topicPosts[index] = updatedPost;
+          }
+        });
+      }
+    });
+    _deletedSub = onPostDeleted.listen((postId) {
+      if (mounted) {
+        setState(() {
+          _topicPosts.removeWhere((p) => p.id == postId);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _interactedSub?.cancel();
+    _deletedSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadHotTopics() async {
-    setState(() => _loading = true);
+  Future<void> _loadHotTopics({bool showFullLoading = true}) async {
+    if (showFullLoading) {
+      setState(() => _loading = true);
+    }
     try {
       final data = await _client
           .from('posts')
@@ -410,7 +459,20 @@ class _TopicsTabState extends State<_TopicsTab> {
         setState(() => _hotTopics = sorted.take(30).map((e) => e.key).toList());
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && showFullLoading) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _refreshTopicPosts(String topic) async {
+    try {
+      final posts = await _postService.getPostsByTopic(topic);
+      if (mounted) setState(() => _topicPosts = posts);
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+      }
     }
   }
 
@@ -446,17 +508,31 @@ class _TopicsTabState extends State<_TopicsTab> {
           Expanded(
             child: _loadingPosts
                 ? const Center(child: CircularProgressIndicator())
-                : _topicPosts.isEmpty
-                    ? Center(child: Text(AppLocalizations.of(context).emptyTopicPosts))
-                    : ListView.builder(
-                        itemCount: _topicPosts.length,
-                        itemBuilder: (ctx, i) => PostCard(
-                          post: _topicPosts[i],
-                          onDeleted: () =>
-                              setState(() => _topicPosts.removeAt(i)),
-                          onTopicTap: _selectTopic,
-                        ),
-                      ),
+                : RefreshIndicator(
+                    onRefresh: () => _refreshTopicPosts(_selectedTopic!),
+                    child: _topicPosts.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: MediaQuery.of(context).size.height * 0.6,
+                                child: Center(
+                                  child: Text(AppLocalizations.of(context).emptyTopicPosts),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: _topicPosts.length,
+                            itemBuilder: (ctx, i) => PostCard(
+                              post: _topicPosts[i],
+                              onDeleted: () =>
+                                  setState(() => _topicPosts.removeAt(i)),
+                              onTopicTap: _selectTopic,
+                            ),
+                          ),
+                  ),
           ),
         ],
       );
@@ -483,33 +559,44 @@ class _TopicsTabState extends State<_TopicsTab> {
         ),
         if (_loading)
           const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (_hotTopics.isEmpty)
-          Expanded(child: Center(child: Text(AppLocalizations.of(context).emptyTopics)))
         else
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _loadHotTopics,
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  Text(AppLocalizations.of(context).hotTopics,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _hotTopics
-                        .map((t) => ActionChip(
-                              label: Text('#$t'),
-                              onPressed: () => _selectTopic(t),
-                            ))
-                        .toList(),
-                  ),
-                ],
-              ),
+              onRefresh: () => _loadHotTopics(showFullLoading: false),
+              child: _hotTopics.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: Center(
+                            child: Text(AppLocalizations.of(context).emptyTopics),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        Text(AppLocalizations.of(context).hotTopics,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _hotTopics
+                              .map((t) => ActionChip(
+                                    label: Text('#$t'),
+                                    onPressed: () => _selectTopic(t),
+                                  ))
+                              .toList(),
+                        ),
+                      ],
+                    ),
             ),
           ),
       ],
@@ -609,6 +696,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
     final content = _contentCtrl.text.trim();
     if (content.isEmpty && _images.isEmpty && _video == null &&
         widget.scriptureQuote == null) {
+      return;
+    }
+    if (ContentFilter.hasBanned(content)) {
+      showPremiumToast(context, AppLocalizations.of(context).contentBlocked,
+          kind: ToastKind.error);
       return;
     }
     setState(() => _loading = true);

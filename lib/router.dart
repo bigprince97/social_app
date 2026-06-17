@@ -6,6 +6,7 @@ import 'services/chat_service.dart';
 import 'models/scripture.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/feed/post_detail_screen.dart';
 import 'screens/home_screen.dart';
@@ -23,7 +24,8 @@ final router = GoRouter(
   redirect: (_, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final onAuth = state.matchedLocation == '/login' ||
-        state.matchedLocation == '/register';
+        state.matchedLocation == '/register' ||
+        state.matchedLocation == '/forgot-password';
     if (session == null && !onAuth) return '/login';
     if (session != null && onAuth) return '/';
     return null;
@@ -32,6 +34,9 @@ final router = GoRouter(
   routes: [
     GoRoute(path: '/login', builder: (ctx, s) => const LoginScreen()),
     GoRoute(path: '/register', builder: (ctx, s) => const RegisterScreen()),
+    GoRoute(
+        path: '/forgot-password',
+        builder: (ctx, s) => const ForgotPasswordScreen()),
     GoRoute(path: '/', builder: (ctx, s) => const HomeScreen()),
     GoRoute(
       path: '/post/:id',

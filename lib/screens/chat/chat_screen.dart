@@ -258,7 +258,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _hasMore = true;
     });
     try {
-      final msgs = await _chatService.getMessages(_conversation.id, page: 0);
+      // iOS 上偶发网络/实时连接半开会让请求永久挂起 → 转圈白屏。
+      // 加超时兜底：超时即停止 loading，显示空/已有消息而非一直转圈。
+      final msgs = await _chatService
+          .getMessages(_conversation.id, page: 0)
+          .timeout(const Duration(seconds: 12));
       if (!mounted) return;
       setState(() {
         _messages.clear();
@@ -266,6 +270,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (msgs.length < 50) _hasMore = false;
       });
       // reverse:true 列表初始即锚定 offset 0 = 底部 = 最新消息，无需手动滚动
+    } catch (_) {
+      // 超时/网络错误：不弹错(离线优雅降级)，仅停止 loading
     } finally {
       if (mounted) setState(() => _loading = false);
     }

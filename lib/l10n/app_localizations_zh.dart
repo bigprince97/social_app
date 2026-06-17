@@ -969,6 +969,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deletePostConfirm => '确定要删除这条帖子吗？此操作无法撤销。';
 
   @override
+  String get deleteComment => '删除评论';
+
+  @override
+  String get deleteCommentConfirm => '确定要删除这条评论吗？此操作无法撤销。';
+
+  @override
   String get unknownUser => '未知用户';
 
   @override
@@ -1287,6 +1293,110 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostLabel => '主播';
+
+  @override
+  String get deleteAccount => '注销账号';
+
+  @override
+  String get deleteAccountConfirm =>
+      '确定要注销账号吗？此操作无法撤销。注销后，您的所有帖子、评论、消息和个人资料都将被永久删除。';
+
+  @override
+  String get deleteAccountSuccess => '账号注销成功。';
+
+  @override
+  String deleteAccountFailed(Object error) {
+    return '注销失败：$error';
+  }
+
+  @override
+  String get report => '举报';
+
+  @override
+  String get reportReason => '选择举报原因';
+
+  @override
+  String get reportReasonSpam => '垃圾广告或营销';
+
+  @override
+  String get reportReasonHarassment => '骚扰或仇恨言论';
+
+  @override
+  String get reportReasonObjectionable => '不良或不当内容';
+
+  @override
+  String get reportReasonViolence => '暴力或血腥内容';
+
+  @override
+  String get reportReasonOther => '其他问题';
+
+  @override
+  String get reportSuccess => '举报成功，我们将在 24 小时内进行审核处理。';
+
+  @override
+  String reportFailed(Object error) {
+    return '举报失败，请稍后重试$error';
+  }
+
+  @override
+  String get eulaMustAgree => '请先阅读并同意用户协议与隐私政策';
+
+  @override
+  String get agreeIntro => '我已阅读并同意';
+
+  @override
+  String get userAgreement => '《用户协议》';
+
+  @override
+  String get privacyPolicy => '《隐私政策》';
+
+  @override
+  String get and => '和';
+
+  @override
+  String get blockedUsers => '拉黑用户';
+
+  @override
+  String get noBlockedUsers => '还没有拉黑任何人';
+
+  @override
+  String get contentBlocked => '内容含违规词，请修改后再发';
+
+  @override
+  String get forgotPassword => '忘记密码？';
+
+  @override
+  String get resetPassword => '重置密码';
+
+  @override
+  String get resetEmailHint => '输入注册邮箱';
+
+  @override
+  String get sendCode => '发送验证码';
+
+  @override
+  String get resendCode => '重新发送';
+
+  @override
+  String get codeHint => '6位验证码';
+
+  @override
+  String get newPasswordHint => '设置新密码（至少6位）';
+
+  @override
+  String get resetCodeSent => '验证码已发送，请查收邮箱';
+
+  @override
+  String get resetSuccess => '密码已重置，请用新密码登录';
+
+  @override
+  String get resetFailed => '重置失败，请检查验证码或稍后重试';
+
+  @override
+  String get emailRequired => '请输入邮箱';
+
+  @override
+  String get codeRequired => '请输入验证码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -2254,6 +2364,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get deletePostConfirm => '確定要刪除這則貼文嗎？此操作無法復原。';
 
   @override
+  String get deleteComment => '刪除留言';
+
+  @override
+  String get deleteCommentConfirm => '確定要刪除這條留言嗎？此操作無法復原。';
+
+  @override
   String get unknownUser => '未知使用者';
 
   @override
@@ -2572,4 +2688,108 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get hostLabel => '主播';
+
+  @override
+  String get deleteAccount => '註銷帳號';
+
+  @override
+  String get deleteAccountConfirm =>
+      '確定要註銷帳號嗎？此操作無法撤銷。註銷後，您的所有貼文、留言、訊息和個人資料都將被永久刪除。';
+
+  @override
+  String get deleteAccountSuccess => '帳號註銷成功。';
+
+  @override
+  String deleteAccountFailed(Object error) {
+    return '註銷失敗：$error';
+  }
+
+  @override
+  String get report => '檢舉';
+
+  @override
+  String get reportReason => '選擇檢舉原因';
+
+  @override
+  String get reportReasonSpam => '垃圾廣告或行銷';
+
+  @override
+  String get reportReasonHarassment => '骚扰或仇恨言論';
+
+  @override
+  String get reportReasonObjectionable => '不良或不當內容';
+
+  @override
+  String get reportReasonViolence => '暴力或血腥內容';
+
+  @override
+  String get reportReasonOther => '其他問題';
+
+  @override
+  String get reportSuccess => '檢舉成功，我們將在 24 小時內進行審核處理。';
+
+  @override
+  String reportFailed(Object error) {
+    return '檢舉失敗，請稍後重試$error';
+  }
+
+  @override
+  String get eulaMustAgree => '請先閱讀並同意用戶協議與隱私政策';
+
+  @override
+  String get agreeIntro => '我已閱讀並同意';
+
+  @override
+  String get userAgreement => '《用戶協議》';
+
+  @override
+  String get privacyPolicy => '《隱私政策》';
+
+  @override
+  String get and => '和';
+
+  @override
+  String get blockedUsers => '封鎖用戶';
+
+  @override
+  String get noBlockedUsers => '還沒有封鎖任何人';
+
+  @override
+  String get contentBlocked => '內容含違規詞，請修改後再發';
+
+  @override
+  String get forgotPassword => '忘記密碼？';
+
+  @override
+  String get resetPassword => '重設密碼';
+
+  @override
+  String get resetEmailHint => '輸入註冊郵箱';
+
+  @override
+  String get sendCode => '發送驗證碼';
+
+  @override
+  String get resendCode => '重新發送';
+
+  @override
+  String get codeHint => '6位驗證碼';
+
+  @override
+  String get newPasswordHint => '設定新密碼（至少6位）';
+
+  @override
+  String get resetCodeSent => '驗證碼已發送，請查收郵箱';
+
+  @override
+  String get resetSuccess => '密碼已重設，請用新密碼登入';
+
+  @override
+  String get resetFailed => '重設失敗，請檢查驗證碼或稍後重試';
+
+  @override
+  String get emailRequired => '請輸入郵箱';
+
+  @override
+  String get codeRequired => '請輸入驗證碼';
 }

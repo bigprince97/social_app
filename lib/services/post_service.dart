@@ -8,7 +8,7 @@ class PostService {
   Future<List<Post>> getFeedPosts({int page = 0, int limit = 20}) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
 
@@ -35,7 +35,7 @@ class PostService {
           if (topics.isNotEmpty) 'topics': topics,
           'scripture_quote': scriptureQuote,
         })
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .single();
     return Post.fromJson(data);
   }
@@ -44,7 +44,7 @@ class PostService {
       {int page = 0, int limit = 20}) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .contains('topics', [topic])
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
@@ -56,7 +56,7 @@ class PostService {
   Future<List<Post>> getHotPosts({int page = 0, int limit = 20}) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .order('likes_count', ascending: false)
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
@@ -85,22 +85,26 @@ class PostService {
   }
 
   Future<Post> getPostById(String postId) async {
-    final data = await _client
-        .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
-        .eq('id', postId)
-        .single();
-    final post = Post.fromJson(data);
     final userId = _client.auth.currentUser?.id;
-    if (userId != null) {
-      final like = await _client
-          .from('post_likes')
-          .select()
-          .eq('post_id', postId)
-          .eq('user_id', userId)
-          .maybeSingle();
-      post.isLiked = like != null;
-    }
+    final results = await Future.wait<dynamic>([
+      _client
+          .from('posts')
+          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .eq('id', postId)
+          .single(),
+      if (userId != null)
+        _client
+            .from('post_likes')
+            .select()
+            .eq('post_id', postId)
+            .eq('user_id', userId)
+            .maybeSingle()
+      else
+        Future<dynamic>.value(null),
+    ]);
+
+    final post = Post.fromJson(results[0] as Map<String, dynamic>);
+    post.isLiked = results[1] != null;
     return post;
   }
 
@@ -140,6 +144,10 @@ class PostService {
     return PostComment.fromJson(data);
   }
 
+  Future<void> deleteComment(String commentId) async {
+    await _client.from('post_comments').delete().eq('id', commentId);
+  }
+
   Future<List<Post>> getFollowingPosts({int page = 0, int limit = 20}) async {
     final userId = currentUserId;
     if (userId == null) return [];
@@ -151,7 +159,7 @@ class PostService {
     if (ids.isEmpty) return [];
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .inFilter('user_id', ids)
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
@@ -163,7 +171,7 @@ class PostService {
   Future<List<Post>> getUserPosts(String userId) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
+        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
         .eq('user_id', userId)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Post.fromJson(e)).toList();

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../settings/legal_screen.dart';
 import '../../widgets/premium_toast.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_style.dart';
@@ -20,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _authService = AuthService();
   bool _loading = false;
   bool _obscure = true;
+  bool _agreed = false;
 
   @override
   void dispose() {
@@ -31,6 +34,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_agreed) {
+      showPremiumToast(context, AppLocalizations.of(context).eulaMustAgree,
+          kind: ToastKind.info);
+      return;
+    }
     setState(() => _loading = true);
     try {
       await _authService.signUp(
@@ -140,7 +148,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (v) =>
                       v == null || v.length < 6 ? AppLocalizations.of(context).passwordTooShortError : null,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                // 同意条款勾选 + 协议链接（上架审核要求）
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: _agreed,
+                        onChanged: (v) => setState(() => _agreed = v ?? false),
+                        activeColor: const Color(0xFF9575CD),
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                                fontSize: 12.5, color: Color(0xFF6E6E73)),
+                            children: [
+                              TextSpan(
+                                  text: AppLocalizations.of(context).agreeIntro),
+                              TextSpan(
+                                text:
+                                    AppLocalizations.of(context).userAgreement,
+                                style: const TextStyle(
+                                    color: Color(0xFF9575CD),
+                                    fontWeight: FontWeight.w600),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) => const LegalScreen(
+                                              doc: LegalDoc.eula))),
+                              ),
+                              TextSpan(
+                                  text: AppLocalizations.of(context).and),
+                              TextSpan(
+                                text:
+                                    AppLocalizations.of(context).privacyPolicy,
+                                style: const TextStyle(
+                                    color: Color(0xFF9575CD),
+                                    fontWeight: FontWeight.w600),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) => const LegalScreen(
+                                              doc: LegalDoc.privacy))),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 PremiumButton(
                   label: AppLocalizations.of(context).register,
                   icon: Icons.person_add_alt_rounded,

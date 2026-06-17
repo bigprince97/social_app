@@ -114,7 +114,9 @@ class _ConversationsScreenState extends State<ConversationsScreen>
   Future<void> _loadConversations({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
-      final convs = await _chatService.getConversations();
+      final convs = await _chatService
+          .getConversations()
+          .timeout(const Duration(seconds: 12));
       if (mounted) setState(() => _conversations = convs);
     } catch (e) {
       if (mounted && !silent) {
@@ -196,6 +198,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                             ],
                           )
                         : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: filtered.length,
                             itemBuilder: (context, i) {
                               final conv = filtered[i];

@@ -58,22 +58,31 @@ class _FollowListScreenState extends State<FollowListScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: _list.isEmpty
-                  ? Center(
-                      child: Text(
-                        widget.type == FollowListType.followers
-                            ? AppLocalizations.of(context).noFollowers
-                            : AppLocalizations.of(context).noFollowing,
-                        style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withAlpha(120),
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.7,
+                        child: Center(
+                          child: Text(
+                            widget.type == FollowListType.followers
+                                ? AppLocalizations.of(context).noFollowers
+                                : AppLocalizations.of(context).noFollowing,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withAlpha(120),
+                            ),
+                          ),
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: _list.length,
-                      itemBuilder: (context, i) {
+                    ],
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: _list.length,
+                    itemBuilder: (context, i) {
                         final p = _list[i];
                         return ListTile(
                           leading: CircleAvatar(

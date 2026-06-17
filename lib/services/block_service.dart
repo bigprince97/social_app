@@ -1,7 +1,27 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/profile.dart';
 
 class BlockService {
   final _client = Supabase.instance.client;
+
+  /// 我拉黑的用户（含资料），用于「已拉黑用户」管理页。
+  Future<List<Profile>> getBlockedProfiles() async {
+    final me = _client.auth.currentUser?.id;
+    if (me == null) return [];
+    final rows = await _client
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', me)
+        .order('created_at', ascending: false);
+    final ids =
+        (rows as List).map((r) => r['blocked_id'] as String).toList();
+    if (ids.isEmpty) return [];
+    final profiles =
+        await _client.from('profiles').select().inFilter('id', ids);
+    return (profiles as List)
+        .map((e) => Profile.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
   Future<void> blockUser(String userId) async {
     final me = _client.auth.currentUser!.id;

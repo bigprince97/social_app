@@ -1853,6 +1853,18 @@ abstract class AppLocalizations {
   /// **'确定要删除这条帖子吗？此操作无法撤销。'**
   String get deletePostConfirm;
 
+  /// No description provided for @deleteComment.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除评论'**
+  String get deleteComment;
+
+  /// No description provided for @deleteCommentConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要删除这条评论吗？此操作无法撤销。'**
+  String get deleteCommentConfirm;
+
   /// No description provided for @unknownUser.
   ///
   /// In zh, this message translates to:
@@ -2432,6 +2444,204 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'主播'**
   String get hostLabel;
+
+  /// No description provided for @deleteAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'注销账号'**
+  String get deleteAccount;
+
+  /// No description provided for @deleteAccountConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要注销账号吗？此操作无法撤销。注销后，您的所有帖子、评论、消息和个人资料都将被永久删除。'**
+  String get deleteAccountConfirm;
+
+  /// No description provided for @deleteAccountSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号注销成功。'**
+  String get deleteAccountSuccess;
+
+  /// No description provided for @deleteAccountFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'注销失败：{error}'**
+  String deleteAccountFailed(Object error);
+
+  /// No description provided for @report.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报'**
+  String get report;
+
+  /// No description provided for @reportReason.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择举报原因'**
+  String get reportReason;
+
+  /// No description provided for @reportReasonSpam.
+  ///
+  /// In zh, this message translates to:
+  /// **'垃圾广告或营销'**
+  String get reportReasonSpam;
+
+  /// No description provided for @reportReasonHarassment.
+  ///
+  /// In zh, this message translates to:
+  /// **'骚扰或仇恨言论'**
+  String get reportReasonHarassment;
+
+  /// No description provided for @reportReasonObjectionable.
+  ///
+  /// In zh, this message translates to:
+  /// **'不良或不当内容'**
+  String get reportReasonObjectionable;
+
+  /// No description provided for @reportReasonViolence.
+  ///
+  /// In zh, this message translates to:
+  /// **'暴力或血腥内容'**
+  String get reportReasonViolence;
+
+  /// No description provided for @reportReasonOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他问题'**
+  String get reportReasonOther;
+
+  /// No description provided for @reportSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报成功，我们将在 24 小时内进行审核处理。'**
+  String get reportSuccess;
+
+  /// No description provided for @reportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报失败，请稍后重试{error}'**
+  String reportFailed(Object error);
+
+  /// No description provided for @eulaMustAgree.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先阅读并同意用户协议与隐私政策'**
+  String get eulaMustAgree;
+
+  /// No description provided for @agreeIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'我已阅读并同意'**
+  String get agreeIntro;
+
+  /// No description provided for @userAgreement.
+  ///
+  /// In zh, this message translates to:
+  /// **'《用户协议》'**
+  String get userAgreement;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In zh, this message translates to:
+  /// **'《隐私政策》'**
+  String get privacyPolicy;
+
+  /// No description provided for @and.
+  ///
+  /// In zh, this message translates to:
+  /// **'和'**
+  String get and;
+
+  /// No description provided for @blockedUsers.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑用户'**
+  String get blockedUsers;
+
+  /// No description provided for @noBlockedUsers.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有拉黑任何人'**
+  String get noBlockedUsers;
+
+  /// No description provided for @contentBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容含违规词，请修改后再发'**
+  String get contentBlocked;
+
+  /// No description provided for @forgotPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'忘记密码？'**
+  String get forgotPassword;
+
+  /// No description provided for @resetPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置密码'**
+  String get resetPassword;
+
+  /// No description provided for @resetEmailHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入注册邮箱'**
+  String get resetEmailHint;
+
+  /// No description provided for @sendCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送验证码'**
+  String get sendCode;
+
+  /// No description provided for @resendCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新发送'**
+  String get resendCode;
+
+  /// No description provided for @codeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'6位验证码'**
+  String get codeHint;
+
+  /// No description provided for @newPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置新密码（至少6位）'**
+  String get newPasswordHint;
+
+  /// No description provided for @resetCodeSent.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码已发送，请查收邮箱'**
+  String get resetCodeSent;
+
+  /// No description provided for @resetSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码已重置，请用新密码登录'**
+  String get resetSuccess;
+
+  /// No description provided for @resetFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置失败，请检查验证码或稍后重试'**
+  String get resetFailed;
+
+  /// No description provided for @emailRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入邮箱'**
+  String get emailRequired;
+
+  /// No description provided for @codeRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入验证码'**
+  String get codeRequired;
 }
 
 class _AppLocalizationsDelegate

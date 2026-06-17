@@ -4,14 +4,32 @@
   "conversationDeleted": "Chat deleted",
   "noOneSharingCamera": "No one has turned on their camera yet",
   "unblockConfirm": "Unblock {name}? They will be able to message you again.",
-  "@unblockConfirm": { "placeholders": { "name": { "type": "Object" } } },
+  "@unblockConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "userUnblocked": "Unblocked {name}",
-  "@userUnblocked": { "placeholders": { "name": { "type": "Object" } } },
+  "@userUnblocked": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
   "downloadForOffline": "Download for offline",
   "downloadedOffline": "Downloaded for offline reading",
   "downloadComplete": "Download complete, available offline",
   "downloadFailed": "Download failed: {error}",
-  "@downloadFailed": { "placeholders": { "error": { "type": "Object" } } },
+  "@downloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatFiles": "Chat files",
   "addMembers": "Add members",
   "membersAdded": "Members added",
@@ -295,6 +313,8 @@
   "commentFailed": "Comment failed: {error}",
   "deletePost": "Delete Post",
   "deletePostConfirm": "Delete this post? This action cannot be undone.",
+  "deleteComment": "Delete Comment",
+  "deleteCommentConfirm": "Delete this comment? This action cannot be undone.",
   "unknownUser": "Unknown User",
   "searchHint": "Search users, posts, scriptures...",
   "users": "Users",
@@ -390,5 +410,52 @@
   "recordingTooShort": "Recording too short, not sent",
   "onlineMembers": "Online Members",
   "me": "Me",
-  "hostLabel": "Host"
+  "hostLabel": "Host",
+  "deleteAccount": "Delete Account",
+  "deleteAccountConfirm": "Are you sure you want to delete your account? This action is permanent and cannot be undone. All your posts, comments, messages, and profile data will be deleted.",
+  "deleteAccountSuccess": "Account deleted successfully.",
+  "deleteAccountFailed": "Failed to delete account: {error}",
+  "@deleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "report": "Report",
+  "reportReason": "Select a reason to report",
+  "reportReasonSpam": "Spam or advertisement",
+  "reportReasonHarassment": "Harassment or hate speech",
+  "reportReasonObjectionable": "Objectionable or inappropriate content",
+  "reportReasonViolence": "Violence or graphic content",
+  "reportReasonOther": "Other issues",
+  "reportSuccess": "Content reported successfully. We will review it within 24 hours.",
+  "reportFailed": "Report failed. Please try again later.{error}",
+  "@reportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "eulaMustAgree": "Please read and agree to the Terms and Privacy Policy first",
+  "agreeIntro": "I have read and agree to the ",
+  "userAgreement": "Terms of Service",
+  "privacyPolicy": "Privacy Policy",
+  "and": " and ",
+  "blockedUsers": "Blocked Users",
+  "noBlockedUsers": "No blocked users yet",
+  "contentBlocked": "Your content contains prohibited words. Please edit and try again.",
+  "forgotPassword": "Forgot password?",
+  "resetPassword": "Reset Password",
+  "resetEmailHint": "Enter your email",
+  "sendCode": "Send code",
+  "resendCode": "Resend",
+  "codeHint": "6-digit code",
+  "newPasswordHint": "New password (min 6 chars)",
+  "resetCodeSent": "Code sent. Please check your email.",
+  "resetSuccess": "Password reset. Please sign in with the new password.",
+  "resetFailed": "Reset failed. Check the code or try again later.",
+  "emailRequired": "Please enter your email",
+  "codeRequired": "Please enter the code"
 }

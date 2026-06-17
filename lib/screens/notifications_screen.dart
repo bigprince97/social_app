@@ -72,6 +72,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ],
                     )
                   : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: _notifications.length,
                       separatorBuilder: (_, i) => const Divider(height: 1),
                       itemBuilder: (context, i) {

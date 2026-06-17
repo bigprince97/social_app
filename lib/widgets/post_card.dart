@@ -7,9 +7,11 @@ import '../l10n/app_localizations.dart';
 import '../models/post.dart';
 import '../services/event_bus.dart';
 import '../services/post_service.dart';
+import '../services/report_service.dart';
 import '../theme/app_style.dart';
 import 'image_viewer.dart';
 import 'premium_action_sheet.dart';
+import 'premium_toast.dart';
 import 'video_player_widget.dart';
 
 // ─── Instagram / premium style PostCard ──────────────────────────────────────
@@ -80,12 +82,14 @@ class _PostCardState extends State<PostCard>
       } else {
         await _postService.unlikePost(widget.post.id);
       }
-      notifyPostInteracted();
+      notifyPostInteracted(widget.post.copyWith(isLiked: _isLiked, likesCount: _likesCount));
     } catch (_) {
-      setState(() {
-        _isLiked = !_isLiked;
-        _likesCount += _isLiked ? 1 : -1;
-      });
+      if (mounted) {
+        setState(() {
+          _isLiked = !_isLiked;
+          _likesCount += _isLiked ? 1 : -1;
+        });
+      }
     }
   }
 
@@ -100,7 +104,85 @@ class _PostCardState extends State<PostCard>
     );
     if (!ok) return;
     await _postService.deletePost(widget.post.id);
-    widget.onDeleted?.call();
+    notifyPostDeleted(widget.post.id);
+    if (mounted) {
+      widget.onDeleted?.call();
+    }
+  }
+
+  void _showReportMenu() {
+    final t = AppLocalizations.of(context);
+    showPremiumActionSheet(
+      context,
+      title: t.reportReason,
+      actions: [
+        PremiumAction(
+          icon: Icons.announcement_outlined,
+          label: t.reportReasonSpam,
+          onTap: () {
+            Navigator.pop(context);
+            _reportPost(t.reportReasonSpam);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.sentiment_very_dissatisfied_outlined,
+          label: t.reportReasonHarassment,
+          onTap: () {
+            Navigator.pop(context);
+            _reportPost(t.reportReasonHarassment);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.gavel_outlined,
+          label: t.reportReasonObjectionable,
+          onTap: () {
+            Navigator.pop(context);
+            _reportPost(t.reportReasonObjectionable);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.report_problem_outlined,
+          label: t.reportReasonViolence,
+          onTap: () {
+            Navigator.pop(context);
+            _reportPost(t.reportReasonViolence);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.help_outline_rounded,
+          label: t.reportReasonOther,
+          onTap: () {
+            Navigator.pop(context);
+            _reportPost(t.reportReasonOther);
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _reportPost(String reason) async {
+    try {
+      await ReportService().reportContent(
+        targetType: 'post',
+        targetId: widget.post.id,
+        reason: reason,
+      );
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportSuccess,
+          kind: ToastKind.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportFailed(''),
+          kind: ToastKind.error,
+        );
+      }
+    }
   }
 
   @override
@@ -176,12 +258,12 @@ class _PostCardState extends State<PostCard>
                       fontSize: 11.5,
                       color: Colors.grey.shade500),
                 ),
-                if (_isOwn)
-                  IconButton(
-                    icon: const Icon(Icons.more_horiz, size: 20),
-                    onPressed: () => showPremiumActionSheet(
-                      context,
-                      actions: [
+                IconButton(
+                  icon: const Icon(Icons.more_horiz, size: 20),
+                  onPressed: () => showPremiumActionSheet(
+                    context,
+                    actions: [
+                      if (_isOwn)
                         PremiumAction(
                           icon: Icons.delete_outline_rounded,
                           label: AppLocalizations.of(context).delete,
@@ -190,12 +272,20 @@ class _PostCardState extends State<PostCard>
                             Navigator.pop(context);
                             _delete();
                           },
+                        )
+                      else
+                        PremiumAction(
+                          icon: Icons.report_problem_outlined,
+                          label: AppLocalizations.of(context).report,
+                          destructive: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showReportMenu();
+                          },
                         ),
-                      ],
-                    ),
-                  )
-                else
-                  const SizedBox(width: 8),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
