@@ -41,7 +41,11 @@ class _PostCardState extends State<PostCard>
   late int _likesCount;
   late bool _isBookmarked;
   final _postService = PostService();
-  late final bool _isOwn;
+  // 用 getter 实时计算，避免列表复用 State 后归属判断错乱
+  bool get _isOwn {
+    final myId = _postService.currentUserId;
+    return myId != null && myId == widget.post.userId;
+  }
 
   // Heart animation
   late final AnimationController _heartCtrl;
@@ -53,8 +57,6 @@ class _PostCardState extends State<PostCard>
     _isLiked = widget.post.isLiked;
     _likesCount = widget.post.likesCount;
     _isBookmarked = widget.post.isBookmarked;
-    final myId = _postService.currentUserId;
-    _isOwn = myId != null && myId == widget.post.userId;
 
     _heartCtrl = AnimationController(
       vsync: this,
