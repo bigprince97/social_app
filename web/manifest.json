@@ -1,6 +1,6 @@
 {
-    "name": "social_app",
-    "short_name": "social_app",
+    "name": "Omega",
+    "short_name": "Omega",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

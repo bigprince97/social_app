@@ -80,7 +80,7 @@ class _SocialAppState extends State<SocialApp> {
       valueListenable: LocaleController.instance.locale,
       builder: (context, locale, _) {
         return MaterialApp.router(
-          title: '教会社群',
+          title: 'Omega',
           debugShowCheckedModeBanner: false,
           localizationsDelegates: const [
             AppLocalizations.delegate,

@@ -492,7 +492,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _buildStat(
                         AppLocalizations.of(context).posts,
                         _profile!.postsCount,
-                        onTap: null,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MyPostsScreen(userId: widget.userId),
+                          ),
+                        ),
                       ),
                       _buildStat(
                         AppLocalizations.of(context).followers,
