@@ -576,6 +576,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myBookmarks => 'My Bookmarks';
 
   @override
+  String get savedPosts => 'Saved';
+
+  @override
+  String get bookmarkTabScripture => 'Scripture';
+
+  @override
+  String get bookmarkTabPosts => 'Posts';
+
+  @override
+  String get noSavedPosts => 'No saved posts yet';
+
+  @override
   String get myPosts => 'My Posts';
 
   @override
@@ -1095,7 +1107,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accept => 'Accept';
 
   @override
-  String get appName => 'Church Community';
+  String get appName => 'Omega';
 
   @override
   String get appTagline => 'Timeless classics, built together';
@@ -1120,6 +1132,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noAccountRegisterNow => 'Don\'t have an account? Sign up now';
+
+  @override
+  String get networkError =>
+      'Network error, please check your connection and try again';
+
+  @override
+  String get loginFailedGeneric => 'Incorrect email or password';
 
   @override
   String loginFailed(Object error) {
@@ -1411,4 +1430,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get codeRequired => 'Please enter the code';
+
+  @override
+  String get verifyEmailTitle => 'Verify email';
+
+  @override
+  String verifyEmailHint(Object email) {
+    return 'We sent a verification code to $email. Enter the code from the email to finish signing up.';
+  }
+
+  @override
+  String get verifyEmailButton => 'Finish sign up';
+
+  @override
+  String get verifyEmailSuccess => 'Email verified, welcome aboard';
+
+  @override
+  String get verifyEmailFailed =>
+      'Verification failed. Check the code or try again later';
 }

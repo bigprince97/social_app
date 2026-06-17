@@ -7,6 +7,7 @@ import 'models/scripture.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/verify_email_screen.dart';
 import 'screens/chat/chat_screen.dart';
 import 'screens/feed/post_detail_screen.dart';
 import 'screens/home_screen.dart';
@@ -25,7 +26,8 @@ final router = GoRouter(
     final session = Supabase.instance.client.auth.currentSession;
     final onAuth = state.matchedLocation == '/login' ||
         state.matchedLocation == '/register' ||
-        state.matchedLocation == '/forgot-password';
+        state.matchedLocation == '/forgot-password' ||
+        state.matchedLocation == '/verify-email';
     if (session == null && !onAuth) return '/login';
     if (session != null && onAuth) return '/';
     return null;
@@ -37,6 +39,10 @@ final router = GoRouter(
     GoRoute(
         path: '/forgot-password',
         builder: (ctx, s) => const ForgotPasswordScreen()),
+    GoRoute(
+        path: '/verify-email',
+        builder: (ctx, s) =>
+            VerifyEmailScreen(email: (s.extra as String?) ?? '')),
     GoRoute(path: '/', builder: (ctx, s) => const HomeScreen()),
     GoRoute(
       path: '/post/:id',

@@ -14,6 +14,7 @@ class Post {
   final DateTime createdAt;
   final Profile? author;
   bool isLiked;
+  bool isBookmarked;
 
   Post({
     required this.id,
@@ -29,6 +30,7 @@ class Post {
     required this.createdAt,
     this.author,
     this.isLiked = false,
+    this.isBookmarked = false,
   });
 
   static int _parseLikesCount(Map<String, dynamic> json) {
@@ -74,7 +76,7 @@ class Post {
             : null,
       );
 
-  Post copyWith({int? likesCount, int? commentsCount, bool? isLiked}) => Post(
+  Post copyWith({int? likesCount, int? commentsCount, bool? isLiked, bool? isBookmarked}) => Post(
     id: id, userId: userId, content: content,
     imageUrls: imageUrls, videoUrl: videoUrl, audioUrl: audioUrl,
     topics: topics, scriptureQuote: scriptureQuote,
@@ -82,6 +84,7 @@ class Post {
     commentsCount: commentsCount ?? this.commentsCount,
     createdAt: createdAt, author: author,
     isLiked: isLiked ?? this.isLiked,
+    isBookmarked: isBookmarked ?? this.isBookmarked,
   );
 }
 

@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/premium_toast.dart';
 import '../../theme/app_style.dart';
+import '../../utils/auth_error.dart';
 
 /// 忘记密码：输入邮箱 → 收验证码 → 输验证码+新密码 → 重置。
 class ForgotPasswordScreen extends StatefulWidget {
@@ -57,9 +58,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _codeSent = true);
       _startCooldown();
       showPremiumToast(context, l.resetCodeSent, kind: ToastKind.success);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        showPremiumToast(context, l.resetFailed, kind: ToastKind.error);
+        showPremiumToast(context, isNetworkError(e) ? l.networkError : l.resetFailed,
+            kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -88,9 +90,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       showPremiumToast(context, l.resetSuccess, kind: ToastKind.success);
       context.go('/login');
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        showPremiumToast(context, l.resetFailed, kind: ToastKind.error);
+        showPremiumToast(context, isNetworkError(e) ? l.networkError : l.resetFailed,
+            kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

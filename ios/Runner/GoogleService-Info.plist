@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.zoven.socialapp</string>
+	<string>com.zoven.omega</string>
 	<key>PROJECT_ID</key>
 	<string>omega-6c05a</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:387100034743:ios:4618e551e5133e0074af32</string>
+	<string>1:387100034743:ios:c5d70d980acf003574af32</string>
 </dict>
 </plist>

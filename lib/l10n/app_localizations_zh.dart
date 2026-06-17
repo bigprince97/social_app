@@ -573,6 +573,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get myBookmarks => '我的书签';
 
   @override
+  String get savedPosts => '我的收藏';
+
+  @override
+  String get bookmarkTabScripture => '经书';
+
+  @override
+  String get bookmarkTabPosts => '帖子';
+
+  @override
+  String get noSavedPosts => '还没有收藏的帖子';
+
+  @override
   String get myPosts => '我的发帖';
 
   @override
@@ -1086,7 +1098,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accept => '接听';
 
   @override
-  String get appName => '教会社群';
+  String get appName => 'Omega';
 
   @override
   String get appTagline => '经典传承，社区共建';
@@ -1111,6 +1123,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noAccountRegisterNow => '还没有账号？立即注册';
+
+  @override
+  String get networkError => '网络连接失败，请检查网络后重试';
+
+  @override
+  String get loginFailedGeneric => '邮箱或密码错误';
 
   @override
   String loginFailed(Object error) {
@@ -1397,6 +1415,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get codeRequired => '请输入验证码';
+
+  @override
+  String get verifyEmailTitle => '验证邮箱';
+
+  @override
+  String verifyEmailHint(Object email) {
+    return '我们已向 $email 发送了一封验证码邮件，请输入邮件中的验证码完成注册。';
+  }
+
+  @override
+  String get verifyEmailButton => '完成注册';
+
+  @override
+  String get verifyEmailSuccess => '邮箱验证成功，欢迎加入';
+
+  @override
+  String get verifyEmailFailed => '验证失败，请检查验证码或稍后重试';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -1968,6 +2003,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get myBookmarks => '我的書籤';
 
   @override
+  String get savedPosts => '我的收藏';
+
+  @override
+  String get bookmarkTabScripture => '經書';
+
+  @override
+  String get bookmarkTabPosts => '貼文';
+
+  @override
+  String get noSavedPosts => '還沒有收藏的貼文';
+
+  @override
   String get myPosts => '我的發帖';
 
   @override
@@ -2481,7 +2528,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get accept => '接聽';
 
   @override
-  String get appName => '教會社群';
+  String get appName => 'Omega';
 
   @override
   String get appTagline => '經典傳承，社群共建';
@@ -2506,6 +2553,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get noAccountRegisterNow => '還沒有帳號？立即註冊';
+
+  @override
+  String get networkError => '網路連線失敗，請檢查網路後重試';
+
+  @override
+  String get loginFailedGeneric => '信箱或密碼錯誤';
 
   @override
   String loginFailed(Object error) {
@@ -2792,4 +2845,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get codeRequired => '請輸入驗證碼';
+
+  @override
+  String get verifyEmailTitle => '驗證信箱';
+
+  @override
+  String verifyEmailHint(Object email) {
+    return '我們已向 $email 發送了一封驗證碼郵件，請輸入郵件中的驗證碼完成註冊。';
+  }
+
+  @override
+  String get verifyEmailButton => '完成註冊';
+
+  @override
+  String get verifyEmailSuccess => '信箱驗證成功，歡迎加入';
+
+  @override
+  String get verifyEmailFailed => '驗證失敗，請檢查驗證碼或稍後重試';
 }

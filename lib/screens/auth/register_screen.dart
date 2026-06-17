@@ -41,12 +41,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     setState(() => _loading = true);
     try {
+      final email = _emailCtrl.text.trim();
       await _authService.signUp(
         name: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
+        email: email,
         password: _passwordCtrl.text,
       );
-      if (mounted) context.go('/');
+      // 注册成功 → 进入邮箱验证码页面（开启 Confirm email 后此时尚无会话）
+      if (mounted) context.push('/verify-email', extra: email);
     } catch (e) {
       if (mounted) {
         showPremiumToast(context, AppLocalizations.of(context).registerFailed(''), kind: ToastKind.error);
@@ -90,9 +92,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: Colors.white,
                           fontSize: 26,
                           fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(AppLocalizations.of(context).appTagline,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
               ),
             ),

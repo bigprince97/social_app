@@ -574,6 +574,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get myBookmarks => 'マイブックマーク';
 
   @override
+  String get savedPosts => '保存済み';
+
+  @override
+  String get bookmarkTabScripture => '聖典';
+
+  @override
+  String get bookmarkTabPosts => '投稿';
+
+  @override
+  String get noSavedPosts => '保存した投稿はまだありません';
+
+  @override
   String get myPosts => '自分の投稿';
 
   @override
@@ -1087,7 +1099,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accept => '応答';
 
   @override
-  String get appName => '教会コミュニティ';
+  String get appName => 'Omega';
 
   @override
   String get appTagline => '古典を受け継ぎ、ともに築く';
@@ -1112,6 +1124,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get noAccountRegisterNow => 'アカウントをお持ちでない方は今すぐ登録';
+
+  @override
+  String get networkError => 'ネットワークエラーです。接続を確認して再試行してください';
+
+  @override
+  String get loginFailedGeneric => 'メールまたはパスワードが正しくありません';
 
   @override
   String loginFailed(Object error) {
@@ -1398,4 +1416,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get codeRequired => 'コードを入力してください';
+
+  @override
+  String get verifyEmailTitle => 'メール認証';
+
+  @override
+  String verifyEmailHint(Object email) {
+    return '$email に認証コードを送信しました。メール内のコードを入力して登録を完了してください。';
+  }
+
+  @override
+  String get verifyEmailButton => '登録を完了';
+
+  @override
+  String get verifyEmailSuccess => 'メール認証が完了しました。ようこそ';
+
+  @override
+  String get verifyEmailFailed => '認証に失敗しました。コードを確認するか後でもう一度お試しください';
 }

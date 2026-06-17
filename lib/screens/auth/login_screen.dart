@@ -4,6 +4,7 @@ import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_style.dart';
+import '../../utils/auth_error.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,7 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).loginFailed(e.toString()), kind: ToastKind.error);
+        final l = AppLocalizations.of(context);
+        showPremiumToast(
+            context, isNetworkError(e) ? l.networkError : l.loginFailedGeneric,
+            kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -85,12 +89,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppLocalizations.of(context).appTagline,
-                    style: TextStyle(
-                        color: Colors.white.withAlpha(200), fontSize: 13),
                   ),
                 ],
               ),

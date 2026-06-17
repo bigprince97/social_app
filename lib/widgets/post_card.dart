@@ -39,6 +39,7 @@ class _PostCardState extends State<PostCard>
     with SingleTickerProviderStateMixin {
   late bool _isLiked;
   late int _likesCount;
+  late bool _isBookmarked;
   final _postService = PostService();
   late final bool _isOwn;
 
@@ -51,6 +52,7 @@ class _PostCardState extends State<PostCard>
     super.initState();
     _isLiked = widget.post.isLiked;
     _likesCount = widget.post.likesCount;
+    _isBookmarked = widget.post.isBookmarked;
     final myId = _postService.currentUserId;
     _isOwn = myId != null && myId == widget.post.userId;
 
@@ -62,6 +64,20 @@ class _PostCardState extends State<PostCard>
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 50),
     ]).animate(CurvedAnimation(parent: _heartCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 列表刷新/跨页同步后 post 数据变了，同步本地点赞状态，避免显示旧值
+    if (widget.post.id != oldWidget.post.id ||
+        widget.post.isLiked != _isLiked ||
+        widget.post.likesCount != _likesCount ||
+        widget.post.isBookmarked != _isBookmarked) {
+      _isLiked = widget.post.isLiked;
+      _likesCount = widget.post.likesCount;
+      _isBookmarked = widget.post.isBookmarked;
+    }
   }
 
   @override
@@ -90,6 +106,20 @@ class _PostCardState extends State<PostCard>
           _likesCount += _isLiked ? 1 : -1;
         });
       }
+    }
+  }
+
+  Future<void> _toggleBookmark() async {
+    setState(() => _isBookmarked = !_isBookmarked);
+    try {
+      if (_isBookmarked) {
+        await _postService.bookmarkPost(widget.post.id);
+      } else {
+        await _postService.unbookmarkPost(widget.post.id);
+      }
+      notifyPostInteracted(widget.post.copyWith(isBookmarked: _isBookmarked));
+    } catch (_) {
+      if (mounted) setState(() => _isBookmarked = !_isBookmarked);
     }
   }
 
@@ -367,10 +397,25 @@ class _PostCardState extends State<PostCard>
                   onTap: () => context.push('/post/${widget.post.id}'),
                 ),
                 const Spacer(),
-                // Bookmark (visual only, premium feel)
-                Icon(Icons.bookmark_border_rounded,
-                    size: 21, color: Colors.grey.shade500),
-                const SizedBox(width: 8),
+                // Bookmark
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _toggleBookmark,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    child: Icon(
+                      _isBookmarked
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      size: 22,
+                      color: _isBookmarked
+                          ? AppStyle.brand
+                          : Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
               ],
             ),
           ),

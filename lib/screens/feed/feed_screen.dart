@@ -75,8 +75,7 @@ class _FeedScreenState extends State<FeedScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
+          isScrollable: false,
           labelColor: AppStyle.brand,
           unselectedLabelColor: Colors.grey.shade500,
           labelStyle:

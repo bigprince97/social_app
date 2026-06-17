@@ -1133,6 +1133,30 @@ abstract class AppLocalizations {
   /// **'我的书签'**
   String get myBookmarks;
 
+  /// No description provided for @savedPosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的收藏'**
+  String get savedPosts;
+
+  /// No description provided for @bookmarkTabScripture.
+  ///
+  /// In zh, this message translates to:
+  /// **'经书'**
+  String get bookmarkTabScripture;
+
+  /// No description provided for @bookmarkTabPosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子'**
+  String get bookmarkTabPosts;
+
+  /// No description provided for @noSavedPosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有收藏的帖子'**
+  String get noSavedPosts;
+
   /// No description provided for @myPosts.
   ///
   /// In zh, this message translates to:
@@ -2078,7 +2102,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In zh, this message translates to:
-  /// **'教会社群'**
+  /// **'Omega'**
   String get appName;
 
   /// No description provided for @appTagline.
@@ -2128,6 +2152,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'还没有账号？立即注册'**
   String get noAccountRegisterNow;
+
+  /// No description provided for @networkError.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络连接失败，请检查网络后重试'**
+  String get networkError;
+
+  /// No description provided for @loginFailedGeneric.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱或密码错误'**
+  String get loginFailedGeneric;
 
   /// No description provided for @loginFailed.
   ///
@@ -2642,6 +2678,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'请输入验证码'**
   String get codeRequired;
+
+  /// No description provided for @verifyEmailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证邮箱'**
+  String get verifyEmailTitle;
+
+  /// No description provided for @verifyEmailHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'我们已向 {email} 发送了一封验证码邮件，请输入邮件中的验证码完成注册。'**
+  String verifyEmailHint(Object email);
+
+  /// No description provided for @verifyEmailButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成注册'**
+  String get verifyEmailButton;
+
+  /// No description provided for @verifyEmailSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱验证成功，欢迎加入'**
+  String get verifyEmailSuccess;
+
+  /// No description provided for @verifyEmailFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证失败，请检查验证码或稍后重试'**
+  String get verifyEmailFailed;
 }
 
 class _AppLocalizationsDelegate
