@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
+import '../services/local_cache.dart';
 import '../services/active_conversation.dart';
 import '../services/call_service.dart';
 import '../services/chat_service.dart';
@@ -75,12 +76,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _handlingCall = true;
 
     final navigator = Navigator.of(context, rootNavigator: true);
+    // 监听该通话状态：主叫取消/超时(变为 ended/missed/declined) → 自动关闭来电界面。
+    // 被叫自己接听会先置 accepted=true，避免误关已替换的通话页。
+    bool accepted = false;
+    bool closedByStatus = false;
+    final statusCh = _callService.subscribeToCallStatus(call.id, (status) {
+      if (status == 'ringing' || accepted) return;
+      if (!closedByStatus && navigator.canPop()) {
+        closedByStatus = true;
+        navigator.pop(); // 关闭来电界面
+      }
+    });
     await navigator.push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => IncomingCallScreen(
           call: call,
           onAccept: () async {
+            accepted = true;
             try {
               await _callService.acceptCall(call.id);
               final tokenData = await _callService.getLiveKitToken(
@@ -111,12 +124,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             } catch (e) {
               if (navigator.canPop()) navigator.pop();
               if (mounted) {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).acceptCallFailed(e.toString()))));
+                showErrorIfNotNetwork(context, e, AppLocalizations.of(context).acceptCallFailed(e.toString()));
               }
             }
           },
           onDecline: () async {
+            accepted = true; // 阻止状态回调重复 pop
             try {
               await _callService.declineCall(call.id);
             } catch (_) {}
@@ -125,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+    statusCh.unsubscribe();
     _handlingCall = false;
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/local_cache.dart';
 import '../../models/scripture.dart';
 import '../../services/scripture_service.dart';
 import '../../theme/app_style.dart';
@@ -31,9 +32,8 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       final list = await _service.getMyBookmarks();
       if (mounted) setState(() => _bookmarks = list);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).loadFailed('$e'))));
+      if (mounted && !isNetworkError(e)) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed('$e'));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

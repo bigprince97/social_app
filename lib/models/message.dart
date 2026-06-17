@@ -51,6 +51,10 @@ class Message {
     if (messageType == 'file') return '[文件]';
     if (messageType == 'audio') return '[语音]';
     if (messageType == 'scripture') return '[经文引用]';
+    if (messageType == 'call') {
+      final video = payload?['call_type'] == 'video';
+      return video ? '[视频通话]' : '[语音通话]';
+    }
     return content ?? '';
   }
 }

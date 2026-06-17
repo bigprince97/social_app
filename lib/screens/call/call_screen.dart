@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 import '../../services/call_service.dart';
 
 class CallScreen extends StatefulWidget {
@@ -33,6 +34,8 @@ class _CallScreenState extends State<CallScreen> {
   RealtimeChannel? _statusChannel;
   String _status = 'ringing';
   bool _ended = false;
+  DateTime? _connectedAt; // 首次接通(对方进房)时刻，用于算时长
+  bool _callLogged = false;
 
   final List<RemoteParticipant> _remoteParticipants = [];
 
@@ -61,12 +64,17 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> _connect() async {
     _listener = _room.createListener()
       ..on<ParticipantConnectedEvent>((e) {
+        _connectedAt ??= DateTime.now();
         if (mounted) setState(() => _remoteParticipants.add(e.participant));
       })
       ..on<ParticipantDisconnectedEvent>((e) {
         if (mounted) {
           setState(() => _remoteParticipants
               .removeWhere((p) => p.sid == e.participant.sid));
+        }
+        // 1对1通话：曾接通后对方离开房间 → 本端立即挂断退出，保持状态一致
+        if (!_ended && _connectedAt != null && _remoteParticipants.isEmpty) {
+          _hangUp(remote: true);
         }
       })
       // 视频轨道订阅后刷新，确保对方画面到达即渲染
@@ -96,12 +104,12 @@ class _CallScreenState extends State<CallScreen> {
               _remoteParticipants.add(p);
             }
           }
+          if (_remoteParticipants.isNotEmpty) _connectedAt ??= DateTime.now();
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(AppLocalizations.of(context).connectionFailed('$e'))));
+        showPremiumToast(context, AppLocalizations.of(context).connectionFailed('$e'), kind: ToastKind.error);
         Navigator.pop(context);
       }
     }
@@ -121,9 +129,36 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
+  /// 仅主叫方在通话结束时写一条通话记录消息，避免双方各插一条。
+  void _logCallIfCaller() {
+    if (_callLogged) return;
+    _callLogged = true;
+    final myId = Supabase.instance.client.auth.currentUser?.id;
+    if (myId != widget.call.callerId) return;
+    String status;
+    int duration = 0;
+    if (_connectedAt != null) {
+      status = 'ended';
+      duration = DateTime.now().difference(_connectedAt!).inSeconds;
+    } else if (_status == 'declined') {
+      status = 'declined';
+    } else if (_status == 'ringing') {
+      status = 'canceled'; // 主叫在接通前挂断
+    } else {
+      status = 'missed';
+    }
+    _callService.logCall(
+      conversationId: widget.call.conversationId,
+      callType: widget.call.callType,
+      status: status,
+      durationSecs: duration,
+    );
+  }
+
   Future<void> _hangUp({bool remote = false}) async {
     if (_ended) return;
     _ended = true;
+    _logCallIfCaller();
     _statusChannel?.unsubscribe();
     // 先退页面再收尾，web 端 disconnect 可能挂起导致按钮卡死
     if (mounted) Navigator.pop(context);
@@ -146,6 +181,7 @@ class _CallScreenState extends State<CallScreen> {
   void dispose() {
     // 兜底：页面以任何方式销毁都确保 call 收尾，防僵尸状态
     if (!_ended) {
+      _logCallIfCaller();
       _callService.endCall(widget.call.id).catchError((_) {});
     }
     _listener?.dispose();

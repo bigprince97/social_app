@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
+import '../../services/local_cache.dart';
 import '../../models/scripture.dart';
 import '../../services/locale_controller.dart';
 import '../../services/scripture_service.dart';
+import '../../services/scripture_download_service.dart';
 import '../../utils/bible_books.dart';
 import '../../widgets/premium_action_sheet.dart';
 
@@ -54,9 +57,8 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).loadFailed('$e'))));
+      if (mounted && !isNetworkError(e)) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed('$e'));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -175,6 +177,9 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
       // Title only shown in collapsed (pinned) state
       title: Text(s.title,
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      actions: [
+        ScriptureDownloadButton(scriptureId: s.id, color: Colors.white),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         // No title here — avoids overlap with background content
         background: Container(
@@ -429,6 +434,10 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
         ),
         centerTitle: true,
         actions: [
+          ScriptureDownloadButton(
+            scriptureId: widget.scripture.id,
+            color: Colors.white,
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onPressed: () {
@@ -903,6 +912,105 @@ class _DefaultContents extends StatelessWidget {
         },
         childCount: chapters.length,
       ),
+    );
+  }
+}
+
+/// 经书下载按钮：未下载→下载图标；下载中→进度圈；已下载→对勾
+class ScriptureDownloadButton extends StatefulWidget {
+  final String scriptureId;
+  final Color color;
+  const ScriptureDownloadButton({
+    super.key,
+    required this.scriptureId,
+    this.color = Colors.white,
+  });
+
+  @override
+  State<ScriptureDownloadButton> createState() =>
+      _ScriptureDownloadButtonState();
+}
+
+class _ScriptureDownloadButtonState extends State<ScriptureDownloadButton> {
+  final _svc = ScriptureDownloadService.instance;
+  bool _downloaded = false;
+  bool _downloading = false;
+  double _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final d = await _svc.isDownloaded(widget.scriptureId);
+    if (mounted) setState(() => _downloaded = d);
+  }
+
+  Future<void> _start() async {
+    if (_downloading) return;
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+    });
+    final t = AppLocalizations.of(context);
+    try {
+      await _svc.download(
+        widget.scriptureId,
+        onProgress: (done, total) {
+          if (mounted && total > 0) {
+            setState(() => _progress = done / total);
+          }
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _downloaded = true;
+          _downloading = false;
+        });
+        showPremiumToast(context, t.downloadComplete, kind: ToastKind.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _downloading = false);
+        showPremiumToast(context, t.downloadFailed(e.toString()), kind: ToastKind.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_downloading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              value: _progress == 0 ? null : _progress,
+              color: widget.color,
+              backgroundColor: widget.color.withAlpha(60),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_downloaded) {
+      return IconButton(
+        icon: Icon(Icons.download_done_rounded, color: widget.color),
+        tooltip: AppLocalizations.of(context).downloadedOffline,
+        onPressed: () => showPremiumToast(
+            context, AppLocalizations.of(context).downloadedOffline,
+            kind: ToastKind.info),
+      );
+    }
+    return IconButton(
+      icon: Icon(Icons.download_rounded, color: widget.color),
+      tooltip: AppLocalizations.of(context).downloadForOffline,
+      onPressed: _start,
     );
   }
 }

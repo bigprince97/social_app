@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/local_cache.dart';
 import '../../models/scripture.dart';
 import '../../services/scripture_service.dart';
 
@@ -45,9 +46,9 @@ class _ScriptureListScreenState extends State<ScriptureListScreen> {
       final list = await _service.getScripturesByCategory(widget.category);
       if (mounted) setState(() => _scriptures = list);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).loadFailed('$e'))));
+      // 离线/网络错误不弹红色报错，仅静默（页面显示空状态）
+      if (mounted && !isNetworkError(e)) {
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed('$e'));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

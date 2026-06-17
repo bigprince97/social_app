@@ -254,7 +254,6 @@ class _UserTile extends StatelessWidget {
       ),
       title: Text(profile.displayName,
           style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text('@${profile.username}'),
       trailing: Text(
         AppLocalizations.of(context).followerCount(profile.followersCount),
         style: Theme.of(context).textTheme.bodySmall,

@@ -9,6 +9,54 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get deleteConversation => '删除对话';
+
+  @override
+  String get deleteConversationConfirm => '确定删除此对话吗？仅从你的列表移除，不影响对方。';
+
+  @override
+  String get conversationDeleted => '已删除对话';
+
+  @override
+  String get noOneSharingCamera => '还没有人开启摄像头';
+
+  @override
+  String unblockConfirm(Object name) {
+    return '确定取消拉黑「$name」吗？取消后对方可以再次给你发消息。';
+  }
+
+  @override
+  String userUnblocked(Object name) {
+    return '已取消拉黑「$name」';
+  }
+
+  @override
+  String get downloadForOffline => '下载离线';
+
+  @override
+  String get downloadedOffline => '已下载，可离线阅读';
+
+  @override
+  String get downloadComplete => '下载完成，可离线阅读';
+
+  @override
+  String downloadFailed(Object error) {
+    return '下载失败：$error';
+  }
+
+  @override
+  String get chatFiles => '聊天文件';
+
+  @override
+  String get addMembers => '添加成员';
+
+  @override
+  String get membersAdded => '已添加成员';
+
+  @override
+  String get searchUserHint => '搜索用户名或昵称';
+
+  @override
   String loadFailed(Object error) {
     return '加载失败：$error';
   }
@@ -350,6 +398,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get admin => '管理员';
 
   @override
+  String get groupOwner => '群主';
+
+  @override
   String createFailed(Object error) {
     return '新建失败：$error';
   }
@@ -377,6 +428,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get createFolder => '新建文件夹';
+
+  @override
+  String get uploadFile => '上传文件';
 
   @override
   String get renameFolder => '重命名文件夹';
@@ -519,6 +573,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get myBookmarks => '我的书签';
 
   @override
+  String get myPosts => '我的发帖';
+
+  @override
   String get lastReading => '上次阅读';
 
   @override
@@ -570,7 +627,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get editProfile => '编辑资料';
 
   @override
-  String get languageSettings => '语言 / Language';
+  String get languageSettings => '切换语言';
 
   @override
   String get logout => '退出登录';
@@ -713,6 +770,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String sendFailed(Object error) {
     return '发送失败：$error';
   }
+
+  @override
+  String get blockedCannotSend => '对方已将你拉黑，消息无法送达';
 
   @override
   String get microphonePermissionRequired => '需要麦克风权限才能录音';
@@ -1234,6 +1294,54 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
 
   @override
+  String get deleteConversation => '刪除對話';
+
+  @override
+  String get deleteConversationConfirm => '確定刪除此對話嗎？僅從你的列表移除，不影響對方。';
+
+  @override
+  String get conversationDeleted => '已刪除對話';
+
+  @override
+  String get noOneSharingCamera => '還沒有人開啟攝像頭';
+
+  @override
+  String unblockConfirm(Object name) {
+    return '確定取消封鎖「$name」嗎？取消後對方可再次傳訊給你。';
+  }
+
+  @override
+  String userUnblocked(Object name) {
+    return '已取消封鎖「$name」';
+  }
+
+  @override
+  String get downloadForOffline => '下載離線';
+
+  @override
+  String get downloadedOffline => '已下載，可離線閱讀';
+
+  @override
+  String get downloadComplete => '下載完成，可離線閱讀';
+
+  @override
+  String downloadFailed(Object error) {
+    return '下載失敗：$error';
+  }
+
+  @override
+  String get chatFiles => '聊天檔案';
+
+  @override
+  String get addMembers => '新增成員';
+
+  @override
+  String get membersAdded => '已新增成員';
+
+  @override
+  String get searchUserHint => '搜尋使用者名稱或暱稱';
+
+  @override
   String loadFailed(Object error) {
     return '載入失敗：$error';
   }
@@ -1575,6 +1683,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get admin => '管理員';
 
   @override
+  String get groupOwner => '群主';
+
+  @override
   String createFailed(Object error) {
     return '新增失敗：$error';
   }
@@ -1602,6 +1713,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get createFolder => '新增資料夾';
+
+  @override
+  String get uploadFile => '上傳檔案';
 
   @override
   String get renameFolder => '重新命名資料夾';
@@ -1744,6 +1858,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get myBookmarks => '我的書籤';
 
   @override
+  String get myPosts => '我的發帖';
+
+  @override
   String get lastReading => '上次閱讀';
 
   @override
@@ -1795,7 +1912,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get editProfile => '編輯資料';
 
   @override
-  String get languageSettings => '語言 / Language';
+  String get languageSettings => '切換語言';
 
   @override
   String get logout => '登出';
@@ -1938,6 +2055,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String sendFailed(Object error) {
     return '傳送失敗：$error';
   }
+
+  @override
+  String get blockedCannotSend => '對方已將你封鎖，訊息無法送達';
 
   @override
   String get microphonePermissionRequired => '需要麥克風權限才能錄音';

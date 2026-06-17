@@ -21,7 +21,9 @@ import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/message_bubble.dart';
 import '../../widgets/premium_action_sheet.dart';
+import '../../widgets/premium_toast.dart';
 import '../../services/active_conversation.dart';
+import '../../services/local_cache.dart';
 import '../call/call_screen.dart';
 import '../call/livestream_screen.dart';
 import '../group/group_info_screen.dart';
@@ -62,6 +64,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // read receipts
   DateTime? _otherLastReadAt;
 
+  // 直聊：对方是否已被我拉黑（用于菜单显示 拉黑/取消拉黑）
+  bool _isOtherBlocked = false;
+
   // voice recording state
   bool _recording = false;
   int _recordSeconds = 0; // 仅驱动录音条 UI 计时显示
@@ -73,6 +78,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _showMentionPicker = false;
   String _mentionQuery = '';
   final List<String> _mentionedUserIds = [];
+
+  // 群主=会话创建者；管理员=role admin（群主含管理员权限）。
+  // 只有群主/管理员能开关直播。
+  bool get _canManageGroup {
+    if (_conversation.createdBy == _currentUserId) return true;
+    final me = _conversation.members
+        .where((m) => m.userId == _currentUserId)
+        .firstOrNull;
+    return me?.role == 'admin';
+  }
 
   // Group member display names for @mention highlight
   List<String> get _memberDisplayNames => _conversation.members
@@ -101,6 +116,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _conversation = widget.conversation;
     ActiveConversation.enter(_conversation.id);
     _computeOtherLastRead();
+    _loadBlockState();
     _loadMessages();
     _subscribeToMessages();
     _subscribeToMessageUpdates();
@@ -127,7 +143,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final tokenData = await _callService.getLiveKitToken(
         room: live.livekitRoom!,
-        canPublish: false, // 观众
+        canPublish: true, // 观众也可连麦（开麦/开视频），默认进来不推流
       );
       if (!mounted) return;
       Navigator.push(
@@ -144,11 +160,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).joinLivestreamFailed(e)),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).joinLivestreamFailed(e), kind: ToastKind.error);
       }
     }
   }
@@ -288,6 +300,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _subscribeToMessages() {
     _msgChannel = _chatService.subscribeToMessages(_conversation.id, (msg) {
       if (!mounted) return;
+      // 仅进群文件、不在聊天显示的文件跳过
+      if (msg.payload?['files_only'] == true) return;
       // Deduplicate: ignore if we already have this message (REST/local race)
       if (_messages.any((m) => m.id == msg.id)) return;
       // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
@@ -358,14 +372,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-        );
+        _showSendError(e);
         _inputCtrl.text = content;
       }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  // 发送失败提示：被对方拉黑(RLS 42501)→明确提示；网络/离线→静默不弹错
+  void _showSendError(Object e) {
+    final s = e.toString();
+    if (s.contains('42501') || s.contains('row-level security')) {
+      showPremiumToast(context, AppLocalizations.of(context).blockedCannotSend,
+          kind: ToastKind.block);
+      return;
+    }
+    showErrorIfNotNetwork(
+      context,
+      e,
+      AppLocalizations.of(context).sendFailed(e),
+    );
   }
 
   // ─── @mention picker ────────────────────────────────────────────────────
@@ -404,13 +431,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).microphonePermissionRequired,
-            ),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).microphonePermissionRequired, kind: ToastKind.info);
       }
       return;
     }
@@ -419,13 +440,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _recorder.stop();
     }
     final dir = await getTemporaryDirectory();
-    // 用 Opus(ogg 容器)：media3 走软件解码器，跨设备最稳；体积小。
-    // （此前 aacLc 在部分 Samsung 设备上硬解 MediaCodecAudioRenderer 报错无法播放。）
+    // 编码器按平台分：
+    // - iOS：AVAudioRecorder 不支持 Opus，必须用 aacLc(.m4a)，否则录音直接失败。
+    // - Android：用 Opus(.ogg) 走 media3 软解，跨设备最稳；
+    //   （aacLc 在部分 Samsung 设备硬解 MediaCodecAudioRenderer 报错无法播放。）
+    final useOpus = !Platform.isIOS;
+    final ext = useOpus ? 'ogg' : 'm4a';
+    final encoder = useOpus ? AudioEncoder.opus : AudioEncoder.aacLc;
     _recordingPath =
-        '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.ogg';
+        '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.$ext';
     await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.opus,
+      RecordConfig(
+        encoder: encoder,
         bitRate: 32000,
         sampleRate: 48000,
         numChannels: 1,
@@ -460,11 +486,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (durMs < 500) {
       // 太短：明确提示，不再静默丢弃
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).recordingTooShort),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).recordingTooShort, kind: ToastKind.info);
       }
       return;
     }
@@ -485,9 +507,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-        );
+        _showSendError(e);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -521,9 +541,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-          );
+          _showSendError(e);
         }
       } finally {
         if (mounted) setState(() => _sending = false);
@@ -694,9 +712,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-        );
+        _showSendError(e);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -720,9 +736,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-        );
+        _showSendError(e);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -758,9 +772,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).sendFailed(e))),
-        );
+        _showSendError(e);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -807,7 +819,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         canPublish: true,
       );
       if (mounted) {
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => CallScreen(
@@ -818,18 +830,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
         );
+        // 通话结束返回后刷新一次，确保通话记录立即出现（不依赖 realtime 延迟）
+        if (mounted) _reloadLatestMessages();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).callStartFailed(e.toString()),
-            ),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).callStartFailed(e.toString()), kind: ToastKind.error);
       }
     }
+  }
+
+  /// 拉取最新消息并并入列表（去重），用于通话结束等场景即时刷新
+  Future<void> _reloadLatestMessages() async {
+    try {
+      final msgs = await _chatService.getMessages(_conversation.id);
+      if (!mounted) return;
+      final existing = _messages.map((m) => m.id).toSet();
+      final fresh = msgs.where((m) =>
+          !existing.contains(m.id) && m.payload?['files_only'] != true);
+      if (fresh.isEmpty) return;
+      setState(() => _messages.addAll(fresh));
+      _scrollToBottom();
+    } catch (_) {}
   }
 
   Future<void> _startLivestream() async {
@@ -859,13 +881,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).livestreamStartFailed(e.toString()),
-            ),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).livestreamStartFailed(e.toString()), kind: ToastKind.error);
       }
     }
   }
@@ -900,24 +916,51 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ─── Group actions ───────────────────────────────────────────────────────
 
+  Future<void> _loadBlockState() async {
+    if (_conversation.type != 'direct') return;
+    final other = _conversation.members
+        .where((m) => m.userId != _currentUserId)
+        .firstOrNull;
+    if (other == null) return;
+    try {
+      final blocked = await _blockService.isBlocked(other.userId);
+      if (mounted) setState(() => _isOtherBlocked = blocked);
+    } catch (_) {}
+  }
+
   void _showBlockDialog(String otherUserId, String otherName) async {
+    final t = AppLocalizations.of(context);
+    if (_isOtherBlocked) {
+      // 已拉黑 → 取消拉黑
+      final confirm = await showPremiumConfirm(
+        context,
+        icon: Icons.lock_open_rounded,
+        title: t.unblock,
+        message: t.unblockConfirm(otherName),
+        confirmLabel: t.unblock,
+      );
+      if (!confirm) return;
+      await _blockService.unblockUser(otherUserId);
+      if (mounted) {
+        setState(() => _isOtherBlocked = false);
+        showPremiumToast(context, t.userUnblocked(otherName),
+            kind: ToastKind.success);
+      }
+      return;
+    }
     final confirm = await showPremiumConfirm(
       context,
       icon: Icons.block_rounded,
-      title: AppLocalizations.of(context).blockUserTitle,
-      message: AppLocalizations.of(context).blockUserConfirm2(otherName),
-      confirmLabel: AppLocalizations.of(context).block,
+      title: t.blockUserTitle,
+      message: t.blockUserConfirm2(otherName),
+      confirmLabel: t.block,
       destructive: true,
     );
     if (!confirm) return;
     await _blockService.blockUser(otherUserId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).userBlocked2(otherName)),
-        ),
-      );
-      Navigator.pop(context);
+      setState(() => _isOtherBlocked = true);
+      showPremiumToast(context, t.userBlocked2(otherName), kind: ToastKind.block);
     }
   }
 
@@ -1050,13 +1093,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
             IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),
-              onPressed: () => showPremiumActionSheet(
+              onPressed: () async {
+                // 打开菜单前实时查一次真实拉黑状态，避免 initState 异步竞态
+                // 或入口数据不全导致菜单一直显示「拉黑」
+                try {
+                  final blocked =
+                      await _blockService.isBlocked(otherMember.userId);
+                  if (mounted) setState(() => _isOtherBlocked = blocked);
+                } catch (_) {}
+                if (!mounted) return;
+                showPremiumActionSheet(
                 context,
                 actions: [
                   PremiumAction(
-                    icon: Icons.block_rounded,
-                    label: AppLocalizations.of(context).block,
-                    destructive: true,
+                    icon: _isOtherBlocked
+                        ? Icons.lock_open_rounded
+                        : Icons.block_rounded,
+                    label: _isOtherBlocked
+                        ? AppLocalizations.of(context).unblock
+                        : AppLocalizations.of(context).block,
+                    destructive: !_isOtherBlocked,
                     onTap: () {
                       Navigator.pop(context);
                       _showBlockDialog(
@@ -1067,15 +1123,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     },
                   ),
                 ],
-              ),
+              );
+              },
             ),
           ],
           if (isGroup) ...[
-            IconButton(
-              icon: const Icon(Icons.live_tv_outlined, color: Colors.white),
-              tooltip: AppLocalizations.of(context).startLivestream,
-              onPressed: _startLivestream,
-            ),
+            // 仅群主/管理员可开直播
+            if (_canManageGroup)
+              IconButton(
+                icon: const Icon(Icons.live_tv_outlined, color: Colors.white),
+                tooltip: AppLocalizations.of(context).startLivestream,
+                onPressed: _startLivestream,
+              ),
             IconButton(
               icon: const Icon(Icons.info_outline, color: Colors.white),
               onPressed: _openGroupInfo,
@@ -1198,7 +1257,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
           Expanded(
-            child: _loading
+            // 点消息区空白处收起键盘（iOS 点输入框后无法收回的修复）
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _messages.isEmpty
                 ? Center(
@@ -1223,6 +1286,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     // 倒序列表（工业标准）：i=0 在底部=最新消息，
                     // 进入聊天天然锚定最新；加载更多的转圈在顶部。
                     reverse: true,
+                    // 列表滚动/下拉时自动收起键盘（iOS 尤其需要）
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.symmetric(
                       vertical: 8,
                       horizontal: 0,
@@ -1248,7 +1314,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       final isMe = msg.senderId == _currentUserId;
                       // 时间上更早的相邻消息（用于日期分隔/头像分组）
                       final prev = msgIdx > 0 ? _messages[msgIdx - 1] : null;
-                      final showAvatar =
+                      // 群聊收到的每条消息都显示头像（同一人连发三条→三个头像）
+                      final showAvatar = isGroup && !isMe;
+                      // 昵称只在连发的第一条显示，避免重复
+                      final showSenderName =
                           isGroup &&
                           !isMe &&
                           (prev == null || prev.senderId != msg.senderId);
@@ -1265,9 +1334,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           prevDate.month != curDate.month ||
                           prevDate.day != curDate.day;
                       return MessageBubble(
+                        // 按消息 id 锚定，防止 reverse 列表插入新消息时
+                        // Flutter 按位置复用 State，导致音频气泡时长/播放器串台
+                        key: ValueKey(msg.id),
                         message: msg,
                         isMe: isMe,
                         showAvatar: showAvatar,
+                        showSenderName: showSenderName,
                         isRead: isRead,
                         showDateSeparator: showSep,
                         groupMemberNames: _memberDisplayNames,
@@ -1276,6 +1349,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
+            ),
           ),
           // @mention suggestion strip
           if (_showMentionPicker && _mentionableMembers.isNotEmpty)
@@ -1350,7 +1424,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         MediaQuery.of(context).padding.bottom + 8,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        // 居中对齐：单行时 +/麦克风 小圆按钮与输入框胶囊垂直居中
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Attachment — gradient circle
           GestureDetector(

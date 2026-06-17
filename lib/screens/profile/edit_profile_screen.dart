@@ -6,7 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
-import '../../utils/bible_books.dart';
+import '../../widgets/premium_toast.dart';
+import '../../services/local_cache.dart';
 import '../../models/profile.dart';
 import '../../services/event_bus.dart';
 import '../../services/profile_service.dart';
@@ -28,17 +29,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _loading = true;
   bool _saving = false;
   XFile? _newAvatarFile;
-  String? _selectedRegion;
-  String _selectedLanguage = 'zh';
-
-  static const _regions = [
-    ('CN-BJ', '北京'), ('CN-SH', '上海'), ('CN-GD', '广东'),
-    ('CN-ZJ', '浙江'), ('CN-JS', '江苏'), ('CN-SC', '四川'),
-    ('HK', '香港'), ('TW', '台湾'), ('SG', '新加坡'),
-    ('MY', '马来西亚'), ('US', '美国'), ('CA', '加拿大'),
-    ('AU', '澳大利亚'), ('GB', '英国'), ('JP', '日本'),
-    ('KR', '韩国'), ('OTHER', '其他'),
-  ];
 
   @override
   void initState() {
@@ -56,18 +46,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _loadProfile() async {
     final userId = Supabase.instance.client.auth.currentUser!.id;
     final profile = await _profileService.getProfile(userId);
-    final raw = await Supabase.instance.client
-        .from('profiles')
-        .select('region, language')
-        .eq('id', userId)
-        .single();
     if (mounted) {
       setState(() {
         _profile = profile;
         _displayNameCtrl.text = profile.displayName;
         _bioCtrl.text = profile.bio ?? '';
-        _selectedRegion = raw['region'] as String?;
-        _selectedLanguage = (raw['language'] as String?) ?? 'zh';
         _loading = false;
       });
     }
@@ -89,8 +72,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _save() async {
     final displayName = _displayNameCtrl.text.trim();
     if (displayName.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).displayNameRequired)));
+      showPremiumToast(context, AppLocalizations.of(context).displayNameRequired, kind: ToastKind.info);
       return;
     }
     setState(() => _saving = true);
@@ -104,21 +86,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         bio: _bioCtrl.text.trim(),
         avatarUrl: avatarUrl,
       );
-      final userId = Supabase.instance.client.auth.currentUser!.id;
-      await Supabase.instance.client.from('profiles').update({
-        'region': _selectedRegion,
-        'language': _selectedLanguage,
-      }).eq('id', userId);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).savingSucceeded)));
+        showPremiumToast(context, AppLocalizations.of(context).savingSucceeded, kind: ToastKind.success);
         notifyProfileUpdated();
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).saveFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).saveFailed(e.toString()));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -200,58 +175,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const SizedBox(height: 32),
                   TextFormField(
                     controller: _displayNameCtrl,
+                    style: const TextStyle(
+                        color: Color(0xFF1C1C1E), fontSize: 16),
                     decoration: InputDecoration(
                       labelText: AppLocalizations.of(context).displayName,
+                      labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
+                      floatingLabelStyle:
+                          const TextStyle(color: Color(0xFF9575CD)),
+                      border: const OutlineInputBorder(),
+                      enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFFCFCFD4)),
+                      ),
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide:
+                            BorderSide(color: Color(0xFF9575CD), width: 2),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   TextFormField(
                     controller: _bioCtrl,
                     maxLines: 4,
                     maxLength: 150,
+                    style: const TextStyle(
+                        color: Color(0xFF1C1C1E), fontSize: 16),
                     decoration: InputDecoration(
                       labelText: AppLocalizations.of(context).bio,
+                      labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
+                      floatingLabelStyle:
+                          const TextStyle(color: Color(0xFF9575CD)),
                       alignLabelWithHint: true,
+                      border: const OutlineInputBorder(),
+                      enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFFCFCFD4)),
+                      ),
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide:
+                            BorderSide(color: Color(0xFF9575CD), width: 2),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: AppLocalizations.of(context).region,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _selectedRegion,
-                      isExpanded: true,
-                      underline: const SizedBox.shrink(),
-                      items: [
-                        DropdownMenuItem(value: null, child: Text(AppLocalizations.of(context).notSet)),
-                        ..._regions.map((r) => DropdownMenuItem(
-                              value: r.$1,
-                              child: Text(localizedRegion(
-                                  AppLocalizations.of(context), r.$1)),
-                            )),
-                      ],
-                      onChanged: (v) => setState(() => _selectedRegion = v),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: AppLocalizations.of(context).languagePreference,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _selectedLanguage,
-                      isExpanded: true,
-                      underline: const SizedBox.shrink(),
-                      items: [
-                        DropdownMenuItem(value: 'zh', child: Text(AppLocalizations.of(context).languageChinese)),
-                        DropdownMenuItem(value: 'en', child: Text(AppLocalizations.of(context).languageEnglish)),
-                      ],
-                      onChanged: (v) => setState(() => _selectedLanguage = v ?? 'zh'),
-                    ),
-                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

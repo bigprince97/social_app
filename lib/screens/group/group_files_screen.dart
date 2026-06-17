@@ -1,11 +1,16 @@
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/message.dart';
+import '../../services/chat_service.dart';
+import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 
 class _Folder {
   final String id;
@@ -35,11 +40,14 @@ class GroupFilesScreen extends StatefulWidget {
 
 class _GroupFilesScreenState extends State<GroupFilesScreen> {
   final _client = Supabase.instance.client;
+  final _chatService = ChatService();
+  final _storageService = StorageService();
   List<Message> _files = [];
   List<_Folder> _folders = [];
   // message_id -> folder_id
   Map<String, String> _assignments = {};
   bool _loading = true;
+  bool _uploading = false;
 
   // 当前所在文件夹（null = 根目录）
   String? _currentFolderId;
@@ -224,6 +232,45 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
     }
   }
 
+  // 直接在群文件页上传文件：选文件→上传→发为文件消息→（若在文件夹内）归入当前文件夹
+  Future<void> _uploadFile() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+    if (result == null || result.files.isEmpty) return;
+    final f = result.files.first;
+    final bytes = f.bytes;
+    if (bytes == null) return;
+    setState(() => _uploading = true);
+    try {
+      final up = await _storageService.uploadChatFile(
+        Uint8List.fromList(bytes),
+        f.name,
+      );
+      final ext = f.name.contains('.') ? f.name.split('.').last : '';
+      final msg = await _chatService.sendFileMessage(
+        conversationId: widget.conversationId,
+        fileUrl: up.url,
+        fileName: f.name,
+        fileSize: up.size,
+        mimeType: ext.isEmpty ? null : 'application/$ext',
+        filesOnly: true, // 仅进群文件，不在聊天中显示
+      );
+      // 当前在某文件夹内 → 新文件归入该文件夹
+      if (_currentFolderId != null && _currentFolderId != _kChatFolderId) {
+        await _client.from('group_file_folders').upsert({
+          'message_id': msg.id,
+          'folder_id': _currentFolderId,
+          'conversation_id': widget.conversationId,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) _snack(AppLocalizations.of(context).sendFailed(e));
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _openFile(Message msg) async {
     if (msg.mediaUrl == null) return;
     final uri = Uri.parse(msg.mediaUrl!);
@@ -236,7 +283,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
 
   void _snack(String msg) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      showPremiumToast(context, msg, kind: ToastKind.info);
     }
   }
 
@@ -283,19 +330,53 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
     return AppStyle.brand;
   }
 
+  // 虚拟「聊天文件」文件夹 id（非真实 group_folders 记录）
+  static const _kChatFolderId = '__chat__';
+
+  bool _isFilesOnly(Message f) => f.payload?['files_only'] == true;
+
+  /// 文件的有效归属文件夹：
+  /// 有手动归属→该文件夹；否则聊天发来的文件→「聊天文件」；上传的→根目录
+  String? _effectiveFolder(Message f) {
+    final assigned = _assignments[f.id];
+    if (assigned != null) return assigned;
+    return _isFilesOnly(f) ? null : _kChatFolderId;
+  }
+
   // ── build ───────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     // 当前目录下的文件
-    final visibleFiles = _files
-        .where((f) => _assignments[f.id] == _currentFolderId)
-        .toList();
-    final currentFolder = _currentFolderId == null
+    final visibleFiles =
+        _files.where((f) => _effectiveFolder(f) == _currentFolderId).toList();
+    // 「聊天文件」虚拟文件夹内的文件数
+    final chatFileCount =
+        _files.where((f) => _effectiveFolder(f) == _kChatFolderId).length;
+    final inChatFolder = _currentFolderId == _kChatFolderId;
+    final currentFolder = (_currentFolderId == null || inChatFolder)
         ? null
         : _folders.where((f) => f.id == _currentFolderId).firstOrNull;
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _uploading ? null : _uploadFile,
+        backgroundColor: AppStyle.brand,
+        icon: _uploading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.upload_file, color: Colors.white),
+        label: Text(
+          AppLocalizations.of(context).uploadFile,
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
       appBar: AppBar(
         leading: _currentFolderId != null
             ? IconButton(
@@ -307,7 +388,10 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              currentFolder?.name ?? AppLocalizations.of(context).groupFiles,
+              inChatFolder
+                  ? AppLocalizations.of(context).chatFiles
+                  : currentFolder?.name ??
+                      AppLocalizations.of(context).groupFiles,
             ),
             Text(
               currentFolder == null
@@ -332,8 +416,9 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
               onRefresh: _load,
               child: CustomScrollView(
                 slivers: [
-                  // 文件夹（仅根目录显示）
-                  if (_currentFolderId == null && _folders.isNotEmpty)
+                  // 文件夹（仅根目录显示）：聊天文件虚拟夹 + 真实文件夹
+                  if (_currentFolderId == null &&
+                      (_folders.isNotEmpty || chatFileCount > 0))
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
@@ -341,6 +426,14 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
                           spacing: 10,
                           runSpacing: 10,
                           children: [
+                            if (chatFileCount > 0)
+                              _VirtualChatFolderChip(
+                                name: AppLocalizations.of(context).chatFiles,
+                                count: chatFileCount,
+                                onTap: () => setState(
+                                  () => _currentFolderId = _kChatFolderId,
+                                ),
+                              ),
                             for (final f in _folders)
                               _FolderChip(
                                 folder: f,
@@ -355,7 +448,8 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
                         ),
                       ),
                     ),
-                  if (_currentFolderId == null && _folders.isNotEmpty)
+                  if (_currentFolderId == null &&
+                      (_folders.isNotEmpty || chatFileCount > 0))
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -463,6 +557,81 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
       ),
       onTap: () => _openFile(msg),
       onLongPress: () => _moveFile(msg),
+    );
+  }
+}
+
+/// 「聊天文件」虚拟文件夹卡片（聊天中发送的文件默认归此处，不可删除/重命名）
+class _VirtualChatFolderChip extends StatelessWidget {
+  final String name;
+  final int count;
+  final VoidCallback onTap;
+  const _VirtualChatFolderChip({
+    required this.name,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final width = (MediaQuery.of(context).size.width - 24 - 10) / 2;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withAlpha(12)
+                : Colors.black.withAlpha(8),
+            width: 0.6,
+          ),
+          boxShadow: AppStyle.softShadow(isDark, blur: 12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: AppStyle.tintTile(AppStyle.brand, isDark),
+              child: const Icon(
+                Icons.forum_rounded,
+                color: AppStyle.brand,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    AppLocalizations.of(context).fileCount(count),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

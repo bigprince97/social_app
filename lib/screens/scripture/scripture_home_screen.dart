@@ -337,14 +337,6 @@ class _ScriptureCard extends StatelessWidget {
   final Scripture scripture;
   const _ScriptureCard({required this.scripture});
 
-  String get _categoryLabel {
-    final cat = Scripture.categoryDefs.firstWhere(
-      (c) => c['key'] == scripture.category,
-      orElse: () => {'label': scripture.category},
-    );
-    return cat['label'] as String;
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

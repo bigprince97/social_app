@@ -9,6 +9,55 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get deleteConversation => 'Delete chat';
+
+  @override
+  String get deleteConversationConfirm =>
+      'Delete this chat? It will only be removed from your list.';
+
+  @override
+  String get conversationDeleted => 'Chat deleted';
+
+  @override
+  String get noOneSharingCamera => 'No one has turned on their camera yet';
+
+  @override
+  String unblockConfirm(Object name) {
+    return 'Unblock $name? They will be able to message you again.';
+  }
+
+  @override
+  String userUnblocked(Object name) {
+    return 'Unblocked $name';
+  }
+
+  @override
+  String get downloadForOffline => 'Download for offline';
+
+  @override
+  String get downloadedOffline => 'Downloaded for offline reading';
+
+  @override
+  String get downloadComplete => 'Download complete, available offline';
+
+  @override
+  String downloadFailed(Object error) {
+    return 'Download failed: $error';
+  }
+
+  @override
+  String get chatFiles => 'Chat files';
+
+  @override
+  String get addMembers => 'Add members';
+
+  @override
+  String get membersAdded => 'Members added';
+
+  @override
+  String get searchUserHint => 'Search username or name';
+
+  @override
   String loadFailed(Object error) {
     return 'Load failed: $error';
   }
@@ -351,6 +400,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get admin => 'Admin';
 
   @override
+  String get groupOwner => 'Owner';
+
+  @override
   String createFailed(Object error) {
     return 'Failed to create: $error';
   }
@@ -378,6 +430,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createFolder => 'New Folder';
+
+  @override
+  String get uploadFile => 'Upload file';
 
   @override
   String get renameFolder => 'Rename Folder';
@@ -521,6 +576,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myBookmarks => 'My Bookmarks';
 
   @override
+  String get myPosts => 'My Posts';
+
+  @override
   String get lastReading => 'Last Read';
 
   @override
@@ -572,7 +630,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfile => 'Edit Profile';
 
   @override
-  String get languageSettings => 'Language';
+  String get languageSettings => 'Switch language';
 
   @override
   String get logout => 'Log Out';
@@ -715,6 +773,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String sendFailed(Object error) {
     return 'Failed to send: $error';
   }
+
+  @override
+  String get blockedCannotSend =>
+      'You have been blocked; your message can\'t be delivered';
 
   @override
   String get microphonePermissionRequired =>

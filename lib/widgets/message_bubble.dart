@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/premium_toast.dart';
 import '../models/message.dart';
 import 'image_viewer.dart';
 import 'video_player_widget.dart';
@@ -49,6 +50,8 @@ class MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
   final bool showAvatar;
+  /// 是否显示发送者昵称（仅连发第一条显示，避免重复）
+  final bool showSenderName;
   final bool showDateSeparator;
   final bool isRead;
   final VoidCallback? onDelete;
@@ -61,6 +64,7 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMe,
     this.showAvatar = true,
+    this.showSenderName = true,
     this.showDateSeparator = false,
     this.isRead = false,
     this.onDelete,
@@ -159,15 +163,10 @@ class MessageBubble extends StatelessWidget {
                                   ClipboardData(text: message.content ?? ''),
                                 );
                                 Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      AppLocalizations.of(
-                                        context,
-                                      ).copiedToClipboard,
-                                    ),
-                                    duration: const Duration(seconds: 1),
-                                  ),
+                                showPremiumToast(
+                                  context,
+                                  AppLocalizations.of(context).copiedToClipboard,
+                                  kind: ToastKind.success,
                                 );
                               },
                             ),
@@ -270,7 +269,11 @@ class MessageBubble extends StatelessWidget {
               mainAxisAlignment: isMe
                   ? MainAxisAlignment.end
                   : MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.end,
+              // 群聊收到的消息：头像与气泡顶部对齐，挨着发送者昵称；
+              // 其余（自己发的/私聊）底部对齐即可
+              crossAxisAlignment: (!isMe && isGroupChat)
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.end,
               children: [
                 // Only show avatar slot in group chats (reserves alignment space)
                 if (!isMe && isGroupChat)
@@ -299,10 +302,13 @@ class MessageBubble extends StatelessWidget {
     if (message.messageType == 'file' && message.mediaUrl != null) {
       return _FileBubble(message: message, isMe: isMe, isRead: isRead);
     }
+    if (message.messageType == 'call') {
+      return _CallBubble(message: message, isMe: isMe);
+    }
     return _TextBubble(
       message: message,
       isMe: isMe,
-      showSenderName: !isMe && showAvatar,
+      showSenderName: !isMe && showSenderName,
       isRead: isRead,
       groupMemberNames: groupMemberNames,
     );
@@ -341,6 +347,69 @@ class _AvatarSlot extends StatelessWidget {
 }
 
 // ─── Deleted ──────────────────────────────────────────────────────────────────
+
+// ─── 通话记录气泡 ─────────────────────────────────────────────────────────────
+class _CallBubble extends StatelessWidget {
+  final Message message;
+  final bool isMe;
+  const _CallBubble({required this.message, required this.isMe});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = message.payload ?? const {};
+    final callType = (p['call_type'] as String?) ?? 'voice';
+    final status = (p['status'] as String?) ?? 'ended';
+    final dur = (p['duration'] as num?)?.toInt() ?? 0;
+    final isVideo = callType == 'video';
+
+    final bool missed = status != 'ended';
+    String label;
+    switch (status) {
+      case 'ended':
+        final m = (dur ~/ 60).toString().padLeft(2, '0');
+        final s = (dur % 60).toString().padLeft(2, '0');
+        label = '${isVideo ? '视频通话' : '语音通话'} $m:$s';
+        break;
+      case 'canceled':
+        label = isMe ? '已取消' : '对方已取消';
+        break;
+      case 'declined':
+        label = isMe ? '对方已拒绝' : '已拒绝';
+        break;
+      default: // missed
+        label = isMe ? '对方无人接听' : '未接听';
+    }
+
+    final color = missed ? const Color(0xFFE53935) : _kTimeOther;
+    final icon = missed
+        ? Icons.phone_missed_rounded
+        : (isVideo ? Icons.videocam_rounded : Icons.call_rounded);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: isMe ? _kSentBg : _kRecvBg,
+        borderRadius: _radius(isMe),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon,
+              size: 18,
+              color: isMe ? Colors.white : color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isMe ? Colors.white : const Color(0xFF1C1C1E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _DeletedBubble extends StatelessWidget {
   final bool isMe;
@@ -579,7 +648,17 @@ class _AudioBubbleState extends State<_AudioBubble> {
   bool _playing = false;
   Duration _position = Duration.zero;
   Duration _total = Duration.zero;
+  int? _payloadSecs; // 录制时记录的时长（秒），作为稳定显示值，两端一致
   bool _loading = false;
+
+  // 时长标签的显示值：未播放时用录制时存的固定秒数（两端一致、不随解码变动）
+  String get _durationLabel {
+    if (_playing || _position.inSeconds > 0) return _fmt(_position);
+    final secs = _payloadSecs ?? _total.inSeconds;
+    final m = (secs ~/ 60).toString();
+    final s = (secs % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   @override
   void initState() {
@@ -608,8 +687,25 @@ class _AudioBubbleState extends State<_AudioBubble> {
       if (mounted && d != null) setState(() => _total = d);
     });
     // Use duration from payload if available
-    final durSecs = widget.message.payload?['duration'] as int?;
-    if (durSecs != null) _total = Duration(seconds: durSecs);
+    _payloadSecs = widget.message.payload?['duration'] as int?;
+    if (_payloadSecs != null) _total = Duration(seconds: _payloadSecs!);
+  }
+
+  @override
+  void didUpdateWidget(_AudioBubble old) {
+    super.didUpdateWidget(old);
+    // 若本 State 被复用到另一条语音（音频 URL 变了），重置播放器与时长，
+    // 否则会显示上一条消息的时长/进度
+    if (old.message.mediaUrl != widget.message.mediaUrl) {
+      _player.stop();
+      _position = Duration.zero;
+      _playing = false;
+      _payloadSecs = widget.message.payload?['duration'] as int?;
+      _total = _payloadSecs != null
+          ? Duration(seconds: _payloadSecs!)
+          : Duration.zero;
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -630,11 +726,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
       } catch (e) {
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppLocalizations.of(context).audioPlayFailed(e)),
-            ),
-          );
+          showPremiumToast(context, AppLocalizations.of(context).audioPlayFailed(e), kind: ToastKind.error);
         }
         return;
       }
@@ -731,9 +823,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _playing || _position.inSeconds > 0
-                          ? _fmt(_position)
-                          : _fmt(_total),
+                      _durationLabel,
                       style: TextStyle(
                         fontSize: 11,
                         color: widget.isMe ? _kTimeOwn : _kTimeOther,
@@ -1048,7 +1138,6 @@ Future<void> _downloadAndOpen(
   String url,
   String fileName,
 ) async {
-  final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
 
   // 进度对话框
@@ -1098,13 +1187,11 @@ Future<void> _downloadAndOpen(
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
+        if (context.mounted) {
+          showPremiumToast(context,
               AppLocalizations.of(context).cannotOpen(result.message),
-            ),
-          ),
-        );
+              kind: ToastKind.error);
+        }
       }
     }
   } catch (e) {
@@ -1114,9 +1201,11 @@ Future<void> _downloadAndOpen(
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      messenger.showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).openFailed(e))),
-      );
+      if (context.mounted) {
+        showPremiumToast(
+            context, AppLocalizations.of(context).openFailed(e),
+            kind: ToastKind.error);
+      }
     }
   }
 }

@@ -78,6 +78,7 @@ class ConversationMember {
   final String userId;
   final String role;
   final DateTime? lastReadAt;
+  final bool hidden;
   final Profile? profile;
 
   const ConversationMember({
@@ -86,6 +87,7 @@ class ConversationMember {
     required this.userId,
     required this.role,
     this.lastReadAt,
+    this.hidden = false,
     this.profile,
   });
 
@@ -98,6 +100,7 @@ class ConversationMember {
         lastReadAt: json['last_read_at'] != null
             ? DateTime.parse(json['last_read_at'] as String)
             : null,
+        hidden: (json['hidden'] as bool?) ?? false,
         profile: json['profiles'] != null
             ? Profile.fromJson(json['profiles'] as Map<String, dynamic>)
             : null,

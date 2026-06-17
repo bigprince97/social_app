@@ -1,4 +1,21 @@
 {
+  "deleteConversation": "删除对话",
+  "deleteConversationConfirm": "确定删除此对话吗？仅从你的列表移除，不影响对方。",
+  "conversationDeleted": "已删除对话",
+  "noOneSharingCamera": "还没有人开启摄像头",
+  "unblockConfirm": "确定取消拉黑「{name}」吗？取消后对方可以再次给你发消息。",
+  "@unblockConfirm": { "placeholders": { "name": { "type": "Object" } } },
+  "userUnblocked": "已取消拉黑「{name}」",
+  "@userUnblocked": { "placeholders": { "name": { "type": "Object" } } },
+  "downloadForOffline": "下载离线",
+  "downloadedOffline": "已下载，可离线阅读",
+  "downloadComplete": "下载完成，可离线阅读",
+  "downloadFailed": "下载失败：{error}",
+  "@downloadFailed": { "placeholders": { "error": { "type": "Object" } } },
+  "chatFiles": "聊天文件",
+  "addMembers": "添加成员",
+  "membersAdded": "已添加成员",
+  "searchUserHint": "搜索用户名或昵称",
   "@@locale": "zh",
   "loadFailed": "加载失败：{error}",
   "@loadFailed": {
@@ -180,6 +197,7 @@
   },
   "you": "你",
   "admin": "管理员",
+  "groupOwner": "群主",
   "createFailed": "新建失败：{error}",
   "@createFailed": {
     "placeholders": {
@@ -215,6 +233,7 @@
     }
   },
   "createFolder": "新建文件夹",
+  "uploadFile": "上传文件",
   "renameFolder": "重命名文件夹",
   "folderName": "文件夹名称",
   "confirm": "确定",
@@ -309,6 +328,7 @@
   "chapterNotFound": "未找到对应章节",
   "scripture": "经书",
   "myBookmarks": "我的书签",
+  "myPosts": "我的发帖",
   "lastReading": "上次阅读",
   "allScriptures": "全部经书",
   "continueLabel": "继续",
@@ -345,7 +365,7 @@
   },
   "settings": "设置",
   "editProfile": "编辑资料",
-  "languageSettings": "语言 / Language",
+  "languageSettings": "切换语言",
   "logout": "退出登录",
   "confirmLogout": "确定要退出登录吗？",
   "confirmButton": "退出",
@@ -425,6 +445,7 @@
       }
     }
   },
+  "blockedCannotSend": "对方已将你拉黑，消息无法送达",
   "microphonePermissionRequired": "需要麦克风权限才能录音",
   "attachmentTitle": "发送内容",
   "attachmentPhoto": "图片",

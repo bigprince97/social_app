@@ -10,6 +10,8 @@ import '../../services/chat_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_style.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/local_cache.dart';
+import '../../widgets/premium_toast.dart';
 
 class ConversationsScreen extends StatefulWidget {
   const ConversationsScreen({super.key});
@@ -80,6 +82,35 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     super.dispose();
   }
 
+  Future<bool> _confirmDelete(Conversation conv) async {
+    final t = AppLocalizations.of(context);
+    return showPremiumConfirm(
+      context,
+      icon: Icons.delete_outline_rounded,
+      title: t.deleteConversation,
+      message: t.deleteConversationConfirm,
+      confirmLabel: t.delete,
+      destructive: true,
+    );
+  }
+
+  Future<void> _deleteConversation(Conversation conv) async {
+    setState(() => _conversations.removeWhere((c) => c.id == conv.id));
+    try {
+      await _chatService.deleteConversation(conv.id);
+      if (mounted) {
+        showPremiumToast(context, AppLocalizations.of(context).conversationDeleted,
+            kind: ToastKind.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(
+            context, e, AppLocalizations.of(context).operationFailed('$e'));
+        _loadConversations(silent: true);
+      }
+    }
+  }
+
   Future<void> _loadConversations({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
@@ -87,8 +118,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
       if (mounted) setState(() => _conversations = convs);
     } catch (e) {
       if (mounted && !silent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).loadFailed(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
       }
     } finally {
       if (mounted && !silent) setState(() => _loading = false);
@@ -169,12 +199,26 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                             itemCount: filtered.length,
                             itemBuilder: (context, i) {
                               final conv = filtered[i];
-                              return _ConversationTile(
-                                conversation: conv,
-                                currentUserId: userId,
-                                onTap: () => context
-                                    .push('/chat/${conv.id}', extra: conv)
-                                    .then((_) => _loadConversations(silent: true)),
+                              return Dismissible(
+                                key: ValueKey(conv.id),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  color: AppStyle.red,
+                                  padding: const EdgeInsets.only(right: 24),
+                                  child: const Icon(Icons.delete_outline,
+                                      color: Colors.white),
+                                ),
+                                confirmDismiss: (_) => _confirmDelete(conv),
+                                onDismissed: (_) => _deleteConversation(conv),
+                                child: _ConversationTile(
+                                  conversation: conv,
+                                  currentUserId: userId,
+                                  onTap: () => context
+                                      .push('/chat/${conv.id}', extra: conv)
+                                      .then(
+                                          (_) => _loadConversations(silent: true)),
+                                ),
                               );
                             },
                           ),
@@ -398,8 +442,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).createFailed2(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).createFailed2(e));
       }
     }
   }
@@ -418,8 +461,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).createFailed2(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).createFailed2(e));
       }
     }
   }

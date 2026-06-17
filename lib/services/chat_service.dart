@@ -16,9 +16,14 @@ class ChatService {
         .from('conversations')
         .select('*, conversation_members(*, profiles(*))')
         .order('last_message_at', ascending: false);
-    final convs = (data as List).map((e) => Conversation.fromJson(e)).toList();
+    var convs = (data as List).map((e) => Conversation.fromJson(e)).toList();
     final uid = _userId;
     if (uid != null) {
+      // 过滤掉「我」已隐藏（软删除）的会话
+      convs = convs.where((conv) {
+        final me = conv.members.where((m) => m.userId == uid).firstOrNull;
+        return me == null || !me.hidden;
+      }).toList();
       for (final conv in convs) {
         final me = conv.members.where((m) => m.userId == uid).firstOrNull;
         if (me != null && conv.lastMessageAt != null) {
@@ -73,6 +78,45 @@ class ChatService {
     await _client.from('conversations').delete().eq('id', conversationId);
   }
 
+  /// 删除对话：仅从「我的」列表隐藏（软删除，标记 hidden=true），
+  /// 不删成员行——否则会破坏对方的直聊（对方进来找不到我）。
+  /// 重新收到/发送消息时会自动取消隐藏。
+  Future<void> deleteConversation(String conversationId) async {
+    final uid = _userId;
+    if (uid == null) return;
+    await _client
+        .from('conversation_members')
+        .update({'hidden': true})
+        .eq('conversation_id', conversationId)
+        .eq('user_id', uid);
+  }
+
+  /// 向群里添加成员（去重已在群成员；以 member 角色加入）
+  Future<void> addMembers(
+    String conversationId,
+    List<String> userIds,
+  ) async {
+    if (userIds.isEmpty) return;
+    final existing = await _client
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', conversationId);
+    final existingIds = {
+      for (final r in existing as List) r['user_id'] as String,
+    };
+    final toAdd = userIds.where((id) => !existingIds.contains(id)).toList();
+    if (toAdd.isEmpty) return;
+    await _client.from('conversation_members').insert(
+          toAdd
+              .map((id) => {
+                    'conversation_id': conversationId,
+                    'user_id': id,
+                    'role': 'member',
+                  })
+              .toList(),
+        );
+  }
+
   Future<void> promoteToAdmin(String memberId) async {
     await _client
         .from('conversation_members')
@@ -95,6 +139,8 @@ class ChatService {
         .from('messages')
         .select('*, profiles(*)')
         .eq('conversation_id', conversationId)
+        // 仅进群文件、不在聊天显示的文件（files_only）排除
+        .or('payload->>files_only.is.null,payload->>files_only.neq.true')
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
     return (data as List)
@@ -184,6 +230,8 @@ class ChatService {
     required String fileName,
     required int fileSize,
     required String? mimeType,
+    // true=仅存入群文件、不在聊天中显示（群文件页直接上传）
+    bool filesOnly = false,
   }) async {
     final data = await _client
         .from('messages')
@@ -197,6 +245,7 @@ class ChatService {
             'name': fileName,
             'size': fileSize,
             'mime': mimeType ?? 'application/octet-stream',
+            if (filesOnly) 'files_only': true,
           },
         })
         .select('*, profiles(*)')

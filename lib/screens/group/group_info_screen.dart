@@ -5,7 +5,10 @@ import '../../services/chat_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
+import '../../services/local_cache.dart';
 import 'group_files_screen.dart';
+import 'add_members_screen.dart';
 
 class GroupInfoScreen extends StatefulWidget {
   final Conversation conversation;
@@ -39,8 +42,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     _recomputeIsAdmin();
   }
 
+  // 群主：会话创建者；管理员：role==admin（群主也算管理员权限）
+  bool get _isOwner => widget.conversation.createdBy == _myId;
+
   void _recomputeIsAdmin() {
-    _isAdmin =
+    _isAdmin = _isOwner ||
         _members.any((m) => m.userId == _myId && m.role == 'admin');
   }
 
@@ -95,8 +101,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       widget.onAnnouncementUpdated?.call(result);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).saveFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).saveFailed(e.toString()));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -104,6 +109,28 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   }
 
   // ─── Member management ────────────────────────────────────────────────────
+
+  Future<void> _addMembers() async {
+    final existingIds = _members.map((m) => m.userId).toSet();
+    final picked = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddMembersScreen(excludeIds: existingIds),
+      ),
+    );
+    if (picked == null || picked.isEmpty) return;
+    try {
+      await _chatService.addMembers(widget.conversation.id, picked);
+      await _reloadMembers();
+      if (mounted) {
+        showPremiumToast(context, AppLocalizations.of(context).membersAdded, kind: ToastKind.info);
+      }
+    } catch (e) {
+      if (mounted) {
+        showPremiumToast(context, AppLocalizations.of(context).operationFailed(e.toString()), kind: ToastKind.error);
+      }
+    }
+  }
 
   Future<void> _removeMember(ConversationMember member) async {
     final confirm = await _confirmDialog(
@@ -120,13 +147,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           .eq('id', member.id);
       await _reloadMembers();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).removedFromGroup)));
+        showPremiumToast(context, AppLocalizations.of(context).removedFromGroup, kind: ToastKind.info);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).operationFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     }
   }
@@ -143,13 +168,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       await _chatService.promoteToAdmin(member.id);
       await _reloadMembers();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).promotedToAdmin)));
+        showPremiumToast(context, AppLocalizations.of(context).promotedToAdmin, kind: ToastKind.info);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).operationFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     }
   }
@@ -167,13 +190,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       await _chatService.demoteToMember(member.id);
       await _reloadMembers();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).demotedAdmin)));
+        showPremiumToast(context, AppLocalizations.of(context).demotedAdmin, kind: ToastKind.info);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).operationFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     }
   }
@@ -200,8 +221,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).leaveFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).leaveFailed(e.toString()));
       }
     }
   }
@@ -219,8 +239,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).operationFailed(e.toString()))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     }
   }
@@ -245,13 +264,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
 
   void _showMemberActions(ConversationMember member) {
     final isMe = member.userId == _myId;
-    if (isMe || !_isAdmin) return;
+    if (isMe) return;
+    final memberIsOwner = member.userId == widget.conversation.createdBy;
     final isAdmin = member.role == 'admin';
+    // 群主才能设/撤管理员；群主和管理员才能踢人；任何人都不能操作群主
+    final canPromote = _isOwner && !memberIsOwner;
+    final canKick = _isAdmin && !memberIsOwner;
+    if (!canPromote && !canKick) return;
     showPremiumActionSheet(
       context,
       title: member.profile?.displayName ?? '成员',
       actions: [
-        if (!isAdmin)
+        if (canPromote && !isAdmin)
           PremiumAction(
             icon: Icons.admin_panel_settings_outlined,
             label: AppLocalizations.of(context).promoteToAdmin,
@@ -261,7 +285,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               _promoteToAdmin(member);
             },
           ),
-        if (isAdmin)
+        if (canPromote && isAdmin)
           PremiumAction(
             icon: Icons.remove_moderator_outlined,
             label: AppLocalizations.of(context).demoteAdmin,
@@ -271,15 +295,16 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               _demoteToMember(member);
             },
           ),
-        PremiumAction(
-          icon: Icons.remove_circle_outline,
-          label: AppLocalizations.of(context).removeFromGroup,
-          destructive: true,
-          onTap: () {
-            Navigator.pop(context);
-            _removeMember(member);
-          },
-        ),
+        if (canKick)
+          PremiumAction(
+            icon: Icons.remove_circle_outline,
+            label: AppLocalizations.of(context).removeFromGroup,
+            destructive: true,
+            onTap: () {
+              Navigator.pop(context);
+              _removeMember(member);
+            },
+          ),
       ],
     );
   }
@@ -386,17 +411,44 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
 
           // 成员列表
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(
-              AppLocalizations.of(context).members(_members.length),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context).members(_members.length),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _addMembers,
+                  icon: const Icon(Icons.person_add_alt_1, size: 18),
+                  label: Text(AppLocalizations.of(context).addMembers),
+                ),
+              ],
             ),
           ),
-          ..._members.map((m) {
+          ...(() {
+            // 排序：群主 → 管理员 → 普通成员；同级按昵称
+            final ownerId = widget.conversation.createdBy;
+            int rank(ConversationMember m) {
+              if (m.userId == ownerId) return 0;
+              if (m.role == 'admin') return 1;
+              return 2;
+            }
+            final sorted = [..._members]..sort((a, b) {
+                final r = rank(a).compareTo(rank(b));
+                if (r != 0) return r;
+                return (a.profile?.displayName ?? '')
+                    .compareTo(b.profile?.displayName ?? '');
+              });
+            return sorted;
+          })().map((m) {
             final isMe = m.userId == _myId;
+            final isOwnerMember = m.userId == widget.conversation.createdBy;
             return ListTile(
               onTap: () => _showMemberActions(m),
               leading: CircleAvatar(
@@ -420,23 +472,29 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (m.role == 'admin')
+                  if (isOwnerMember || m.role == 'admin')
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primaryContainer,
+                        color: isOwnerMember
+                            ? const Color(0xFFFFE0B2)
+                            : Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        AppLocalizations.of(context).admin,
+                        isOwnerMember
+                            ? AppLocalizations.of(context).groupOwner
+                            : AppLocalizations.of(context).admin,
                         style: TextStyle(
                           fontSize: 11,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
+                          color: isOwnerMember
+                              ? const Color(0xFFE65100)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
                         ),
                       ),
                     ),
@@ -457,8 +515,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             onTap: _leaveGroup,
           ),
 
-          // 解散群聊（仅管理员）
-          if (_isAdmin) ...[
+          // 解散群聊（仅群主）
+          if (_isOwner) ...[
             ListTile(
               leading:
                   const Icon(Icons.delete_forever, color: Colors.red),

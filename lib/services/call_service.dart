@@ -116,6 +116,32 @@ class CallService {
     }).eq('id', callId);
   }
 
+  /// 通话结束后在会话里留一条「通话记录」消息（仅主叫方调用，避免重复）。
+  /// status: 'ended'(已接通,含时长) | 'canceled'(主叫取消) |
+  ///         'declined'(被拒) | 'missed'(未接听)
+  Future<void> logCall({
+    required String conversationId,
+    required String callType, // 'voice' | 'video'
+    required String status,
+    int durationSecs = 0,
+  }) async {
+    try {
+      await _client.from('messages').insert({
+        'conversation_id': conversationId,
+        'sender_id': _userId,
+        'content': '[通话]',
+        'message_type': 'call',
+        'payload': {
+          'call_type': callType,
+          'status': status,
+          'duration': durationSecs,
+        },
+      });
+    } catch (_) {
+      // 记录失败不影响挂断流程
+    }
+  }
+
   Future<CallInfo?> getActiveCall(String conversationId) async {
     final data = await _client
         .from('calls')

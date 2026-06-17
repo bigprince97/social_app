@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 import '../../utils/bible_books.dart';
 import '../../models/post.dart';
 import '../../models/profile.dart';
@@ -17,6 +18,7 @@ import '../../theme/app_style.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/premium_action_sheet.dart';
 import 'follow_list_screen.dart';
+import 'my_posts_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -33,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
   final _chatService = ChatService();
   final _blockService = BlockService();
+  final _scrollController = ScrollController();
   Profile? _profile;
   List<Post> _posts = [];
   bool _loading = true;
@@ -69,6 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _postCreatedSub?.cancel();
     _profileUpdatedSub?.cancel();
     _postInteractedSub?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -113,9 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await _blockService.blockUser(widget.userId);
         setState(() => _isBlocked = true);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).userBlocked)),
-          );
+          showPremiumToast(context, AppLocalizations.of(context).userBlocked, kind: ToastKind.info);
         }
       }
     }
@@ -128,13 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) context.push('/chat/${conv.id}', extra: conv);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).directMessageFailed(e.toString()),
-            ),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).directMessageFailed(e.toString()), kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _dmLoading = false);
@@ -163,13 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).operationFailed(e.toString()),
-            ),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).operationFailed(e.toString()), kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _followLoading = false);
@@ -181,25 +171,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       title: AppLocalizations.of(context).settings,
       actions: [
-        PremiumAction(
-          icon: Icons.edit_outlined,
-          label: AppLocalizations.of(context).editProfile,
-          color: const Color(0xFF0A84FF),
-          onTap: () async {
-            Navigator.pop(context);
-            await context.push('/edit-profile');
-            if (mounted) _loadData();
-          },
-        ),
-        PremiumAction(
-          icon: Icons.bookmark_outline_rounded,
-          label: AppLocalizations.of(context).myBookmarks,
-          color: const Color(0xFFFF9F0A),
-          onTap: () {
-            Navigator.pop(context);
-            context.push('/scripture/bookmarks');
-          },
-        ),
         PremiumAction(
           icon: Icons.language_rounded,
           label: AppLocalizations.of(context).languageSettings,
@@ -303,28 +274,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => PostCard(post: _posts[i]),
-                childCount: _posts.length,
-              ),
-            ),
-            if (_posts.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Text(AppLocalizations.of(context).noPosts),
-                  ),
+            if (_isMe)
+              SliverToBoxAdapter(child: _buildMyActions())
+            else ...[
+              // 他人主页：直接展示其帖子
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => PostCard(post: _posts[i]),
+                  childCount: _posts.length,
                 ),
               ),
+              if (_posts.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(AppLocalizations.of(context).noPosts),
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
   }
+
+  Widget _buildMyActions() {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 我的发帖（左） / 我的书签（右）入口
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ProfileEntry(
+                  icon: Icons.article_outlined,
+                  color: const Color(0xFF9575CD),
+                  label: l10n.myPosts,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MyPostsScreen(userId: widget.userId),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ProfileEntry(
+                  icon: Icons.bookmark_outline_rounded,
+                  color: const Color(0xFFFF9F0A),
+                  label: l10n.myBookmarks,
+                  onTap: () => context.push('/scripture/bookmarks'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
 
   Widget _buildHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -539,7 +557,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: AppLocalizations.of(context).editProfile,
                   icon: Icons.edit_outlined,
                   filled: false,
-                  expand: true,
                   onTap: () async {
                     await context.push('/edit-profile');
                     if (mounted) _loadData();
@@ -552,16 +569,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  static const _regionLabels = {
-    'CN-BJ': '北京', 'CN-SH': '上海', 'CN-GD': '广东',
-    'CN-ZJ': '浙江', 'CN-JS': '江苏', 'CN-SC': '四川',
-    'HK': '香港', 'TW': '台湾', 'SG': '新加坡',
-    'MY': '马来西亚', 'US': '美国', 'CA': '加拿大',
-    'AU': '澳大利亚', 'GB': '英国', 'JP': '日本',
-    'KR': '韩国', 'OTHER': '其他',
-  };
-
-  String _regionLabel(String code) => _regionLabels[code] ?? code;
 
   Widget _buildStat(String label, int count, {VoidCallback? onTap}) {
     final col = Column(
@@ -585,13 +592,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+/// 「我的」页入口卡片（编辑资料 / 我的书签）。
+class _ProfileEntry extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ProfileEntry({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F8),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: Color(0xFFB0B0B5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 描边胶囊按钮（次要操作：已关注/私信/编辑资料）。
 class _PillButton extends StatefulWidget {
   final String label;
   final IconData? icon;
   final VoidCallback? onTap;
   final bool filled;
-  final bool expand;
   final bool loading;
 
   const _PillButton({
@@ -599,7 +650,6 @@ class _PillButton extends StatefulWidget {
     this.icon,
     this.onTap,
     this.filled = true,
-    this.expand = false,
     this.loading = false,
   });
 
@@ -625,7 +675,7 @@ class _PillButtonState extends State<_PillButton> {
         duration: const Duration(milliseconds: 120),
         child: Container(
           height: 44,
-          width: widget.expand ? double.infinity : null,
+          width: null,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isDark

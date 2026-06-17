@@ -101,6 +101,90 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @deleteConversation.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除对话'**
+  String get deleteConversation;
+
+  /// No description provided for @deleteConversationConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除此对话吗？仅从你的列表移除，不影响对方。'**
+  String get deleteConversationConfirm;
+
+  /// No description provided for @conversationDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除对话'**
+  String get conversationDeleted;
+
+  /// No description provided for @noOneSharingCamera.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有人开启摄像头'**
+  String get noOneSharingCamera;
+
+  /// No description provided for @unblockConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定取消拉黑「{name}」吗？取消后对方可以再次给你发消息。'**
+  String unblockConfirm(Object name);
+
+  /// No description provided for @userUnblocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消拉黑「{name}」'**
+  String userUnblocked(Object name);
+
+  /// No description provided for @downloadForOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载离线'**
+  String get downloadForOffline;
+
+  /// No description provided for @downloadedOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'已下载，可离线阅读'**
+  String get downloadedOffline;
+
+  /// No description provided for @downloadComplete.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载完成，可离线阅读'**
+  String get downloadComplete;
+
+  /// No description provided for @downloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：{error}'**
+  String downloadFailed(Object error);
+
+  /// No description provided for @chatFiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天文件'**
+  String get chatFiles;
+
+  /// No description provided for @addMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加成员'**
+  String get addMembers;
+
+  /// No description provided for @membersAdded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加成员'**
+  String get membersAdded;
+
+  /// No description provided for @searchUserHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索用户名或昵称'**
+  String get searchUserHint;
+
   /// No description provided for @loadFailed.
   ///
   /// In zh, this message translates to:
@@ -743,6 +827,12 @@ abstract class AppLocalizations {
   /// **'管理员'**
   String get admin;
 
+  /// No description provided for @groupOwner.
+  ///
+  /// In zh, this message translates to:
+  /// **'群主'**
+  String get groupOwner;
+
   /// No description provided for @createFailed.
   ///
   /// In zh, this message translates to:
@@ -784,6 +874,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'新建文件夹'**
   String get createFolder;
+
+  /// No description provided for @uploadFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'上传文件'**
+  String get uploadFile;
 
   /// No description provided for @renameFolder.
   ///
@@ -1037,6 +1133,12 @@ abstract class AppLocalizations {
   /// **'我的书签'**
   String get myBookmarks;
 
+  /// No description provided for @myPosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的发帖'**
+  String get myPosts;
+
   /// No description provided for @lastReading.
   ///
   /// In zh, this message translates to:
@@ -1130,7 +1232,7 @@ abstract class AppLocalizations {
   /// No description provided for @languageSettings.
   ///
   /// In zh, this message translates to:
-  /// **'语言 / Language'**
+  /// **'切换语言'**
   String get languageSettings;
 
   /// No description provided for @logout.
@@ -1396,6 +1498,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'发送失败：{error}'**
   String sendFailed(Object error);
+
+  /// No description provided for @blockedCannotSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方已将你拉黑，消息无法送达'**
+  String get blockedCannotSend;
 
   /// No description provided for @microphonePermissionRequired.
   ///

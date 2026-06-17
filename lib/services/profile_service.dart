@@ -1,14 +1,27 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
+import 'local_cache.dart';
 
 class ProfileService {
   final _client = Supabase.instance.client;
   String? get _userId => _client.auth.currentUser?.id;
+  final _cache = LocalCache.instance;
 
   Future<Profile> getProfile(String userId) async {
-    final data =
-        await _client.from('profiles').select().eq('id', userId).single();
-    return Profile.fromJson(data);
+    final cacheKey = 'profile_$userId';
+    try {
+      final data =
+          await _client.from('profiles').select().eq('id', userId).single();
+      await _cache.write(cacheKey, data);
+      return Profile.fromJson(data);
+    } catch (e) {
+      // 离线 → 用上次缓存的资料，避免"用户不存在"误导
+      final cached = await _cache.read(cacheKey);
+      if (cached is Map) {
+        return Profile.fromJson(Map<String, dynamic>.from(cached));
+      }
+      rethrow;
+    }
   }
 
   Future<Profile> updateProfile({

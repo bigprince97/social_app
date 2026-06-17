@@ -9,6 +9,54 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get deleteConversation => '会話を削除';
+
+  @override
+  String get deleteConversationConfirm => 'この会話を削除しますか？あなたのリストからのみ削除されます。';
+
+  @override
+  String get conversationDeleted => '会話を削除しました';
+
+  @override
+  String get noOneSharingCamera => 'まだ誰もカメラをオンにしていません';
+
+  @override
+  String unblockConfirm(Object name) {
+    return '$nameのブロックを解除しますか？相手は再びメッセージを送れます。';
+  }
+
+  @override
+  String userUnblocked(Object name) {
+    return '$nameのブロックを解除しました';
+  }
+
+  @override
+  String get downloadForOffline => 'オフライン用にダウンロード';
+
+  @override
+  String get downloadedOffline => 'ダウンロード済み（オフライン閲覧可）';
+
+  @override
+  String get downloadComplete => 'ダウンロード完了、オフラインで閲覧可能';
+
+  @override
+  String downloadFailed(Object error) {
+    return 'ダウンロード失敗：$error';
+  }
+
+  @override
+  String get chatFiles => 'チャットファイル';
+
+  @override
+  String get addMembers => 'メンバーを追加';
+
+  @override
+  String get membersAdded => 'メンバーを追加しました';
+
+  @override
+  String get searchUserHint => 'ユーザー名または名前で検索';
+
+  @override
   String loadFailed(Object error) {
     return '読み込みに失敗しました：$error';
   }
@@ -351,6 +399,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get admin => '管理者';
 
   @override
+  String get groupOwner => 'オーナー';
+
+  @override
   String createFailed(Object error) {
     return '作成に失敗しました：$error';
   }
@@ -378,6 +429,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get createFolder => '新規フォルダ';
+
+  @override
+  String get uploadFile => 'ファイルをアップロード';
 
   @override
   String get renameFolder => 'フォルダ名を変更';
@@ -520,6 +574,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get myBookmarks => 'マイブックマーク';
 
   @override
+  String get myPosts => '自分の投稿';
+
+  @override
   String get lastReading => '前回の続き';
 
   @override
@@ -571,7 +628,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get editProfile => 'プロフィールを編集';
 
   @override
-  String get languageSettings => '言語 / Language';
+  String get languageSettings => '言語を切り替え';
 
   @override
   String get logout => 'ログアウト';
@@ -714,6 +771,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String sendFailed(Object error) {
     return '送信に失敗しました：$error';
   }
+
+  @override
+  String get blockedCannotSend => '相手にブロックされているため、メッセージを送信できません';
 
   @override
   String get microphonePermissionRequired => '録音するにはマイクの許可が必要です';

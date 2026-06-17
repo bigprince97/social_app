@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../services/locale_controller.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/local_cache.dart';
 import '../../models/post.dart';
 import '../../services/event_bus.dart';
 import '../../services/post_service.dart';
@@ -71,8 +72,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).commentFailed(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).commentFailed(e));
         _commentCtrl.text = content;
       }
     } finally {

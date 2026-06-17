@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_style.dart';
 
@@ -36,9 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).loginFailed(e.toString())), backgroundColor: Colors.red),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).loginFailed(e.toString()), kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

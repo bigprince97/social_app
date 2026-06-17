@@ -12,6 +12,7 @@ import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/post_card.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/local_cache.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -240,8 +241,7 @@ class _PostListState extends State<_PostList>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).loadFailed(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -623,8 +623,7 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).publishFailed(e))));
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).publishFailed(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

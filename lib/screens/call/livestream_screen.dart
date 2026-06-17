@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 import '../../services/call_service.dart';
 
 class LivestreamScreen extends StatefulWidget {
@@ -29,8 +31,9 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   late final Room _room;
   EventsListener<RoomEvent>? _listener;
   bool _connected = false;
-  bool _micEnabled = true;
-  bool _cameraEnabled = true;
+  // 初值在 initState 按是否主播确定：主播进来即开麦开摄像头，观众默认不推流
+  bool _micEnabled = false;
+  bool _cameraEnabled = false;
   bool _ended = false;
   CameraPosition _cameraPosition = CameraPosition.front;
   RealtimeChannel? _statusChannel;
@@ -40,6 +43,18 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
 
   // 成员面板实时刷新信号（参与者进出/麦克风/摄像头变化时 +1）
   final ValueNotifier<int> _roomTick = ValueNotifier(0);
+
+  Timer? _emptyRoomTimer;
+
+  /// 主播：房间空了，延迟 30 秒确认仍无人 → 自动结束直播
+  void _scheduleEmptyRoomClose() {
+    _emptyRoomTimer?.cancel();
+    _emptyRoomTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted && !_ended && _remoteParticipants.isEmpty) {
+        _leave();
+      }
+    });
+  }
 
   /// 房间内全部参与者（本人在前）
   List<Participant> get _allParticipants => [
@@ -63,6 +78,10 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   @override
   void initState() {
     super.initState();
+    // 会议模式：取消主播概念，所有人（含开启者）进来默认关麦关摄像头，
+    // 各自可随时开启自己的麦克风/摄像头
+    _micEnabled = false;
+    _cameraEnabled = false;
     _room = Room(
       roomOptions: RoomOptions(
         defaultAudioCaptureOptions: const AudioCaptureOptions(
@@ -82,6 +101,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       ..on<ParticipantConnectedEvent>((e) {
         if (mounted) setState(() => _remoteParticipants.add(e.participant));
         _roomTick.value++;
+        _emptyRoomTimer?.cancel(); // 有人进来了，取消空房关闭
       })
       ..on<ParticipantDisconnectedEvent>((e) {
         if (mounted) {
@@ -92,6 +112,14 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           );
         }
         _roomTick.value++;
+        // 主播：房间里没有其他人了 → 无人观看，自动关闭直播
+        if (widget.isHost && _remoteParticipants.isEmpty) {
+          _scheduleEmptyRoomClose();
+        }
+        // 观众：主播(发布者)走了，房间没有视频源 → 直播已结束，自动退出
+        if (!widget.isHost && _remoteParticipants.isEmpty) {
+          if (mounted && !_ended) _leave(remote: true);
+        }
       })
       // 远端轨道订阅/取消时刷新，否则主播画面到达后 UI 不更新
       ..on<TrackSubscribedEvent>((_) {
@@ -150,18 +178,11 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           }
         });
       }
-      if (widget.isHost) {
-        await _room.localParticipant?.setMicrophoneEnabled(true);
-        await _room.localParticipant?.setCameraEnabled(true);
-      }
+      // 会议模式：不自动开启任何人的麦克风/摄像头
       if (mounted) setState(() => _connected = true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).connectionFailed('$e')),
-          ),
-        );
+        showPremiumToast(context, AppLocalizations.of(context).connectionFailed('$e'), kind: ToastKind.error);
         Navigator.pop(context);
       }
     }
@@ -219,6 +240,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
     if (widget.isHost && !_ended) {
       _callService.endCall(widget.call.id).catchError((_) {});
     }
+    _emptyRoomTimer?.cancel();
     _roomTick.dispose();
     _listener?.dispose();
     _room.disconnect();
@@ -238,7 +260,6 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
         valueListenable: _roomTick,
         builder: (ctx, _, __) {
           final t = AppLocalizations.of(ctx);
-          final hostIdentity = widget.call.callerId;
           final list = _allParticipants;
           return SafeArea(
             child: Column(
@@ -262,7 +283,6 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                     itemCount: list.length,
                     itemBuilder: (ctx, i) {
                       final p = list[i];
-                      final isHost = p.identity == hostIdentity;
                       final isMe = p is LocalParticipant;
                       final label = _participantLabel(p);
                       return ListTile(
@@ -291,25 +311,6 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                                   style: const TextStyle(
                                     color: Colors.white54,
                                     fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            if (isHost)
-                              Container(
-                                margin: const EdgeInsets.only(left: 6),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  t.hostLabel,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
                                   ),
                                 ),
                               ),
@@ -355,7 +356,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Main video area
+            // Main video area（会议网格：所有开摄像头的人自适应排列）
             _buildMainVideo(),
             // Top bar
             Positioned(top: 0, left: 0, right: 0, child: _buildTopBar()),
@@ -367,34 +368,35 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
     );
   }
 
+  /// 取某参与者未静音的视频轨
+  VideoTrack? _videoOf(Participant p) {
+    final pub = p.videoTrackPublications.where((t) => !t.muted).firstOrNull;
+    return pub?.track as VideoTrack?;
+  }
+
+  /// 会议网格：所有「开了摄像头」的参与者（含自己）按人数自适应行列排列。
+  /// 没有任何人开摄像头时，显示等待/纯音频占位。
   Widget _buildMainVideo() {
-    if (widget.isHost) {
-      // Host sees their own camera
-      final pub = _room.localParticipant?.videoTrackPublications.firstOrNull;
-      final track = pub?.track;
-      if (track != null && _cameraEnabled) {
-        return VideoTrackRenderer(track);
+    final tiles = <Widget>[];
+    for (final p in _allParticipants) {
+      final track = _videoOf(p);
+      if (track != null) {
+        tiles.add(_videoTile(track, _participantLabel(p), _micOn(p)));
       }
-      return Container(
-        color: const Color(0xFF1A1A1A),
-        child: const Center(
-          child: Icon(Icons.videocam_off, color: Colors.white54, size: 64),
-        ),
-      );
     }
-    // Viewer sees the host's video
-    final host = _remoteParticipants.firstOrNull;
-    if (host == null) {
+
+    if (tiles.isEmpty) {
+      // 会议模式：还没有人开摄像头
       return Container(
         color: const Color(0xFF1A1A1A),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.live_tv, color: Colors.white54, size: 64),
+              const Icon(Icons.videocam_off, color: Colors.white54, size: 64),
               const SizedBox(height: 12),
               Text(
-                AppLocalizations.of(context).waitingForHost,
+                AppLocalizations.of(context).noOneSharingCamera,
                 style: const TextStyle(color: Colors.white54, fontSize: 14),
               ),
             ],
@@ -402,17 +404,88 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
         ),
       );
     }
-    final pub = host.videoTrackPublications.where((p) => !p.muted).firstOrNull;
-    final track = pub?.track;
-    if (track == null) {
-      return Container(
-        color: const Color(0xFF1A1A1A),
-        child: const Center(
-          child: Icon(Icons.videocam_off, color: Colors.white54, size: 64),
-        ),
-      );
-    }
-    return VideoTrackRenderer(track);
+
+    if (tiles.length == 1) return tiles.first;
+
+    final n = tiles.length;
+    // 智能分屏：列数随人数变化
+    //  2人 → 1列(上下分屏)  3~4人 → 2列  5~9人 → 3列  10+ → 4列
+    final int cols = n == 2
+        ? 1
+        : n <= 4
+            ? 2
+            : n <= 9
+                ? 3
+                : 4;
+    final int rows = (n / cols).ceil();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 64, 6, 100),
+      child: LayoutBuilder(
+        builder: (ctx, c) {
+          const spacing = 6.0;
+          // 行数不多时让每格刚好铺满可用空间，不滚动；
+          // 人很多(>4行)时改为固定竖向比例并允许滚动。
+          final scroll = rows > 4;
+          final tileW = (c.maxWidth - (cols - 1) * spacing) / cols;
+          final tileH = (c.maxHeight - (rows - 1) * spacing) / rows;
+          final ratio = (scroll || tileH <= 0) ? 3 / 4 : tileW / tileH;
+          return GridView.count(
+            physics:
+                scroll ? null : const NeverScrollableScrollPhysics(),
+            crossAxisCount: cols,
+            mainAxisSpacing: spacing,
+            crossAxisSpacing: spacing,
+            childAspectRatio: ratio,
+            children: tiles,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _videoTile(VideoTrack track, String label, bool micOn) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: const Color(0xFF222232)),
+          VideoTrackRenderer(track),
+          // 名牌 + 麦克风状态
+          Positioned(
+            left: 6,
+            bottom: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(140),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    micOn ? Icons.mic : Icons.mic_off,
+                    size: 12,
+                    color: micOn ? Colors.greenAccent : Colors.white54,
+                  ),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 90),
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTopBar() {
@@ -541,13 +614,35 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   }
 
   Widget _buildViewerControls() {
+    // 观众也可连麦：开/关自己的麦克风、摄像头；摄像头开启时可翻转；退出仅离开自己
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
+        _LiveButton(
+          icon: _micEnabled ? Icons.mic : Icons.mic_off,
+          label: _micEnabled
+              ? AppLocalizations.of(context).mute
+              : AppLocalizations.of(context).micOn,
+          onTap: _toggleMic,
+        ),
+        _LiveButton(
+          icon: _cameraEnabled ? Icons.videocam : Icons.videocam_off,
+          label: _cameraEnabled
+              ? AppLocalizations.of(context).cameraOff
+              : AppLocalizations.of(context).cameraOn,
+          onTap: _toggleCamera,
+        ),
+        if (_cameraEnabled)
+          _LiveButton(
+            icon: Icons.flip_camera_ios_outlined,
+            label: AppLocalizations.of(context).flipCamera,
+            onTap: _flipCamera,
+          ),
         _LiveButton(
           icon: Icons.exit_to_app,
           label: AppLocalizations.of(context).confirmButton,
           onTap: _leave,
+          color: Colors.red,
         ),
       ],
     );

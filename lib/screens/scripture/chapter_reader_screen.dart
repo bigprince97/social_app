@@ -8,6 +8,7 @@ import '../../services/scripture_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/premium_toast.dart';
 
 class ChapterReaderScreen extends StatefulWidget {
   final ScriptureChapter chapter;
@@ -85,9 +86,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       ),
     );
     setState(() => _selectedVerses.clear());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context).copiedToClipboard)),
-    );
+    showPremiumToast(context, AppLocalizations.of(context).copiedToClipboard, kind: ToastKind.success);
   }
 
   Future<void> _quoteSelectedVerses() async {
@@ -136,13 +135,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         chapterTitle: _displayTitle,
                       );
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              AppLocalizations.of(context).sentToChat,
-                            ),
-                          ),
-                        );
+                        showPremiumToast(context, AppLocalizations.of(context).sentToChat, kind: ToastKind.success);
                       }
                     },
                   );
@@ -316,11 +309,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           onTap: () {
             Clipboard.setData(ClipboardData(text: plainQuote));
             Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(AppLocalizations.of(context).copiedToClipboard),
-              ),
-            );
+            showPremiumToast(context, AppLocalizations.of(context).copiedToClipboard, kind: ToastKind.success);
           },
         ),
         PremiumAction(
@@ -380,13 +369,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         chapterTitle: _displayTitle,
                       );
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              AppLocalizations.of(context).sentToChat,
-                            ),
-                          ),
-                        );
+                        showPremiumToast(context, AppLocalizations.of(context).sentToChat, kind: ToastKind.success);
                       }
                     },
                   );
@@ -1128,9 +1111,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (idx >= 0) {
       _goToChapter(idx);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).chapterNotFound)),
-      );
+      showPremiumToast(context, AppLocalizations.of(context).chapterNotFound, kind: ToastKind.info);
     }
   }
 

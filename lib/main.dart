@@ -91,7 +91,8 @@ class _SocialAppState extends State<SocialApp> {
           supportedLocales: LocaleController.supported,
           locale: locale,
           theme: _buildTheme(Brightness.light),
-          darkTheme: _buildTheme(Brightness.dark),
+          // 去掉暗色模式：始终用浅色主题，不跟随系统
+          themeMode: ThemeMode.light,
           routerConfig: router,
         );
       },
