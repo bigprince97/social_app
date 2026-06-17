@@ -98,8 +98,10 @@ class _FeedScreenState extends State<FeedScreen>
         ),
       ),
       // 抬高，避开 HomeScreen 的毛玻璃底栏（extendBody 让 body 延伸到底栏下方）
+      // 叠加底部安全区，保证 iOS（home indicator 更高）上不被底栏遮挡
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 70),
+        padding: EdgeInsets.only(
+            bottom: 70 + MediaQuery.of(context).padding.bottom),
         child: GestureDetector(
           onTap: () => _showCreatePostSheet(),
           child: Container(

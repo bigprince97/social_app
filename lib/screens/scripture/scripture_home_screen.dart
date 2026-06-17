@@ -41,9 +41,14 @@ class _ScriptureHomeScreenState extends State<ScriptureHomeScreen> {
         return (ia < 0 ? 99 : ia).compareTo(ib < 0 ? 99 : ib);
       });
 
+      // 先把经书列表显示出来（命中缓存即可），
+      // 避免下面“上次阅读”请求离线失败连累整个列表为空。
+      if (mounted) setState(() => _scriptures = all);
+
       Scripture? recent;
       String? recentChapterTitle;
       if (uid != null) {
+        try {
         final data = await Supabase.instance.client
             .from('reading_progress')
             .select('scripture_id, scriptures(*), progress_percent, chapter_id')
@@ -69,6 +74,7 @@ class _ScriptureHomeScreenState extends State<ScriptureHomeScreen> {
             }
           }
         }
+        } catch (_) {/* 离线时“上次阅读”取不到，忽略，不影响经书列表 */}
       }
 
       if (mounted) {

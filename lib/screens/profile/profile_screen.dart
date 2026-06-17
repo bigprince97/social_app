@@ -96,20 +96,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final results = await Future.wait([
-        _profileService.getProfile(widget.userId),
-        _postService.getUserPosts(widget.userId),
-        if (!_isMe) _profileService.isFollowing(widget.userId),
-        if (!_isMe) _blockService.isBlocked(widget.userId),
-      ]);
-      setState(() {
-        _profile = results[0] as Profile;
-        _posts = results[1] as List<Post>;
-        if (!_isMe) {
-          _isFollowing = results[2] as bool;
-          _isBlocked = results[3] as bool;
-        }
-      });
+      // 资料单独加载：getProfile 自带离线缓存回退，
+      // 不让帖子/关注等其它请求的失败连累资料展示（离线时避免“用户不存在”）。
+      try {
+        final profile = await _profileService.getProfile(widget.userId);
+        if (mounted) setState(() => _profile = profile);
+      } catch (_) {/* 无缓存且离线时保持 null，由下方网络态兜底 */}
+
+      // 帖子无缓存：离线失败不影响资料展示
+      try {
+        final posts = await _postService.getUserPosts(widget.userId);
+        if (mounted) setState(() => _posts = posts);
+      } catch (_) {}
+
+      if (!_isMe) {
+        try {
+          final isFollowing = await _profileService.isFollowing(widget.userId);
+          final isBlocked = await _blockService.isBlocked(widget.userId);
+          if (mounted) {
+            setState(() {
+              _isFollowing = isFollowing;
+              _isBlocked = isBlocked;
+            });
+          }
+        } catch (_) {}
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
