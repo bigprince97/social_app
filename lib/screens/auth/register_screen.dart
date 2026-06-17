@@ -41,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) context.go('/');
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).registerFailed(e.toString()), kind: ToastKind.error);
+        showPremiumToast(context, AppLocalizations.of(context).registerFailed(''), kind: ToastKind.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -22,7 +22,10 @@ class _LanguageScreenState extends State<LanguageScreen> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          for (final loc in LocaleController.supported)
+          // 暂时只显示简体/繁体，隐藏英语和日语
+          for (final loc in LocaleController.supported.where((l) =>
+              LocaleController.keyOf(l) != 'en' &&
+              LocaleController.keyOf(l) != 'ja'))
             _LangTile(
               label: LocaleController.labels[LocaleController.keyOf(loc)] ??
                   LocaleController.keyOf(loc),

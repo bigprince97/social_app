@@ -22,6 +22,7 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final _postService = PostService();
   final _commentCtrl = TextEditingController();
+  final _scrollController = ScrollController();
   Post? _post;
   List<PostComment> _comments = [];
   bool _loading = true;
@@ -36,6 +37,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -70,6 +72,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         _comments.add(comment);
         _post = _post?.copyWith(commentsCount: _comments.length);
       });
+      // 发送后收起键盘（不强制滑到最新，键盘收起后新评论一般已在可视区）
+      if (mounted) FocusScope.of(context).unfocus();
     } catch (e) {
       if (mounted) {
         showErrorIfNotNetwork(context, e, AppLocalizations.of(context).commentFailed(e));
@@ -89,14 +93,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           : Column(
               children: [
                 Expanded(
-                  child: RefreshIndicator(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    child: RefreshIndicator(
                     onRefresh: _load,
                     child: CustomScrollView(
+                      controller: _scrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       slivers: [
                         if (_post != null)
                           SliverToBoxAdapter(
                             child: PostCard(
                               post: _post!,
+                              tappable: false,
                               onDeleted: () => context.pop(),
                             ),
                           ),
@@ -129,6 +140,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ],
                     ),
                   ),
+                  ),
                 ),
                 _buildInputBar(),
               ],
@@ -137,40 +149,69 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Widget _buildInputBar() {
+    const brand = Color(0xFF9575CD);
     return Container(
       padding: EdgeInsets.fromLTRB(
-          12, 8, 12, MediaQuery.of(context).padding.bottom + 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        border:
-            Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+          12,
+          10,
+          12,
+          // 键盘弹出时 Scaffold 已上移，无需再留安全区空白，避免下方大空隙
+          (MediaQuery.of(context).viewInsets.bottom > 0
+                  ? 0.0
+                  : MediaQuery.of(context).padding.bottom) +
+              10),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFEDEDF0))),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // 输入框：浅灰圆角胶囊，自然贴合一行、最多 4 行
           Expanded(
             child: TextField(
               controller: _commentCtrl,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              style: const TextStyle(fontSize: 15, color: Color(0xFF1C1C1E)),
               decoration: InputDecoration(
                 hintText: AppLocalizations.of(context).writeCommentHint,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24)),
+                hintStyle: const TextStyle(color: Color(0xFF9A9AA0)),
                 filled: true,
+                fillColor: const Color(0xFFF2F2F7),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(21),
+                  borderSide: BorderSide.none,
+                ),
               ),
               onSubmitted: (_) => _submitComment(),
             ),
           ),
           const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: _submitting ? null : _submitComment,
-            icon: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.send),
+          // 发送按钮：品牌色圆形
+          GestureDetector(
+            onTap: _submitting ? null : _submitComment,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: brand,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.arrow_upward_rounded,
+                      color: Colors.white, size: 22),
+            ),
           ),
         ],
       ),

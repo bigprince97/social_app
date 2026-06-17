@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -181,17 +182,24 @@ class _PostListState extends State<_PostList>
   @override
   bool get wantKeepAlive => true;
 
+  StreamSubscription<void>? _interactedSub;
+
   @override
   void initState() {
     super.initState();
     _loadPosts();
     _scrollController.addListener(_onScroll);
     _subscribeToNew();
+    // 评论/点赞等互动后刷新列表，使评论数等即时更新
+    _interactedSub = onPostInteracted.listen((_) {
+      if (mounted) _loadPosts();
+    });
   }
 
   @override
   void dispose() {
     _realtimeChannel?.unsubscribe();
+    _interactedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

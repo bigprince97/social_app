@@ -18,8 +18,16 @@ class PostCard extends StatefulWidget {
   final Post post;
   final VoidCallback? onDeleted;
   final void Function(String topic)? onTopicTap;
+  /// 是否整卡点击进入详情。详情页里的卡片应设为 false，避免重复跳转。
+  final bool tappable;
 
-  const PostCard({super.key, required this.post, this.onDeleted, this.onTopicTap});
+  const PostCard({
+    super.key,
+    required this.post,
+    this.onDeleted,
+    this.onTopicTap,
+    this.tappable = true,
+  });
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -101,7 +109,12 @@ class _PostCardState extends State<PostCard>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
 
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.tappable
+          ? () => context.push('/post/${widget.post.id}')
+          : null,
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       decoration: BoxDecoration(
         color: cardBg,
@@ -195,15 +208,15 @@ class _PostCardState extends State<PostCard>
           // ── Content text ─────────────────────────────────────────────────
           if (widget.post.content.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-              child: Text(
-                widget.post.content,
-                style: TextStyle(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: isDark ? Colors.white : Colors.black87),
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Text(
+                  widget.post.content,
+                  style: TextStyle(
+                      fontSize: 14.5,
+                      height: 1.5,
+                      color: isDark ? Colors.white : Colors.black87),
+                ),
               ),
-            ),
 
           // ── Media ────────────────────────────────────────────────────────
           if (widget.post.videoUrl != null) ...[
@@ -273,6 +286,7 @@ class _PostCardState extends State<PostCard>
           ),
           const SizedBox(height: 2),
         ],
+      ),
       ),
     );
   }
