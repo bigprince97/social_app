@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/scripture.dart';
 import '../../services/chat_service.dart';
@@ -443,6 +444,29 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     return t.isNotEmpty ? t : widget.scripture.displayTitle;
   }
 
+  /// 某章对应的「书卷」原始名（用 raw title 分组，稳定不随语言变）
+  String _rawBookOf(ScriptureChapter ch) {
+    final raw = ch.title;
+    return raw.contains(' ') ? raw.split(' ').first : raw;
+  }
+
+  /// 点击书名 → 回到原详情页的「书卷」选择视图
+  void _openBookSelector() {
+    context.push('/scripture/detail/${widget.scripture.id}', extra: {
+      'scripture': widget.scripture,
+      'book': _rawBookOf(_chapter),
+    });
+  }
+
+  /// 点击章节号 → 回到原详情页的「章」选择视图（当前书卷）
+  void _openChapterSelector() {
+    context.push('/scripture/detail/${widget.scripture.id}', extra: {
+      'scripture': widget.scripture,
+      'book': _rawBookOf(_chapter),
+      'chapterView': true,
+    });
+  }
+
   // ── 圣经专属阅读器 ─────────────────────────────────────────────
 
   Widget _buildBibleReader() {
@@ -528,17 +552,29 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Flexible(
-            child: Text(
-              _bibleBookName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            child: GestureDetector(
+              onTap: _openBookSelector,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      _bibleBookName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_drop_down,
+                      color: Colors.white70, size: 20),
+                ],
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           GestureDetector(
             onTap: canPrev ? () => _goToChapter(_currentIndex - 1) : null,
             child: Icon(
@@ -547,12 +583,21 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
               size: 28,
             ),
           ),
-          Text(
-            '$_localChapterNum',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+          GestureDetector(
+            onTap: _openChapterSelector,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Text(
+                '$_localChapterNum',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white54,
+                ),
+              ),
             ),
           ),
           GestureDetector(

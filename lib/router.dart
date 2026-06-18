@@ -20,6 +20,11 @@ import 'screens/scripture/scripture_detail_screen.dart';
 import 'screens/scripture/scripture_list_screen.dart';
 import 'screens/search_screen.dart';
 
+// go_router 在路由栈重建时会丢失底层路由的 extra（变 null）。
+// 阅读器依赖 extra 里的章节/全卷数据，丢失后硬转型会崩溃灰屏。
+// 用首次导航时缓存的 extra 兜底，保证重建时复用。
+final Map<String, Map<String, dynamic>> _readerExtraCache = {};
+
 final router = GoRouter(
   initialLocation: '/login',
   redirect: (_, state) {
@@ -89,6 +94,8 @@ final router = GoRouter(
           return ScriptureDetailScreen(
             scripture: extra['scripture'] as Scripture,
             autoStart: extra['autoStart'] == true,
+            initialBook: extra['book'] as String?,
+            initialChapterView: extra['chapterView'] == true,
           );
         }
         if (extra is Scripture) {
@@ -101,7 +108,15 @@ final router = GoRouter(
     GoRoute(
       path: '/scripture/read/:id',
       builder: (_, state) {
-        final extra = state.extra as Map<String, dynamic>;
+        final id = state.pathParameters['id']!;
+        // 重建时 extra 可能为 null，回退到首次缓存，避免崩溃灰屏。
+        final extra = (state.extra as Map<String, dynamic>?) ??
+            _readerExtraCache[id];
+        if (extra == null) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+        _readerExtraCache[id] = extra;
         return ChapterReaderScreen(
           chapter: extra['chapter'] as ScriptureChapter,
           scripture: extra['scripture'] as Scripture,

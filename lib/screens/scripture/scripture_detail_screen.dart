@@ -14,12 +14,17 @@ class ScriptureDetailScreen extends StatefulWidget {
   final Scripture? scripture;
   final String? scriptureId;
   final bool autoStart;
+  // 从阅读器点书名/章节号进来时：定位到的书卷 raw 名、是否直接进「章」视图
+  final String? initialBook;
+  final bool initialChapterView;
 
   const ScriptureDetailScreen({
     super.key,
     this.scripture,
     this.scriptureId,
     this.autoStart = false,
+    this.initialBook,
+    this.initialChapterView = false,
   }) : assert(scripture != null || scriptureId != null);
 
   @override
@@ -90,6 +95,8 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
         chapters: _chapters,
         loading: _loading,
         onOpen: _openChapter,
+        initialBook: widget.initialBook,
+        initialChapterView: widget.initialChapterView,
       );
     }
 
@@ -317,12 +324,16 @@ class _BibleDetailScreen extends StatefulWidget {
   final List<ScriptureChapter> chapters;
   final bool loading;
   final void Function(int) onOpen;
+  final String? initialBook;
+  final bool initialChapterView;
 
   const _BibleDetailScreen({
     required this.scripture,
     required this.chapters,
     required this.loading,
     required this.onOpen,
+    this.initialBook,
+    this.initialChapterView = false,
   });
 
   @override
@@ -338,6 +349,14 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
   String? _viewBook; // 当前章 view 对应的书
   bool _otExpanded = true;
   bool _ntExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // 从阅读器点书名/章节号进来：定位书卷，可直接进「章」视图
+    if (widget.initialBook != null) _viewBook = widget.initialBook;
+    if (widget.initialChapterView) _isBookView = false;
+  }
 
   static const _otBooks = [
     '创世记','出埃及记','利未记','民数记','申命记',
