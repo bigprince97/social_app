@@ -39,6 +39,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 关闭 Impeller(Vulkan):部分机型长时间后台后 Vulkan surface 无法恢复
+             导致 resume 灰屏需杀进程；回退 Skia/OpenGL 后端,surface 恢复更稳健。 -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
