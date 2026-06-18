@@ -11,6 +11,7 @@ import 'config/supabase_config.dart' show supabaseUrl, supabasePublishableKey;
 import 'l10n/app_localizations.dart';
 import 'router.dart';
 import 'services/locale_controller.dart';
+import 'services/local_cache.dart';
 import 'services/push_notification_service.dart';
 
 const _kPrimary = Color(0xFF9575CD);   // app purple
@@ -68,8 +69,10 @@ class _SocialAppState extends State<SocialApp> {
             }
           },
         );
-      } else if (!kIsWeb && data.event == AuthChangeEvent.signedOut) {
-        PushNotificationService.deleteToken();
+      } else if (data.event == AuthChangeEvent.signedOut) {
+        // 登出（含 SDK 自动登出）：清本地缓存，避免下个登录用户看到上个用户内容
+        LocalCache.instance.clear();
+        if (!kIsWeb) PushNotificationService.deleteToken();
       }
     });
   }

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'local_cache.dart';
 
 class AuthService {
   final _client = Supabase.instance.client;
@@ -56,6 +57,7 @@ class AuthService {
 
   Future<void> signOut() async {
     await _client.auth.signOut();
+    await LocalCache.instance.clear();
   }
 
   /// 忘记密码 - 第一步：发送重置验证码到邮箱。

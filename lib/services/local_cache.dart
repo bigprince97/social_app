@@ -36,6 +36,17 @@ class LocalCache {
     } catch (_) {}
   }
 
+  /// 清空全部缓存（登出时调用，避免下一个登录用户看到上一个用户的缓存）。
+  Future<void> clear() async {
+    _memory.clear();
+    if (kIsWeb) return;
+    try {
+      final d = await _cacheDir();
+      if (await d.exists()) await d.delete(recursive: true);
+      _dir = null;
+    } catch (_) {}
+  }
+
   /// 读缓存；不存在返回 null
   Future<dynamic> read(String key) async {
     if (_memory.containsKey(key)) return _memory[key];
