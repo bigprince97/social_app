@@ -28,7 +28,8 @@ void main() async {
   await Supabase.initialize(
       url: supabaseUrl, publishableKey: supabasePublishableKey);
 
-  timeago.setLocaleMessages('zh', timeago.ZhMessages());
+  timeago.setLocaleMessages('zh', timeago.ZhCnMessages()); // 简体
+  timeago.setLocaleMessages('zh_Hant', timeago.ZhMessages()); // 繁体
   timeago.setLocaleMessages('ja', timeago.JaMessages());
 
   await LocaleController.instance.load();

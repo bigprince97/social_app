@@ -42,11 +42,12 @@ class LocaleController {
     return 'zh';
   }
 
-  /// timeago 包的 locale（繁中无对应，用 zh）
+  /// timeago 包的 locale
   String get timeagoLocale {
     final b = bibleLang;
     if (b == 'ja') return 'ja';
     if (b == 'en') return 'en';
+    if (b == 'zh_Hant') return 'zh_Hant';
     return 'zh';
   }
 
