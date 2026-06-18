@@ -20,6 +20,17 @@ class PushNotificationService {
     importance: Importance.high,
   );
 
+  static const _callChannel = AndroidNotificationChannel(
+    'calls',
+    '来电',
+    description: '语音/视频来电',
+    importance: Importance.max,
+  );
+
+  /// 收到来电类推送时回调（前台/后台点开都会触发），由 HomeScreen 注册，
+  /// 用 call_id 拉取通话并弹来电界面。
+  static void Function(Map<String, dynamic> data)? onCallPush;
+
   static Future<void> initialize({
     required void Function(
             String? postId, String? actorId, String type, String? conversationId)
@@ -56,6 +67,11 @@ class PushNotificationService {
     // 聊天消息跳过：前台聊天横幅由 home_screen 的 realtime 订阅负责
     // (更快、且能按"是否正在该会话页"精确抑制)，FCM 只负责后台。
     FirebaseMessaging.onMessage.listen((msg) {
+      // 来电：前台直接弹来电界面（兜底 realtime），不走系统通知
+      if (msg.data['type'] == 'call') {
+        onCallPush?.call(Map<String, dynamic>.from(msg.data));
+        return;
+      }
       final notif = msg.notification;
       if (notif == null) return;
       if (msg.data['type'] == 'chat') return;
@@ -83,13 +99,21 @@ class PushNotificationService {
 
     // 点击通知打开 app（后台 → 前台）
     FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+      if (msg.data['type'] == 'call') {
+        onCallPush?.call(Map<String, dynamic>.from(msg.data));
+        return;
+      }
       _handleTap(msg.data, onNotificationTap);
     });
 
     // app 从终止状态被通知打开
     final initial = await _messaging.getInitialMessage();
     if (initial != null) {
-      _handleTap(initial.data, onNotificationTap);
+      if (initial.data['type'] == 'call') {
+        onCallPush?.call(Map<String, dynamic>.from(initial.data));
+      } else {
+        _handleTap(initial.data, onNotificationTap);
+      }
     }
   }
 
@@ -126,10 +150,11 @@ class PushNotificationService {
   ) async {
     // Android 创建通知频道
     if (Platform.isAndroid) {
-      await _localNotifications
+      final android = _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(_androidChannel);
+              AndroidFlutterLocalNotificationsPlugin>();
+      await android?.createNotificationChannel(_androidChannel);
+      await android?.createNotificationChannel(_callChannel);
     }
 
     await _localNotifications.initialize(

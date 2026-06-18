@@ -142,6 +142,14 @@ class CallService {
     }
   }
 
+  /// 按 id 取通话（推送收到来电后用 call_id 拉取完整信息）
+  Future<CallInfo?> getCallById(String callId) async {
+    final data =
+        await _client.from('calls').select().eq('id', callId).maybeSingle();
+    if (data == null) return null;
+    return CallInfo.fromJson(data);
+  }
+
   Future<CallInfo?> getActiveCall(String conversationId) async {
     final data = await _client
         .from('calls')

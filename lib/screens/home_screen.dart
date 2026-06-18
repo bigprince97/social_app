@@ -42,6 +42,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadBadges();
     _subscribeToMessages();
     _subscribeToIncomingCalls();
+    // 来电推送兜底：FCM 收到 type=call 时用 call_id 拉取并弹来电界面
+    PushNotificationService.onCallPush = _onIncomingCallFromPush;
+  }
+
+  Future<void> _onIncomingCallFromPush(Map<String, dynamic> data) async {
+    final callId = data['call_id'] as String?;
+    if (callId == null || callId.isEmpty) return;
+    try {
+      final call = await _callService.getCallById(callId);
+      if (call != null) _onIncomingCall(call);
+    } catch (_) {}
   }
 
   @override
@@ -61,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _msgChannel?.unsubscribe();
     _callChannel?.unsubscribe();
+    PushNotificationService.onCallPush = null;
     super.dispose();
   }
 
