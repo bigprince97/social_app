@@ -71,6 +71,12 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
   }
 
   void _openChapter(int index) {
+    // picker 模式（从阅读器点书名/章节号进来）：把选中章节 id 返回给阅读器原地切章，
+    // 不再 push 新阅读器，避免导航栈堆叠导致返回键要按很多下。
+    if (widget.initialBook != null) {
+      context.pop(_chapters[index].id);
+      return;
+    }
     context.push(
       '/scripture/read/${_chapters[index].id}',
       extra: {

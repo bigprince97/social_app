@@ -450,21 +450,24 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     return raw.contains(' ') ? raw.split(' ').first : raw;
   }
 
-  /// 点击书名 → 回到原详情页的「书卷」选择视图
-  void _openBookSelector() {
-    context.push('/scripture/detail/${widget.scripture.id}', extra: {
-      'scripture': widget.scripture,
-      'book': _rawBookOf(_chapter),
-    });
-  }
+  /// 点击书名 → 原详情页「书卷」选择视图；选中后原地切章。
+  void _openBookSelector() => _openSelector(chapterView: false);
 
-  /// 点击章节号 → 回到原详情页的「章」选择视图（当前书卷）
-  void _openChapterSelector() {
-    context.push('/scripture/detail/${widget.scripture.id}', extra: {
-      'scripture': widget.scripture,
-      'book': _rawBookOf(_chapter),
-      'chapterView': true,
-    });
+  /// 点击章节号 → 原详情页「章」选择视图（当前书卷）；选中后原地切章。
+  void _openChapterSelector() => _openSelector(chapterView: true);
+
+  Future<void> _openSelector({required bool chapterView}) async {
+    final id = await context.push<String>(
+      '/scripture/detail/${widget.scripture.id}',
+      extra: {
+        'scripture': widget.scripture,
+        'book': _rawBookOf(_chapter),
+        if (chapterView) 'chapterView': true,
+      },
+    );
+    if (!mounted || id == null) return;
+    final idx = widget.allChapters.indexWhere((c) => c.id == id);
+    if (idx >= 0 && idx != _currentIndex) _goToChapter(idx);
   }
 
   // ── 圣经专属阅读器 ─────────────────────────────────────────────
