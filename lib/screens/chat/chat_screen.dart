@@ -841,7 +841,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).callStartFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).callStartFailed(e.toString()));
       }
     }
   }
@@ -887,7 +887,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).livestreamStartFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).livestreamStartFailed(e.toString()));
       }
     }
   }

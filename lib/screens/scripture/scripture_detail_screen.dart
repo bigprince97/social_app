@@ -974,7 +974,7 @@ class _ScriptureDownloadButtonState extends State<ScriptureDownloadButton> {
     } catch (e) {
       if (mounted) {
         setState(() => _downloading = false);
-        showPremiumToast(context, t.downloadFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, t.downloadFailed(e.toString()));
       }
     }
   }

@@ -12,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../services/block_service.dart';
 import '../../services/event_bus.dart';
 import '../../services/post_service.dart';
+import '../../services/local_cache.dart';
 import '../../services/chat_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_style.dart';
@@ -158,7 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) context.push('/chat/${conv.id}', extra: conv);
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).directMessageFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).directMessageFailed(e.toString()));
       }
     } finally {
       if (mounted) setState(() => _dmLoading = false);
@@ -187,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).operationFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     } finally {
       if (mounted) setState(() => _followLoading = false);

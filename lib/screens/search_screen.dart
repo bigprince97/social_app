@@ -75,6 +75,11 @@ class _SearchScreenState extends State<SearchScreen>
           _hasSearched = true;
         });
       }
+    } catch (_) {
+      // 离线/网络错误：静默，展示空结果，不抛未捕获异常
+      if (mounted && trimmed == _lastQuery) {
+        setState(() => _hasSearched = true);
+      }
     } finally {
       if (mounted) setState(() => _searching = false);
     }

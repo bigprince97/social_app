@@ -48,19 +48,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    // 帖子与评论各自独立加载：离线/某一项失败不连累另一项，也不抛未捕获异常
     try {
-      final results = await Future.wait([
-        _postService.getPostById(widget.postId),
-        _postService.getComments(widget.postId),
-      ]);
-      setState(() {
-        final post = results[0] as Post;
-        _comments = results[1] as List<PostComment>;
-        _post = post.copyWith(commentsCount: _comments.length);
-      });
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      final post = await _postService.getPostById(widget.postId);
+      if (mounted) setState(() => _post = post);
+    } catch (e) {
+      if (mounted) showErrorIfNotNetwork(context, e, '$e');
     }
+    try {
+      final comments = await _postService.getComments(widget.postId);
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+          _post = _post?.copyWith(commentsCount: comments.length);
+        });
+      }
+    } catch (_) {/* 评论拉取失败（离线）静默 */}
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _submitComment() async {

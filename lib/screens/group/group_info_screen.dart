@@ -127,7 +127,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).operationFailed(e.toString()), kind: ToastKind.error);
+        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
       }
     }
   }
