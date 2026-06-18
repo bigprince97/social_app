@@ -2072,13 +2072,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get languageSettings => '切換語言';
 
   @override
-  String get logout => '登出';
+  String get logout => '退出登入';
 
   @override
-  String get confirmLogout => '確定要登出嗎？';
+  String get confirmLogout => '確定要退出登入嗎？';
 
   @override
-  String get confirmButton => '登出';
+  String get confirmButton => '退出';
 
   @override
   String get userNotFound => '使用者不存在';
