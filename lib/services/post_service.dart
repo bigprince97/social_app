@@ -1,20 +1,35 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post.dart';
+import 'local_cache.dart';
 
 class PostService {
   final _client = Supabase.instance.client;
   String? get currentUserId => _client.auth.currentUser?.id;
 
-  Future<List<Post>> getFeedPosts({int page = 0, int limit = 20}) async {
-    final data = await _client
-        .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
-        .order('created_at', ascending: false)
-        .range(page * limit, (page + 1) * limit - 1);
+  // 缓存优先（SWR）：成功写盘，离线读回，保证冷启动也有内容。
+  List<Post> _parseCached(dynamic cached) => cached is List
+      ? cached
+          .map((e) => Post.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList()
+      : <Post>[];
 
-    final posts = (data as List).map((e) => Post.fromJson(e)).toList();
-    await _hydrateIsLiked(posts);
-    return posts;
+  Future<List<Post>> getFeedPosts({int page = 0, int limit = 20}) async {
+    try {
+      final data = await _client
+          .from('posts')
+          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .order('created_at', ascending: false)
+          .range(page * limit, (page + 1) * limit - 1);
+      if (page == 0) await LocalCache.instance.write('feed_latest', data);
+      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      await _hydrateIsLiked(posts);
+      return posts;
+    } catch (e) {
+      if (page == 0 && isNetworkError(e)) {
+        return _parseCached(await LocalCache.instance.read('feed_latest'));
+      }
+      rethrow;
+    }
   }
 
   Future<Post> createPost({
@@ -54,20 +69,29 @@ class PostService {
   }
 
   Future<List<Post>> getHotPosts({int page = 0, int limit = 20}) async {
-    final data = await _client
-        .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
-        .order('likes_count', ascending: false)
-        .order('created_at', ascending: false)
-        .range(page * limit, (page + 1) * limit - 1);
-    final posts = (data as List).map((e) => Post.fromJson(e)).toList();
-    await _hydrateIsLiked(posts);
-    return posts;
+    try {
+      final data = await _client
+          .from('posts')
+          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .order('likes_count', ascending: false)
+          .order('created_at', ascending: false)
+          .range(page * limit, (page + 1) * limit - 1);
+      if (page == 0) await LocalCache.instance.write('feed_hot', data);
+      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      await _hydrateIsLiked(posts);
+      return posts;
+    } catch (e) {
+      if (page == 0 && isNetworkError(e)) {
+        return _parseCached(await LocalCache.instance.read('feed_hot'));
+      }
+      rethrow;
+    }
   }
 
   Future<void> _hydrateIsLiked(List<Post> posts) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || posts.isEmpty) return;
+    try {
     final postIds = posts.map((p) => p.id).toList();
     final results = await Future.wait<dynamic>([
       _client
@@ -89,6 +113,7 @@ class PostService {
       post.isLiked = likedIds.contains(post.id);
       post.isBookmarked = bookmarkedIds.contains(post.id);
     }
+    } catch (_) {/* 点赞/收藏状态属增强信息，离线失败不影响帖子展示 */}
   }
 
   Future<void> bookmarkPost(String postId) async {
@@ -213,21 +238,30 @@ class PostService {
   Future<List<Post>> getFollowingPosts({int page = 0, int limit = 20}) async {
     final userId = currentUserId;
     if (userId == null) return [];
-    final follows = await _client
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', userId);
-    final ids = (follows as List).map((f) => f['following_id'] as String).toList();
-    if (ids.isEmpty) return [];
-    final data = await _client
-        .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
-        .inFilter('user_id', ids)
-        .order('created_at', ascending: false)
-        .range(page * limit, (page + 1) * limit - 1);
-    final posts = (data as List).map((e) => Post.fromJson(e)).toList();
-    await _hydrateIsLiked(posts);
-    return posts;
+    try {
+      final follows = await _client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', userId);
+      final ids =
+          (follows as List).map((f) => f['following_id'] as String).toList();
+      if (ids.isEmpty) return [];
+      final data = await _client
+          .from('posts')
+          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .inFilter('user_id', ids)
+          .order('created_at', ascending: false)
+          .range(page * limit, (page + 1) * limit - 1);
+      if (page == 0) await LocalCache.instance.write('feed_following', data);
+      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      await _hydrateIsLiked(posts);
+      return posts;
+    } catch (e) {
+      if (page == 0 && isNetworkError(e)) {
+        return _parseCached(await LocalCache.instance.read('feed_following'));
+      }
+      rethrow;
+    }
   }
 
   Future<List<Post>> getUserPosts(String userId) async {

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
+import 'local_cache.dart';
 
 class ChatService {
   final _client = Supabase.instance.client;
@@ -12,11 +13,26 @@ class ChatService {
   // ─── Conversations ────────────────────────────────────────────────────────
 
   Future<List<Conversation>> getConversations() async {
-    final data = await _client
-        .from('conversations')
-        .select('*, conversation_members(*, profiles(*))')
-        .order('last_message_at', ascending: false);
-    var convs = (data as List).map((e) => Conversation.fromJson(e)).toList();
+    try {
+      final data = await _client
+          .from('conversations')
+          .select('*, conversation_members(*, profiles(*))')
+          .order('last_message_at', ascending: false);
+      await LocalCache.instance.write('conversations', data);
+      return _processConversations(data as List);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        final cached = await LocalCache.instance.read('conversations');
+        if (cached is List) return _processConversations(cached);
+      }
+      rethrow;
+    }
+  }
+
+  List<Conversation> _processConversations(List data) {
+    var convs = data
+        .map((e) => Conversation.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
     final uid = _userId;
     if (uid != null) {
       // 过滤掉「我」已隐藏（软删除）的会话
@@ -135,19 +151,37 @@ class ChatService {
 
   Future<List<Message>> getMessages(String conversationId,
       {int page = 0, int limit = 50}) async {
-    final data = await _client
-        .from('messages')
-        .select('*, profiles(*)')
-        .eq('conversation_id', conversationId)
-        // 仅进群文件、不在聊天显示的文件（files_only）排除
-        .or('payload->>files_only.is.null,payload->>files_only.neq.true')
-        .order('created_at', ascending: false)
-        .range(page * limit, (page + 1) * limit - 1);
-    return (data as List)
-        .map((e) => Message.fromJson(e))
-        .toList()
-        .reversed
-        .toList();
+    try {
+      final data = await _client
+          .from('messages')
+          .select('*, profiles(*)')
+          .eq('conversation_id', conversationId)
+          // 仅进群文件、不在聊天显示的文件（files_only）排除
+          .or('payload->>files_only.is.null,payload->>files_only.neq.true')
+          .order('created_at', ascending: false)
+          .range(page * limit, (page + 1) * limit - 1);
+      if (page == 0) {
+        await LocalCache.instance.write('messages_$conversationId', data);
+      }
+      return (data as List)
+          .map((e) => Message.fromJson(e))
+          .toList()
+          .reversed
+          .toList();
+    } catch (e) {
+      if (page == 0 && isNetworkError(e)) {
+        final cached =
+            await LocalCache.instance.read('messages_$conversationId');
+        if (cached is List) {
+          return cached
+              .map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList()
+              .reversed
+              .toList();
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<Message> sendMessage({
