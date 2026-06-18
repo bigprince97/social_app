@@ -20,19 +20,32 @@ const _kPrimaryDark = Color(0xFFB39DDB);
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase push notifications are not supported on web
+  // Firebase push notifications are not supported on web。
+  // 加超时兜底：网络/DNS 异常时初始化不能无限阻塞，否则永久卡在原生启动白屏。
   if (!kIsWeb) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // 推送初始化失败不阻断启动（登录后 onAuthStateChange 会再次尝试注册推送）
+    }
   }
 
-  await Supabase.initialize(
-      url: supabaseUrl, publishableKey: supabasePublishableKey);
+  // Supabase.initialize 同步创建 client，await 主要等本地会话恢复；
+  // 弱网下会话刷新可能拖慢，超时后照常进入 app（client 已可用，请求各自降级）。
+  try {
+    await Supabase.initialize(
+            url: supabaseUrl, publishableKey: supabasePublishableKey)
+        .timeout(const Duration(seconds: 8));
+  } catch (_) {}
 
   timeago.setLocaleMessages('zh', timeago.ZhCnMessages()); // 简体
   timeago.setLocaleMessages('zh_Hant', timeago.ZhMessages()); // 繁体
   timeago.setLocaleMessages('ja', timeago.JaMessages());
 
-  await LocaleController.instance.load();
+  try {
+    await LocaleController.instance.load().timeout(const Duration(seconds: 3));
+  } catch (_) {}
 
   runApp(const SocialApp());
 }
