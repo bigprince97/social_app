@@ -29,6 +29,25 @@ class ChatService {
     }
   }
 
+  /// 只读本地缓存（不碰网络），用于「缓存优先」秒显。
+  Future<List<Conversation>> getCachedConversations() async {
+    final cached = await LocalCache.instance.read('conversations');
+    if (cached is List) return _processConversations(cached);
+    return [];
+  }
+
+  Future<List<Message>> getCachedMessages(String conversationId) async {
+    final cached = await LocalCache.instance.read('messages_$conversationId');
+    if (cached is List) {
+      return cached
+          .map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList()
+          .reversed
+          .toList();
+    }
+    return [];
+  }
+
   List<Conversation> _processConversations(List data) {
     var convs = data
         .map((e) => Conversation.fromJson(Map<String, dynamic>.from(e as Map)))

@@ -128,6 +128,7 @@ class _FeedScreenState extends State<FeedScreen>
           _PostList(
             key: _followingKey,
             loader: (page) => _postService.getFollowingPosts(page: page),
+            cachedLoader: () => _postService.getCachedFeed('feed_following'),
             emptyTitle: AppLocalizations.of(context).noFollowing,
             emptySubtitle: AppLocalizations.of(context).emptyFollowingSubtitle,
             onTopicTap: (t) => _tabController.animateTo(3),
@@ -135,11 +136,13 @@ class _FeedScreenState extends State<FeedScreen>
           _PostList(
             key: _latestKey,
             loader: (page) => _postService.getFeedPosts(page: page),
+            cachedLoader: () => _postService.getCachedFeed('feed_latest'),
             onTopicTap: (t) => _tabController.animateTo(3),
           ),
           _PostList(
             key: const PageStorageKey('hot'),
             loader: (page) => _postService.getHotPosts(page: page),
+            cachedLoader: () => _postService.getCachedFeed('feed_hot'),
             onTopicTap: (t) => _tabController.animateTo(3),
           ),
           _TopicsTab(
@@ -155,6 +158,7 @@ class _FeedScreenState extends State<FeedScreen>
 
 class _PostList extends StatefulWidget {
   final Future<List<Post>> Function(int page) loader;
+  final Future<List<Post>> Function()? cachedLoader;
   final void Function(String topic)? onTopicTap;
   final String? emptyTitle;
   final String? emptySubtitle;
@@ -162,6 +166,7 @@ class _PostList extends StatefulWidget {
   const _PostList({
     super.key,
     required this.loader,
+    this.cachedLoader,
     this.onTopicTap,
     this.emptyTitle,
     this.emptySubtitle,
@@ -253,7 +258,21 @@ class _PostListState extends State<_PostList>
   }
 
   Future<void> _loadPosts({bool showFullLoading = true}) async {
-    if (showFullLoading) {
+    // 缓存优先：首次加载先秒显本地缓存，再后台拉新替换
+    if (showFullLoading && _posts.isEmpty && widget.cachedLoader != null) {
+      try {
+        final cached = await widget.cachedLoader!();
+        if (mounted && cached.isNotEmpty && _posts.isEmpty) {
+          setState(() {
+            _posts
+              ..clear()
+              ..addAll(cached);
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
+    if (showFullLoading && _posts.isEmpty) {
       setState(() => _loading = true);
     }
     try {

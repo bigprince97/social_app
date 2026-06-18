@@ -253,25 +253,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _loadMessages() async {
     setState(() {
-      _loading = true;
       _page = 0;
       _hasMore = true;
     });
+    // 缓存优先：先秒显本地缓存的历史消息（不等网络），再后台拉新替换。
     try {
-      // iOS 上偶发网络/实时连接半开会让请求永久挂起 → 转圈白屏。
-      // 加超时兜底：超时即停止 loading，显示空/已有消息而非一直转圈。
+      final cached = await _chatService.getCachedMessages(_conversation.id);
+      if (mounted && cached.isNotEmpty && _messages.isEmpty) {
+        setState(() {
+          _messages
+            ..clear()
+            ..addAll(cached);
+          _loading = false;
+        });
+      }
+    } catch (_) {}
+    if (mounted && _messages.isEmpty) setState(() => _loading = true);
+    try {
+      // 后台拉新（超时兜底，避免 iOS 半开连接永久挂起转圈）
       final msgs = await _chatService
           .getMessages(_conversation.id, page: 0)
           .timeout(const Duration(seconds: 12));
       if (!mounted) return;
       setState(() {
-        _messages.clear();
-        _messages.addAll(msgs);
+        _messages
+          ..clear()
+          ..addAll(msgs);
         if (msgs.length < 50) _hasMore = false;
       });
-      // reverse:true 列表初始即锚定 offset 0 = 底部 = 最新消息，无需手动滚动
     } catch (_) {
-      // 超时/网络错误：不弹错(离线优雅降级)，仅停止 loading
+      // 超时/网络错误：保留已显示的缓存消息，不弹错（离线优雅降级）
     } finally {
       if (mounted) setState(() => _loading = false);
     }

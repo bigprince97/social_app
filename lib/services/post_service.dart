@@ -13,6 +13,11 @@ class PostService {
           .toList()
       : <Post>[];
 
+  /// 只读本地缓存（不碰网络），用于「缓存优先」秒显。
+  /// which: 'feed_latest' | 'feed_hot' | 'feed_following'
+  Future<List<Post>> getCachedFeed(String which) async =>
+      _parseCached(await LocalCache.instance.read(which));
+
   Future<List<Post>> getFeedPosts({int page = 0, int limit = 20}) async {
     try {
       final data = await _client

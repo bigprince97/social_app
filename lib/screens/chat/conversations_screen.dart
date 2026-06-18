@@ -112,7 +112,19 @@ class _ConversationsScreenState extends State<ConversationsScreen>
   }
 
   Future<void> _loadConversations({bool silent = false}) async {
-    if (!silent) setState(() => _loading = true);
+    // 缓存优先：先秒显本地缓存的会话列表，再后台拉新
+    if (!silent && _conversations.isEmpty) {
+      try {
+        final cached = await _chatService.getCachedConversations();
+        if (mounted && cached.isNotEmpty) {
+          setState(() {
+            _conversations = cached;
+            _loading = false;
+          });
+        }
+      } catch (_) {}
+    }
+    if (!silent && _conversations.isEmpty) setState(() => _loading = true);
     try {
       final convs = await _chatService
           .getConversations()
