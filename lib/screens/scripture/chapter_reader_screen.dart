@@ -43,8 +43,12 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   bool get _isBible => widget.scripture.category == '基督';
 
-  // 圣经按 app 语言显示；非圣经经书无 i18n 自动回退中文
-  String get _lang => _isBible ? LocaleController.instance.bibleLang : 'zh';
+  // 圣经按 app 语言显示；非圣经经书(道德经/金刚经)只有简/繁，繁体 locale 用 zh_Hant，其余回退简体
+  String get _lang {
+    final bl = LocaleController.instance.bibleLang;
+    if (_isBible) return bl;
+    return bl == 'zh_Hant' ? 'zh_Hant' : 'zh';
+  }
   String get _displayText => _chapter.localizedText(_lang);
   String get _displayTitle => _chapter.localizedTitle(_lang);
 
@@ -82,7 +86,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (text.isEmpty) return;
     Clipboard.setData(
       ClipboardData(
-        text: '"$text"\n——《${widget.scripture.title}》${_displayTitle}',
+        text: '"$text"\n——《${widget.scripture.displayTitle}》${_displayTitle}',
       ),
     );
     setState(() => _selectedVerses.clear());
@@ -297,7 +301,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   void _showQuoteOptions() {
     final plainQuote =
-        '"${_displayText}"\n——《${widget.scripture.title}》${_displayTitle}';
+        '"${_displayText}"\n——《${widget.scripture.displayTitle}》${_displayTitle}';
     showPremiumActionSheet(
       context,
       title: _displayTitle,
@@ -436,7 +440,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         .replaceAll(RegExp(r'\s*第\d+章$'), '')
         .replaceAll(RegExp(r'\s+\d+$'), '')
         .trim();
-    return t.isNotEmpty ? t : widget.scripture.title;
+    return t.isNotEmpty ? t : widget.scripture.displayTitle;
   }
 
   // ── 圣经专属阅读器 ─────────────────────────────────────────────
@@ -820,7 +824,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  widget.scripture.title,
+                                  widget.scripture.displayTitle,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: s.color,

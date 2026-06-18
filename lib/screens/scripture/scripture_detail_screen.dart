@@ -167,7 +167,7 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
     final progress = (s.progressPercent ?? 0) / 100.0;
     final hasProgress = (s.progressPercent ?? 0) > 0;
     final coverText =
-        s.title.length > 2 ? s.title.substring(0, 2) : s.title;
+        s.displayTitle.length > 2 ? s.displayTitle.substring(0, 2) : s.displayTitle;
 
     return SliverAppBar(
       expandedHeight: 180,
@@ -175,7 +175,7 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
       backgroundColor: s.color,
       iconTheme: const IconThemeData(color: Colors.white),
       // Title only shown in collapsed (pinned) state
-      title: Text(s.title,
+      title: Text(s.displayTitle,
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       actions: [
         ScriptureDownloadButton(scriptureId: s.id, color: Colors.white),
@@ -245,7 +245,7 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(s.title,
+                            Text(s.displayTitle,
                                 style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 20,
@@ -254,8 +254,8 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
                             if (s.author != null || s.dynasty != null)
                               Text(
                                 [
-                                  if (s.dynasty != null) s.dynasty!,
-                                  if (s.author != null) s.author!,
+                                  if (s.displayDynasty != null) s.displayDynasty!,
+                                  if (s.displayAuthor != null) s.displayAuthor!,
                                 ].join(' · '),
                                 style: TextStyle(
                                     color: Colors.white.withAlpha(190),
@@ -647,7 +647,7 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
       String bookName, List<ScriptureChapter> chapters) {
     String display;
     if (_isBookView) {
-      display = widget.scripture.title;
+      display = widget.scripture.displayTitle;
     } else {
       final lastId = widget.scripture.lastChapterId;
       int currentNum = 1;
@@ -658,7 +658,7 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
             : chapters.first;
         currentNum = _localNum(ch);
       }
-      display = bookName.isNotEmpty ? AppLocalizations.of(context).bookChapterDisplay(bookName, currentNum) : widget.scripture.title;
+      display = bookName.isNotEmpty ? AppLocalizations.of(context).bookChapterDisplay(bookName, currentNum) : widget.scripture.displayTitle;
     }
     return Container(
       height: 44,
@@ -863,6 +863,8 @@ class _DefaultContents extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lang =
+        LocaleController.instance.bibleLang == 'zh_Hant' ? 'zh_Hant' : 'zh';
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, i) {
@@ -895,7 +897,7 @@ class _DefaultContents extends StatelessWidget {
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                      child: Text(ch.title,
+                      child: Text(ch.localizedTitle(lang),
                           style: const TextStyle(fontSize: 15))),
                   if (ch.isHighlighted)
                     Icon(Icons.highlight, size: 14, color: color),

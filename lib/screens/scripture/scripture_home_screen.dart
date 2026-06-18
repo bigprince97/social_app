@@ -149,9 +149,8 @@ class _RecentBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = (scripture.progressPercent ?? 0) / 100;
-    final shortTitle = scripture.title.length > 2
-        ? scripture.title.substring(0, 2)
-        : scripture.title;
+    final dispTitle = scripture.displayTitle;
+    final shortTitle = dispTitle.length > 2 ? dispTitle.substring(0, 2) : dispTitle;
 
     return GestureDetector(
       onTap: () => context.push(
@@ -239,7 +238,7 @@ class _RecentBanner extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          scripture.title,
+                          dispTitle,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -394,9 +393,9 @@ class _ScriptureCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    scripture.title.length > 2
-                        ? scripture.title.substring(0, 2)
-                        : scripture.title,
+                    scripture.displayTitle.length > 2
+                        ? scripture.displayTitle.substring(0, 2)
+                        : scripture.displayTitle,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -414,7 +413,7 @@ class _ScriptureCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          scripture.title,
+                          scripture.displayTitle,
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
@@ -445,8 +444,10 @@ class _ScriptureCard extends StatelessWidget {
                     if (scripture.author != null || scripture.dynasty != null)
                       Text(
                         [
-                          if (scripture.dynasty != null) scripture.dynasty!,
-                          if (scripture.author != null) scripture.author!,
+                          if (scripture.displayDynasty != null)
+                            scripture.displayDynasty!,
+                          if (scripture.displayAuthor != null)
+                            scripture.displayAuthor!,
                         ].join(' · '),
                         style: Theme.of(
                           context,

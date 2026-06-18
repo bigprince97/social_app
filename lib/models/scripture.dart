@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/locale_controller.dart';
 
 class Scripture {
   final String id;
@@ -10,6 +11,8 @@ class Scripture {
   final String coverColor;
   final int chaptersCount;
   final DateTime createdAt;
+  // 目录多语言（目前繁体）：{'zh_Hant': {title,category,author,dynasty,description}}
+  final Map<String, dynamic>? metaI18n;
   int? progressPercent;
   String? lastChapterId;
 
@@ -23,9 +26,30 @@ class Scripture {
     this.coverColor = '#8B4513',
     this.chaptersCount = 0,
     required this.createdAt,
+    this.metaI18n,
     this.progressPercent,
     this.lastChapterId,
   });
+
+  // 繁体 locale 下取目录的繁体字段，缺失回退原值（简体）。
+  String _meta(String field, String fallback) {
+    if (LocaleController.instance.bibleLang == 'zh_Hant') {
+      final m = metaI18n?['zh_Hant'];
+      if (m is Map && m[field] is String && (m[field] as String).isNotEmpty) {
+        return m[field] as String;
+      }
+    }
+    return fallback;
+  }
+
+  String get displayTitle => _meta('title', title);
+  String get displayCategory => _meta('category', category);
+  String? get displayAuthor =>
+      author == null ? null : _meta('author', author!);
+  String? get displayDynasty =>
+      dynasty == null ? null : _meta('dynasty', dynasty!);
+  String? get displayDescription =>
+      description == null ? null : _meta('description', description!);
 
   factory Scripture.fromJson(Map<String, dynamic> json) => Scripture(
         id: json['id'] as String,
@@ -36,6 +60,7 @@ class Scripture {
         description: json['description'] as String?,
         coverColor: (json['cover_color'] as String?) ?? '#8B4513',
         chaptersCount: (json['chapters_count'] as int?) ?? 0,
+        metaI18n: json['meta_i18n'] as Map<String, dynamic>?,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 

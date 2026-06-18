@@ -8,7 +8,7 @@ class ScriptureService {
   final _cache = LocalCache.instance;
 
   Future<List<Scripture>> getScripturesByCategory(String category) async {
-    final cacheKey = 'scriptures_cat_$category';
+    final cacheKey = 'scriptures_cat2_$category';
     List rawList;
     final cached0 = await _cache.read(cacheKey);
     if (cached0 is List && cached0.isNotEmpty) {
@@ -74,7 +74,7 @@ class ScriptureService {
   }
 
   Future<List<Scripture>> getAllScriptures() async {
-    const cacheKey = 'scriptures_all';
+    const cacheKey = 'scriptures_all_v2';
     // 缓存优先：列表静态，命中秒出，弱网不卡
     final cached = await _cache.read(cacheKey);
     if (cached is List && cached.isNotEmpty) {
@@ -90,7 +90,7 @@ class ScriptureService {
   }
 
   Future<List<ScriptureChapter>> getChapters(String scriptureId) async {
-    final cacheKey = 'chapters_$scriptureId';
+    final cacheKey = 'chapters2_$scriptureId';
     final all = <ScriptureChapter>[];
     // 缓存优先：章节列表静态，命中即秒出，不等网络
     final cachedList = await _cache.read(cacheKey);
@@ -159,7 +159,7 @@ class ScriptureService {
   /// 缓存优先：经文是静态内容，已缓存/已下载则直接秒出，不等网络往返；
   /// 无缓存才联网取并写入。
   Future<ScriptureChapter> getChapterContent(String chapterId) async {
-    final cacheKey = 'chapter_$chapterId';
+    final cacheKey = 'chapter2_$chapterId';
     final cached = await _cache.read(cacheKey);
     if (cached is Map) {
       return ScriptureChapter.fromJson(Map<String, dynamic>.from(cached));
