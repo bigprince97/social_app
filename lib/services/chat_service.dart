@@ -327,12 +327,19 @@ class ChatService {
         .eq('id', messageId);
   }
 
+  /// 更新已读时间：尽力而为，离线/网络异常静默忽略（调用方多为 fire-and-forget）。
   Future<void> updateLastRead(String conversationId) async {
-    await _client
-        .from('conversation_members')
-        .update({'last_read_at': DateTime.now().toIso8601String()})
-        .eq('conversation_id', conversationId)
-        .eq('user_id', _userId!);
+    final uid = _userId;
+    if (uid == null) return;
+    try {
+      await _client
+          .from('conversation_members')
+          .update({'last_read_at': DateTime.now().toIso8601String()})
+          .eq('conversation_id', conversationId)
+          .eq('user_id', uid);
+    } catch (_) {
+      // 已读回执失败无需打扰用户，也不应抛未捕获异常
+    }
   }
 
   // ─── Realtime ─────────────────────────────────────────────────────────────
