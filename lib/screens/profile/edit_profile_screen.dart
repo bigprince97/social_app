@@ -80,7 +80,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       String? avatarUrl = _profile?.avatarUrl;
       if (_newAvatarFile != null) {
-        avatarUrl = await _storageService.uploadAvatar(_newAvatarFile!);
+        avatarUrl = await _storageService.uploadAvatar(_newAvatarFile!,
+            oldUrl: _profile?.avatarUrl);
       }
       await _profileService.updateProfile(
         displayName: displayName,

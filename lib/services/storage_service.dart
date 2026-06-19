@@ -7,17 +7,37 @@ class StorageService {
   final _client = Supabase.instance.client;
   final _uuid = const Uuid();
 
-  Future<String> uploadAvatar(XFile file) async {
+  Future<String> uploadAvatar(XFile file, {String? oldUrl}) async {
     final userId = _client.auth.currentUser!.id;
     final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
-    final path = 'avatars/$userId.$ext';
+    // 用 uuid 唯一文件名 + upsert:false（纯 INSERT），与群头像一致。
+    // 原本固定路径 + upsert:true 会走 ON CONFLICT DO UPDATE，被 media 桶
+    // 的 storage RLS 拒（无 SELECT 策略 + UPDATE 限制），导致更换头像 403。
+    final path = 'avatars/$userId/${_uuid.v4()}.$ext';
     final bytes = await file.readAsBytes();
     await _client.storage.from('media').uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(upsert: true),
+          fileOptions: const FileOptions(upsert: false),
         );
+    // 删除旧头像，避免孤儿文件占用配额（尽力而为，失败忽略）
+    if (oldUrl != null && oldUrl.isNotEmpty) {
+      final oldPath = _pathFromPublicUrl(oldUrl);
+      if (oldPath != null) {
+        try {
+          await _client.storage.from('media').remove([oldPath]);
+        } catch (_) {}
+      }
+    }
     return _client.storage.from('media').getPublicUrl(path);
+  }
+
+  /// 从公开 URL 反解出 storage 内的对象路径（用于删除旧文件）。
+  String? _pathFromPublicUrl(String url) {
+    const marker = '/object/public/media/';
+    final i = url.indexOf(marker);
+    if (i < 0) return null;
+    return Uri.decodeComponent(url.substring(i + marker.length).split('?').first);
   }
 
   /// 群头像：用 uuid 文件名且不 upsert，每次都是 INSERT（INSERT 策略仅要求
