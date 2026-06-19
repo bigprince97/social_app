@@ -122,6 +122,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _subscribeToMessages();
     _subscribeToMessageUpdates();
     _subscribeToReadReceipts();
+    // 进入聊天立即标记已读一次（清未读 badge），再用定时器跟进后续新消息。
+    _chatService.updateLastRead(_conversation.id);
     _scheduleUpdateLastRead();
     _inputCtrl.addListener(_onInputChanged);
     _scrollController.addListener(_onScroll);
@@ -253,6 +255,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _recorder.dispose();
     _recordTimer?.cancel();
     _readTimer?.cancel();
+    // 离开聊天时立即落库已读：避免 2s 内快速返回时定时器被取消，
+    // 导致 last_read 未更新、会话列表未读 badge 不清除。
+    _chatService.updateLastRead(_conversation.id);
     super.dispose();
   }
 

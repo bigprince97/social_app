@@ -731,8 +731,14 @@ class _AudioBubble extends StatefulWidget {
   State<_AudioBubble> createState() => _AudioBubbleState();
 }
 
-class _AudioBubbleState extends State<_AudioBubble> {
+class _AudioBubbleState extends State<_AudioBubble>
+    with AutomaticKeepAliveClientMixin {
   late final AudioPlayer _player;
+
+  // 播放/加载中时保活：避免新消息插入或自动滚动把正在播放的语音气泡
+  // 滚出可视区被 ListView 回收，导致 _player.dispose() 中断播放。
+  @override
+  bool get wantKeepAlive => _playing || _loading;
   bool _playing = false;
   Duration _position = Duration.zero;
   Duration _total = Duration.zero;
@@ -763,9 +769,11 @@ class _AudioBubbleState extends State<_AudioBubble> {
             _playing = false;
             _position = Duration.zero;
           });
+          updateKeepAlive();
         }
       } else {
         setState(() => _playing = s.playing);
+        updateKeepAlive();
       }
     });
     _player.positionStream.listen((p) {
@@ -831,6 +839,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAliveClientMixin 要求
     final bg = widget.isMe ? _kSentBg : _kRecvBg;
     final fg = widget.isMe ? Colors.white : Colors.black87;
     final iconColor = widget.isMe ? Colors.white : const Color(0xFF9575CD);
