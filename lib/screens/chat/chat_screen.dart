@@ -1345,6 +1345,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     // 倒序列表（工业标准）：i=0 在底部=最新消息，
                     // 进入聊天天然锚定最新；加载更多的转圈在顶部。
                     reverse: true,
+                    // 关键：reverse 列表插入新消息会让所有项索引右移，ValueKey
+                    // 在 sliver 里不会跨索引保留 State，必须用此回调按 key 定位新
+                    // 索引，否则正在播放的语音气泡会被重建/串台而中断播放。
+                    findChildIndexCallback: (Key key) {
+                      final id = (key as ValueKey<String>).value;
+                      final dataIdx =
+                          _messages.indexWhere((m) => m.id == id);
+                      if (dataIdx < 0) return null;
+                      return _messages.length - 1 - dataIdx;
+                    },
                     // 列表滚动/下拉时自动收起键盘（iOS 尤其需要）
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
