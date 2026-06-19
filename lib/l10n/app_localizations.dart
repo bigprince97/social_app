@@ -665,6 +665,18 @@ abstract class AppLocalizations {
   /// **'{bookName} 第{chapterNumber}章'**
   String bookChapterDisplay(Object bookName, Object chapterNumber);
 
+  /// No description provided for @editGroupName.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑群名称'**
+  String get editGroupName;
+
+  /// No description provided for @groupNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入群名称...'**
+  String get groupNameHint;
+
   /// No description provided for @editGroupAnnouncement.
   ///
   /// In zh, this message translates to:
@@ -2158,6 +2170,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'网络连接失败，请检查网络后重试'**
   String get networkError;
+
+  /// No description provided for @sessionExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录状态已失效，请重新登录后再试'**
+  String get sessionExpired;
 
   /// No description provided for @loginFailedGeneric.
   ///

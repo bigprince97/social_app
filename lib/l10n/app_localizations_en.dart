@@ -308,6 +308,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get editGroupName => 'Edit group name';
+
+  @override
+  String get groupNameHint => 'Enter group name...';
+
+  @override
   String get editGroupAnnouncement => 'Edit Group Announcement';
 
   @override
@@ -1136,6 +1142,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get networkError =>
       'Network error, please check your connection and try again';
+
+  @override
+  String get sessionExpired => 'Your session has expired, please sign in again';
 
   @override
   String get loginFailedGeneric => 'Incorrect email or password';

@@ -3,8 +3,8 @@ import 'profile.dart';
 class Conversation {
   final String id;
   final String type; // 'direct' | 'group'
-  final String? name;
-  final String? avatarUrl;
+  String? name; // 群名可被群主/管理员修改
+  String? avatarUrl; // 群头像可被群主/管理员修改
   final String? createdBy;
   final DateTime? lastMessageAt;
   final String? lastMessagePreview;

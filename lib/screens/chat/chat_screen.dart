@@ -55,6 +55,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int _page = 0;
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _updateChannel;
+  RealtimeChannel? _readChannel;
   RealtimeChannel? _convCallChannel;
   CallInfo? _activeLivestream; // 群内进行中的直播（横幅）
   late final String _currentUserId;
@@ -120,6 +121,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _loadMessages();
     _subscribeToMessages();
     _subscribeToMessageUpdates();
+    _subscribeToReadReceipts();
     _scheduleUpdateLastRead();
     _inputCtrl.addListener(_onInputChanged);
     _scrollController.addListener(_onScroll);
@@ -227,9 +229,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _msgChannel?.unsubscribe();
       _updateChannel?.unsubscribe();
+      _readChannel?.unsubscribe();
       _loadMessages();
       _subscribeToMessages();
       _subscribeToMessageUpdates();
+      _subscribeToReadReceipts();
     }
   }
 
@@ -239,6 +243,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     ActiveConversation.leave(_conversation.id);
     _msgChannel?.unsubscribe();
     _updateChannel?.unsubscribe();
+    _readChannel?.unsubscribe();
     _convCallChannel?.unsubscribe();
     _inputCtrl.removeListener(_onInputChanged);
     _scrollController.removeListener(_onScroll);
@@ -355,6 +360,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         });
       }
     });
+  }
+
+  // 直聊：订阅对方 last_read_at 变化，对方读到我的消息时即时刷新「已读」状态。
+  void _subscribeToReadReceipts() {
+    if (_conversation.type != 'direct') return;
+    _readChannel = Supabase.instance.client
+        .channel('read:${_conversation.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'conversation_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: _conversation.id,
+          ),
+          callback: (payload) {
+            final row = payload.newRecord;
+            if (row['user_id'] == _currentUserId) return; // 只关心对方
+            final ts = row['last_read_at'] as String?;
+            if (ts == null) return;
+            final dt = DateTime.tryParse(ts);
+            if (dt != null && mounted) {
+              setState(() => _otherLastReadAt = dt);
+            }
+          },
+        )
+        .subscribe();
   }
 
   // 倒序列表：底部=最新=offset 0
@@ -989,6 +1022,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           conversation: _conversation,
           onAnnouncementUpdated: (a) {
             setState(() => _conversation.announcement = a.isEmpty ? null : a);
+          },
+          onGroupUpdated: () {
+            // 群名/群头像被修改后刷新聊天页标题栏
+            if (mounted) setState(() {});
           },
         ),
       ),

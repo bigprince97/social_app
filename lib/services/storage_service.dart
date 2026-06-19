@@ -20,6 +20,20 @@ class StorageService {
     return _client.storage.from('media').getPublicUrl(path);
   }
 
+  /// 群头像：用 uuid 文件名且不 upsert，每次都是 INSERT（INSERT 策略仅要求
+  /// 已登录即可），避免触发 storage 的 UPDATE 策略（要求路径第2段=本人uid）。
+  Future<String> uploadGroupAvatar(String conversationId, XFile file) async {
+    final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
+    final path = 'avatars/groups/$conversationId/${_uuid.v4()}.$ext';
+    final bytes = await file.readAsBytes();
+    await _client.storage.from('media').uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(upsert: false),
+        );
+    return _client.storage.from('media').getPublicUrl(path);
+  }
+
   Future<String> uploadPostImage(XFile file) async {
     final userId = _client.auth.currentUser!.id;
     final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';

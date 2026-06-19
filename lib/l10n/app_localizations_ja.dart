@@ -307,6 +307,12 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get editGroupName => 'グループ名を編集';
+
+  @override
+  String get groupNameHint => 'グループ名を入力...';
+
+  @override
   String get editGroupAnnouncement => 'グループのお知らせを編集';
 
   @override
@@ -1127,6 +1133,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get networkError => 'ネットワークエラーです。接続を確認して再試行してください';
+
+  @override
+  String get sessionExpired => 'セッションが切れました。再度ログインしてください';
 
   @override
   String get loginFailedGeneric => 'メールまたはパスワードが正しくありません';

@@ -12,6 +12,7 @@ import '../../models/profile.dart';
 import '../../services/event_bus.dart';
 import '../../services/profile_service.dart';
 import '../../services/storage_service.dart';
+import '../../utils/auth_error.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -93,7 +94,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+        if (isAuthExpiredError(e)) {
+          showPremiumToast(context, AppLocalizations.of(context).sessionExpired,
+              kind: ToastKind.error);
+        } else {
+          showErrorIfNotNetwork(
+              context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+        }
       }
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -307,6 +307,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get editGroupName => '编辑群名称';
+
+  @override
+  String get groupNameHint => '输入群名称...';
+
+  @override
   String get editGroupAnnouncement => '编辑群公告';
 
   @override
@@ -1128,6 +1134,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkError => '网络连接失败，请检查网络后重试';
 
   @override
+  String get sessionExpired => '登录状态已失效，请重新登录后再试';
+
+  @override
   String get loginFailedGeneric => '邮箱或密码错误';
 
   @override
@@ -1735,6 +1744,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String bookChapterDisplay(Object bookName, Object chapterNumber) {
     return '$bookName 第$chapterNumber章';
   }
+
+  @override
+  String get editGroupName => '編輯群名稱';
+
+  @override
+  String get groupNameHint => '輸入群名稱...';
 
   @override
   String get editGroupAnnouncement => '編輯群公告';
@@ -2556,6 +2571,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkError => '網路連線失敗，請檢查網路後重試';
+
+  @override
+  String get sessionExpired => '登入狀態已失效，請重新登入後再試';
 
   @override
   String get loginFailedGeneric => '信箱或密碼錯誤';

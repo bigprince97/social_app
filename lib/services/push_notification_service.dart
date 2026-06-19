@@ -27,6 +27,16 @@ class PushNotificationService {
     importance: Importance.max,
   );
 
+  // 前台聊天横幅：静音频道。带声音的通知会抢占音频焦点，打断正在
+  // 播放的语音消息，因此聊天横幅不出声（playSound:false）。
+  static const _chatChannel = AndroidNotificationChannel(
+    'chat_silent',
+    '聊天消息',
+    description: '前台聊天横幅（静音）',
+    importance: Importance.high,
+    playSound: false,
+  );
+
   /// 收到来电类推送时回调（前台/后台点开都会触发），由 HomeScreen 注册，
   /// 用 call_id 拉取通话并弹来电界面。
   static void Function(Map<String, dynamic> data)? onCallPush;
@@ -129,16 +139,17 @@ class PushNotificationService {
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _androidChannel.id,
-          _androidChannel.name,
-          channelDescription: _androidChannel.description,
+          _chatChannel.id,
+          _chatChannel.name,
+          channelDescription: _chatChannel.description,
           importance: Importance.high,
           priority: Priority.high,
+          playSound: false,
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
-          presentSound: true,
+          presentSound: false,
         ),
       ),
       payload: 'chat|||$conversationId',
@@ -155,6 +166,7 @@ class PushNotificationService {
               AndroidFlutterLocalNotificationsPlugin>();
       await android?.createNotificationChannel(_androidChannel);
       await android?.createNotificationChannel(_callChannel);
+      await android?.createNotificationChannel(_chatChannel);
     }
 
     await _localNotifications.initialize(

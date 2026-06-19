@@ -142,6 +142,9 @@ class _ConvLoader extends StatefulWidget {
 }
 
 class _ConvLoaderState extends State<_ConvLoader> {
+  Conversation? _conv;
+  bool _failed = false;
+
   @override
   void initState() {
     super.initState();
@@ -155,20 +158,27 @@ class _ConvLoaderState extends State<_ConvLoader> {
         (c) => c.id == widget.conversationId,
         orElse: () => throw Exception('not found'),
       );
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv)),
-        );
-      }
+      if (mounted) setState(() => _conv = conv);
     } catch (_) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) setState(() => _failed = true);
     }
   }
 
+  // 直接内联渲染 ChatScreen，不再用 Navigator.pushReplacement 把页面推到
+  // GoRouter 之外的原生栈——那样两套导航栈会错乱，返回时出现白屏。
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) {
+    if (_conv != null) return ChatScreen(conversation: _conv!);
+    if (_failed) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(
+          child: Icon(Icons.error_outline, size: 48, color: Colors.grey),
+        ),
+      );
+    }
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
 }
 
 class _AuthChangeNotifier extends ChangeNotifier {

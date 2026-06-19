@@ -113,6 +113,22 @@ class ChatService {
     await _client.from('conversations').delete().eq('id', conversationId);
   }
 
+  /// 修改群名称（RLS 限群主/管理员）
+  Future<void> updateGroupName(String conversationId, String name) async {
+    await _client
+        .from('conversations')
+        .update({'name': name})
+        .eq('id', conversationId);
+  }
+
+  /// 修改群头像 URL（RLS 限群主/管理员）
+  Future<void> updateGroupAvatar(String conversationId, String url) async {
+    await _client
+        .from('conversations')
+        .update({'avatar_url': url})
+        .eq('id', conversationId);
+  }
+
   /// 删除对话：仅从「我的」列表隐藏（软删除，标记 hidden=true），
   /// 不删成员行——否则会破坏对方的直聊（对方进来找不到我）。
   /// 重新收到/发送消息时会自动取消隐藏。

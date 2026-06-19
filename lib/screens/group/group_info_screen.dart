@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/conversation.dart';
 import '../../services/chat_service.dart';
+import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
@@ -13,11 +15,13 @@ import 'add_members_screen.dart';
 class GroupInfoScreen extends StatefulWidget {
   final Conversation conversation;
   final void Function(String announcement)? onAnnouncementUpdated;
+  final VoidCallback? onGroupUpdated;
 
   const GroupInfoScreen({
     super.key,
     required this.conversation,
     this.onAnnouncementUpdated,
+    this.onGroupUpdated,
   });
 
   @override
@@ -27,7 +31,11 @@ class GroupInfoScreen extends StatefulWidget {
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   final _client = Supabase.instance.client;
   final _chatService = ChatService();
+  final _storage = StorageService();
+  final _picker = ImagePicker();
   late String? _announcement;
+  late String? _name;
+  late String? _avatarUrl;
   bool _saving = false;
   late bool _isAdmin;
   late final String _myId;
@@ -37,9 +45,80 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   void initState() {
     super.initState();
     _announcement = widget.conversation.announcement;
+    _name = widget.conversation.name;
+    _avatarUrl = widget.conversation.avatarUrl;
     _myId = _client.auth.currentUser?.id ?? '';
     _members = List.of(widget.conversation.members);
     _recomputeIsAdmin();
+  }
+
+  // ─── Group name & avatar ───────────────────────────────────────────────────
+
+  Future<void> _editName() async {
+    final ctrl = TextEditingController(text: _name);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.of(context).editGroupName),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 30,
+          decoration:
+              InputDecoration(hintText: AppLocalizations.of(context).groupNameHint),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(context).cancel)),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text(AppLocalizations.of(context).save),
+          ),
+        ],
+      ),
+    );
+    if (result == null || result.isEmpty || result == _name) return;
+    setState(() => _saving = true);
+    try {
+      await _chatService.updateGroupName(widget.conversation.id, result);
+      widget.conversation.name = result;
+      setState(() => _name = result);
+      widget.onGroupUpdated?.call();
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(
+            context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changeAvatar() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (file == null) return;
+    setState(() => _saving = true);
+    try {
+      final url =
+          await _storage.uploadGroupAvatar(widget.conversation.id, file);
+      await _chatService.updateGroupAvatar(widget.conversation.id, url);
+      widget.conversation.avatarUrl = url;
+      setState(() => _avatarUrl = url);
+      widget.onGroupUpdated?.call();
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(
+            context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   // 群主：会话创建者；管理员：role==admin（群主也算管理员权限）
@@ -330,41 +409,88 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       ),
       body: ListView(
         children: [
-          // 群名称 & 头像
+          // 群名称 & 头像（群主/管理员可点头像换图、点名称改名）
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  child: Text(
-                    (conv.name ?? AppLocalizations.of(context).group)[0],
-                    style: TextStyle(
-                        fontSize: 24,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onPrimaryContainer),
+                GestureDetector(
+                  onTap: _isAdmin ? _changeAvatar : null,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                        backgroundImage: (_avatarUrl?.isNotEmpty == true)
+                            ? NetworkImage(_avatarUrl!)
+                            : null,
+                        child: (_avatarUrl?.isNotEmpty == true)
+                            ? null
+                            : Text(
+                                (_name ?? AppLocalizations.of(context).group)[0],
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer),
+                              ),
+                      ),
+                      if (_isAdmin)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: Theme.of(context).scaffoldBackgroundColor,
+                                  width: 2),
+                            ),
+                            child: const Icon(Icons.camera_alt,
+                                size: 12, color: Colors.white),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        conv.name ?? AppLocalizations.of(context).group,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        AppLocalizations.of(context).memberCount(_members.length),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  child: InkWell(
+                    onTap: _isAdmin ? _editName : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _name ?? AppLocalizations.of(context).group,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            if (_isAdmin) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.edit_outlined,
+                                  size: 16,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withAlpha(140)),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          AppLocalizations.of(context).memberCount(_members.length),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
