@@ -19,7 +19,9 @@ class ChatService {
           .select('*, conversation_members(*, profiles(*))')
           .order('last_message_at', ascending: false);
       await LocalCache.instance.write('conversations', data);
-      return _processConversations(data as List);
+      final convs = _processConversations(data as List);
+      await _applyUnreadCounts(convs); // 用真实未读数覆盖占位值
+      return convs;
     } catch (e) {
       if (isNetworkError(e)) {
         final cached = await LocalCache.instance.read('conversations');
@@ -46,6 +48,23 @@ class ChatService {
           .toList();
     }
     return [];
+  }
+
+  /// 拉取每个会话的真实未读数（RPC），覆盖 _processConversations 的占位 1。
+  /// 失败时保留占位值（仍能指示"有未读"），不影响列表显示。
+  Future<void> _applyUnreadCounts(List<Conversation> convs) async {
+    try {
+      final rows = await _client.rpc('get_unread_counts') as List;
+      final counts = <String, int>{
+        for (final r in rows)
+          (r['conversation_id'] as String): (r['cnt'] as num).toInt(),
+      };
+      for (final c in convs) {
+        c.unreadCount = counts[c.id] ?? 0;
+      }
+    } catch (_) {
+      // RPC 不可用：保留布尔占位，不报错
+    }
   }
 
   List<Conversation> _processConversations(List data) {

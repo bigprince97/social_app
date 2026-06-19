@@ -757,7 +757,9 @@ class _AudioBubbleState extends State<_AudioBubble>
   @override
   void initState() {
     super.initState();
-    _player = AudioPlayer();
+    // handleInterruptions:false —— 关闭 just_audio 的自动焦点处理。
+    // 否则对方发来消息时系统的瞬时音频焦点变化会让播放自动暂停。
+    _player = AudioPlayer(handleInterruptions: false);
     _player.playerStateStream.listen((s) async {
       if (!mounted) return;
       if (s.processingState == ProcessingState.completed) {
