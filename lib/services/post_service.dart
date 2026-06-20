@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import '../models/post.dart';
 import 'local_cache.dart';
 
@@ -44,7 +45,7 @@ class PostService {
     List<String> topics = const [],
     Map<String, dynamic>? scriptureQuote,
   }) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final data = await _client
         .from('posts')
         .insert({
@@ -122,14 +123,14 @@ class PostService {
   }
 
   Future<void> bookmarkPost(String postId) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     await _client
         .from('post_bookmarks')
         .insert({'post_id': postId, 'user_id': userId});
   }
 
   Future<void> unbookmarkPost(String postId) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     await _client
         .from('post_bookmarks')
         .delete()
@@ -201,12 +202,12 @@ class PostService {
   }
 
   Future<void> likePost(String postId) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     await _client.from('post_likes').insert({'post_id': postId, 'user_id': userId});
   }
 
   Future<void> unlikePost(String postId) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     await _client
         .from('post_likes')
         .delete()
@@ -227,7 +228,7 @@ class PostService {
     required String postId,
     required String content,
   }) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final data = await _client
         .from('post_comments')
         .insert({'post_id': postId, 'user_id': userId, 'content': content})

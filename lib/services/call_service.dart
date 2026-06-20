@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 
 class CallInfo {
   final String id;
@@ -49,7 +50,7 @@ class CallService {
       final p = await _client
           .from('profiles')
           .select('display_name')
-          .eq('id', identity ?? _userId!)
+          .eq('id', identity ?? requireUid(_client))
           .maybeSingle();
       displayName = p?['display_name'] as String?;
     } catch (_) {}

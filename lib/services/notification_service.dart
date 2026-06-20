@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import '../models/notification.dart';
 
 class NotificationService {
@@ -9,7 +10,7 @@ class NotificationService {
     final data = await _client
         .from('notifications')
         .select('*, profiles!actor_id(*)')
-        .eq('user_id', _userId!)
+        .eq('user_id', requireUid(_client))
         .order('created_at', ascending: false)
         .limit(limit);
     return (data as List).map((e) => AppNotification.fromJson(e)).toList();
@@ -19,7 +20,7 @@ class NotificationService {
     final resp = await _client
         .from('notifications')
         .select()
-        .eq('user_id', _userId!)
+        .eq('user_id', requireUid(_client))
         .eq('is_read', false)
         .count(CountOption.exact);
     return resp.count;
@@ -29,7 +30,7 @@ class NotificationService {
     await _client
         .from('notifications')
         .update({'is_read': true})
-        .eq('user_id', _userId!)
+        .eq('user_id', requireUid(_client))
         .eq('is_read', false);
   }
 
@@ -52,7 +53,7 @@ class NotificationService {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'user_id',
-            value: _userId!,
+            value: requireUid(_client),
           ),
           callback: (payload) async {
             final row = payload.newRecord;

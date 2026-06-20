@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import '../models/profile.dart';
 import 'local_cache.dart';
 
@@ -37,7 +38,7 @@ class ProfileService {
     final data = await _client
         .from('profiles')
         .update(updates)
-        .eq('id', _userId!)
+        .eq('id', requireUid(_client))
         .select()
         .single();
     return Profile.fromJson(data);
@@ -48,7 +49,7 @@ class ProfileService {
         .from('profiles')
         .select()
         .or('username.ilike.%$query%,display_name.ilike.%$query%')
-        .neq('id', _userId!)
+        .neq('id', requireUid(_client))
         .limit(20);
     return (data as List).map((e) => Profile.fromJson(e)).toList();
   }
@@ -64,7 +65,7 @@ class ProfileService {
     await _client
         .from('follows')
         .delete()
-        .eq('follower_id', _userId!)
+        .eq('follower_id', requireUid(_client))
         .eq('following_id', targetId);
   }
 
@@ -72,7 +73,7 @@ class ProfileService {
     final data = await _client
         .from('follows')
         .select()
-        .eq('follower_id', _userId!)
+        .eq('follower_id', requireUid(_client))
         .eq('following_id', targetId)
         .maybeSingle();
     return data != null;

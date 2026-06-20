@@ -1,5 +1,6 @@
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import 'package:uuid/uuid.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
@@ -109,7 +110,7 @@ class ChatService {
         .select()
         .single();
 
-    final allMembers = [_userId!, ...memberIds];
+    final allMembers = [requireUid(_client), ...memberIds];
     await _client.from('conversation_members').insert(
           allMembers
               .map((id) => {

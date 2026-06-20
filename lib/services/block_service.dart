@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import '../models/profile.dart';
 
 class BlockService {
@@ -24,7 +25,7 @@ class BlockService {
   }
 
   Future<void> blockUser(String userId) async {
-    final me = _client.auth.currentUser!.id;
+    final me = requireUid(_client);
     await _client.from('blocks').upsert({
       'blocker_id': me,
       'blocked_id': userId,
@@ -32,7 +33,7 @@ class BlockService {
   }
 
   Future<void> unblockUser(String userId) async {
-    final me = _client.auth.currentUser!.id;
+    final me = requireUid(_client);
     await _client
         .from('blocks')
         .delete()
@@ -41,7 +42,7 @@ class BlockService {
   }
 
   Future<bool> isBlocked(String userId) async {
-    final me = _client.auth.currentUser!.id;
+    final me = requireUid(_client);
     final data = await _client
         .from('blocks')
         .select()
@@ -52,7 +53,7 @@ class BlockService {
   }
 
   Future<Set<String>> getBlockedIds() async {
-    final me = _client.auth.currentUser!.id;
+    final me = requireUid(_client);
     final data = await _client
         .from('blocks')
         .select('blocked_id')

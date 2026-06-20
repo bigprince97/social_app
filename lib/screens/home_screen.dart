@@ -60,18 +60,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 回前台：后台期间 realtime 事件丢失，重拉角标并重建订阅
     if (state == AppLifecycleState.resumed) {
       _loadBadges();
-      _msgChannel?.unsubscribe();
-      _callChannel?.unsubscribe();
+      _removeCh(_msgChannel);
+      _removeCh(_callChannel);
       _subscribeToMessages();
       _subscribeToIncomingCalls();
     }
   }
 
+  // removeChannel 而非 unsubscribe：避免反复切后台累积同名僵尸频道。
+  void _removeCh(RealtimeChannel? ch) {
+    if (ch != null) Supabase.instance.client.removeChannel(ch);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _msgChannel?.unsubscribe();
-    _callChannel?.unsubscribe();
+    _removeCh(_msgChannel);
+    _removeCh(_callChannel);
     PushNotificationService.onCallPush = null;
     super.dispose();
   }

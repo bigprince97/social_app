@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/premium_toast.dart';
 
 /// 轻量文件缓存：把静态数据（经书/章节正文等）以 JSON 存到 app 文档目录，
@@ -85,5 +86,17 @@ bool isNetworkError(Object e) {
 void showErrorIfNotNetwork(BuildContext context, Object e, String message) {
   if (isNetworkError(e)) return;
   if (!context.mounted) return;
+  // 会话失效（令牌过期/本地 currentUser 为空/RLS 拒）：统一提示重新登录，
+  // 不把 SessionExpiredException / RLS 等原始文案暴露给用户。
+  final s = e.toString();
+  if (s.contains('SessionExpiredException') ||
+      s.contains('row-level security') ||
+      s.contains('JWT expired') ||
+      s.contains('statusCode: 401') ||
+      s.contains('statusCode: 403')) {
+    showPremiumToast(context, AppLocalizations.of(context).sessionExpired,
+        kind: ToastKind.error);
+    return;
+  }
   showPremiumToast(context, message, kind: ToastKind.error);
 }

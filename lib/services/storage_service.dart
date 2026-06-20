@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import 'package:uuid/uuid.dart';
 
 class StorageService {
@@ -8,7 +9,7 @@ class StorageService {
   final _uuid = const Uuid();
 
   Future<String> uploadAvatar(XFile file, {String? oldUrl}) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
     // 用 uuid 唯一文件名 + upsert:false（纯 INSERT），与群头像一致。
     // 原本固定路径 + upsert:true 会走 ON CONFLICT DO UPDATE，被 media 桶
@@ -55,7 +56,7 @@ class StorageService {
   }
 
   Future<String> uploadPostImage(XFile file) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
     final path = 'posts/$userId/${_uuid.v4()}.$ext';
     final bytes = await file.readAsBytes();
@@ -69,7 +70,7 @@ class StorageService {
   }
 
   Future<String> uploadPostVideo(XFile file) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final ext = file.name.contains('.')
         ? file.name.split('.').last.toLowerCase()
         : 'mp4';
@@ -85,7 +86,7 @@ class StorageService {
 
   Future<({String url, int size})> uploadChatFile(
       Uint8List bytes, String fileName) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final ext = fileName.contains('.') ? fileName.split('.').last : '';
     final safeName = '${_uuid.v4()}${ext.isNotEmpty ? '.$ext' : ''}';
     final path = 'chat/$userId/files/$safeName';
@@ -108,7 +109,7 @@ class StorageService {
 
   Future<String> uploadChatAudio(Uint8List bytes,
       {String ext = 'aac'}) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     // Map extension to supported MIME type
     final mime = _audioMime(ext);
     final path = 'chat/$userId/audio/${_uuid.v4()}.$ext';
@@ -135,7 +136,7 @@ class StorageService {
   }
 
   Future<({String url, int size})> uploadChatVideo(XFile file) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = requireUid(_client);
     final ext = file.name.contains('.')
         ? file.name.split('.').last.toLowerCase()
         : 'mp4';

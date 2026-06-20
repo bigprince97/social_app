@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show requireUid;
 import '../models/scripture.dart';
 import 'local_cache.dart';
 
@@ -240,7 +241,7 @@ class ScriptureService {
   }
 
   Future<bool> toggleBookmark(String chapterId, String scriptureId) async {
-    final uid = _userId!;
+    final uid = requireUid(_client);
     final existing = await _client
         .from('bookmarks')
         .select('id')
@@ -260,7 +261,7 @@ class ScriptureService {
   }
 
   Future<bool> toggleHighlight(String chapterId, String text) async {
-    final uid = _userId!;
+    final uid = requireUid(_client);
     final existing = await _client
         .from('highlights')
         .select('id')
@@ -283,7 +284,7 @@ class ScriptureService {
 
   Future<void> saveNote(
       String chapterId, String scriptureId, String content) async {
-    final uid = _userId!;
+    final uid = requireUid(_client);
     final existing = await _client
         .from('reading_notes')
         .select('id')
@@ -306,7 +307,7 @@ class ScriptureService {
   }
 
   Future<void> deleteNote(String chapterId) async {
-    final uid = _userId!;
+    final uid = requireUid(_client);
     await _client
         .from('reading_notes')
         .delete()

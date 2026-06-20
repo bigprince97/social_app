@@ -225,13 +225,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  // 用 removeChannel 而非 unsubscribe：后者不从客户端注册表移除同名 topic 频道，
+  // 反复切后台/前台会累积僵尸频道。removeChannel 会一并退订并移除。
+  void _removeCh(RealtimeChannel? ch) {
+    if (ch != null) Supabase.instance.client.removeChannel(ch);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // 回前台：补拉后台期间漏掉的消息并重建订阅
     if (state == AppLifecycleState.resumed) {
-      _msgChannel?.unsubscribe();
-      _updateChannel?.unsubscribe();
-      _readChannel?.unsubscribe();
+      _removeCh(_msgChannel);
+      _removeCh(_updateChannel);
+      _removeCh(_readChannel);
       _loadMessages();
       _subscribeToMessages();
       _subscribeToMessageUpdates();
@@ -243,10 +249,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     ActiveConversation.leave(_conversation.id);
-    _msgChannel?.unsubscribe();
-    _updateChannel?.unsubscribe();
-    _readChannel?.unsubscribe();
-    _convCallChannel?.unsubscribe();
+    _removeCh(_msgChannel);
+    _removeCh(_updateChannel);
+    _removeCh(_readChannel);
+    _removeCh(_convCallChannel);
     _inputCtrl.removeListener(_onInputChanged);
     _scrollController.removeListener(_onScroll);
     _inputCtrl.dispose();
