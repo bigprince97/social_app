@@ -333,6 +333,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (_messages.any((m) => m.id == msg.id)) return;
       // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
       final wasNearBottom = _isNearBottom;
+      // ignore: avoid_print
+      print('[AUDIODBG] >>> NEW MSG arrived type=${msg.messageType} nearBottom=$wasNearBottom');
       setState(() => _messages.add(msg));
       if (wasNearBottom) _scrollToBottom();
       _scheduleUpdateLastRead();

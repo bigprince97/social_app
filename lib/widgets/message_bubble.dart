@@ -757,6 +757,8 @@ class _AudioBubbleState extends State<_AudioBubble>
   @override
   void initState() {
     super.initState();
+    // ignore: avoid_print
+    print('[AUDIODBG] init ${widget.message.id}');
     // handleInterruptions:false —— 关闭 just_audio 的自动焦点处理。
     // 否则对方发来消息时系统的瞬时音频焦点变化会让播放自动暂停。
     _player = AudioPlayer(handleInterruptions: false);
@@ -777,6 +779,8 @@ class _AudioBubbleState extends State<_AudioBubble>
         setState(() => _playing = s.playing);
         updateKeepAlive();
       }
+      // ignore: avoid_print
+      print('[AUDIODBG] state ${widget.message.id} playing=${s.playing} proc=${s.processingState}');
     });
     _player.positionStream.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -792,6 +796,8 @@ class _AudioBubbleState extends State<_AudioBubble>
   @override
   void didUpdateWidget(_AudioBubble old) {
     super.didUpdateWidget(old);
+    // ignore: avoid_print
+    print('[AUDIODBG] didUpdate ${old.message.id}->${widget.message.id} urlChanged=${old.message.mediaUrl != widget.message.mediaUrl}');
     // 若本 State 被复用到另一条语音（音频 URL 变了），重置播放器与时长，
     // 否则会显示上一条消息的时长/进度
     if (old.message.mediaUrl != widget.message.mediaUrl) {
@@ -808,6 +814,8 @@ class _AudioBubbleState extends State<_AudioBubble>
 
   @override
   void dispose() {
+    // ignore: avoid_print
+    print('[AUDIODBG] dispose ${widget.message.id} playing=$_playing');
     _player.dispose();
     super.dispose();
   }
