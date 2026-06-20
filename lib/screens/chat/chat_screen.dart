@@ -1351,9 +1351,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     // 在 sliver 里不会跨索引保留 State，必须用此回调按 key 定位新
                     // 索引，否则正在播放的语音气泡会被重建/串台而中断播放。
                     findChildIndexCallback: (Key key) {
-                      final id = (key as ValueKey<String>).value;
+                      if (key is! ValueKey<String>) return null;
                       final dataIdx =
-                          _messages.indexWhere((m) => m.id == id);
+                          _messages.indexWhere((m) => m.id == key.value);
                       if (dataIdx < 0) return null;
                       return _messages.length - 1 - dataIdx;
                     },
