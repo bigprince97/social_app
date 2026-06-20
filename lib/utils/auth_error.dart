@@ -19,6 +19,19 @@ class SessionExpiredException implements Exception {
   String toString() => 'SessionExpiredException: 登录状态已失效';
 }
 
+/// 用户不存在（账号已注销）：getProfile 查到 0 行时抛出，UI 显示「用户不存在」。
+class UserNotFoundException implements Exception {
+  const UserNotFoundException();
+  @override
+  String toString() => 'UserNotFoundException: 用户不存在或已注销';
+}
+
+/// 头像首字母：对 null / 空串安全，避免 displayName[0] 越界崩溃。
+String avatarInitial(String? name) {
+  if (name == null || name.isEmpty) return '?';
+  return name.substring(0, 1).toUpperCase();
+}
+
 /// 写操作前取当前用户 id；为空则抛 [SessionExpiredException]（会话过期）。
 String requireUid(dynamic client) {
   final id = client.auth.currentUser?.id as String?;

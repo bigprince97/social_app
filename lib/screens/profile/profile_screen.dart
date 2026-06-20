@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
@@ -473,7 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : null,
                     child: _profile!.avatarUrl == null
                         ? Text(
-                            _profile!.displayName[0].toUpperCase(),
+                            avatarInitial(_profile!.displayName),
                             style: const TextStyle(
                               fontSize: 28,
                               color: Colors.white,

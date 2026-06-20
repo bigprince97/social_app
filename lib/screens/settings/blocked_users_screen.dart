@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import '../../l10n/app_localizations.dart';
 import '../../models/profile.dart';
 import '../../services/block_service.dart';
@@ -75,7 +76,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                             : null,
                         child: p.avatarUrl == null
                             ? Text(p.displayName.isNotEmpty
-                                ? p.displayName[0].toUpperCase()
+                                ? avatarInitial(p.displayName)
                                 : '?')
                             : null,
                       ),

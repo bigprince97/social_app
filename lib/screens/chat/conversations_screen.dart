@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -536,7 +537,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
                                         ? CachedNetworkImageProvider(p.avatarUrl!)
                                         : null,
                                     child: p.avatarUrl == null
-                                        ? Text(p.displayName[0].toUpperCase())
+                                        ? Text(avatarInitial(p.displayName))
                                         : null,
                                   ),
                                   title: Text(p.displayName),
@@ -598,7 +599,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
                                   ? CachedNetworkImageProvider(p.avatarUrl!)
                                   : null,
                               child: p.avatarUrl == null
-                                  ? Text(p.displayName[0].toUpperCase())
+                                  ? Text(avatarInitial(p.displayName))
                                   : null,
                             ),
                           );

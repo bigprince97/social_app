@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
@@ -254,7 +255,7 @@ class _UserTile extends StatelessWidget {
             ? CachedNetworkImageProvider(profile.avatarUrl!)
             : null,
         child: profile.avatarUrl == null
-            ? Text(profile.displayName[0].toUpperCase())
+            ? Text(avatarInitial(profile.displayName))
             : null,
       ),
       title: Text(profile.displayName,

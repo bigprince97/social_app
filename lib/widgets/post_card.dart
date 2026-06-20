@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../services/locale_controller.dart';
@@ -253,7 +254,7 @@ class _PostCardState extends State<PostCard>
                   onTap: () => context.push('/profile/${widget.post.userId}'),
                   child: _GradientAvatar(
                     url: author?.avatarUrl,
-                    initial: author?.displayName[0].toUpperCase() ?? '?',
+                    initial: avatarInitial(author?.displayName),
                     radius: 19,
                     hasRing: !_isOwn,
                   ),

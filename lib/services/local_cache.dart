@@ -48,6 +48,17 @@ class LocalCache {
     } catch (_) {}
   }
 
+  /// 删除单个 key 的缓存（如账号注销后清掉其幽灵资料缓存）。
+  Future<void> remove(String key) async {
+    _memory.remove(key);
+    if (kIsWeb) return;
+    try {
+      final d = await _cacheDir();
+      final f = File('${d.path}/${_safe(key)}.json');
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
   /// 读缓存；不存在返回 null
   Future<dynamic> read(String key) async {
     if (_memory.containsKey(key)) return _memory[key];

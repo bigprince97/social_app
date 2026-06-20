@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/profile.dart';
@@ -90,7 +91,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
                                 ? CachedNetworkImageProvider(p.avatarUrl!)
                                 : null,
                             child: p.avatarUrl == null
-                                ? Text(p.displayName[0].toUpperCase())
+                                ? Text(avatarInitial(p.displayName))
                                 : null,
                           ),
                           title: Text(p.displayName,

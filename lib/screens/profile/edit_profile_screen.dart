@@ -152,7 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: _newAvatarFile == null &&
                                   _profile?.avatarUrl == null
                               ? Text(
-                                  _profile?.displayName[0].toUpperCase() ?? '?',
+                                  avatarInitial(_profile?.displayName),
                                   style: const TextStyle(fontSize: 36),
                                 )
                               : null,

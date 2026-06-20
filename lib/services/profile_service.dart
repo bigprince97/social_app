@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../utils/auth_error.dart' show requireUid;
+import '../utils/auth_error.dart' show requireUid, UserNotFoundException;
 import '../models/profile.dart';
 import 'local_cache.dart';
 
@@ -11,12 +11,22 @@ class ProfileService {
   Future<Profile> getProfile(String userId) async {
     final cacheKey = 'profile_$userId';
     try {
-      final data =
-          await _client.from('profiles').select().eq('id', userId).single();
+      // maybeSingle：0 行不抛异常，便于区分"已注销"与"网络错误"。
+      final data = await _client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (data == null) {
+        // 查询成功但无此用户 = 账号已注销/不存在：清掉旧缓存，避免显示幽灵资料。
+        await _cache.remove(cacheKey);
+        throw const UserNotFoundException();
+      }
       await _cache.write(cacheKey, data);
       return Profile.fromJson(data);
     } catch (e) {
-      // 离线 → 用上次缓存的资料，避免"用户不存在"误导
+      if (e is UserNotFoundException) rethrow;
+      // 网络错误 → 用上次缓存的资料，避免"用户不存在"误导。
       final cached = await _cache.read(cacheKey);
       if (cached is Map) {
         return Profile.fromJson(Map<String, dynamic>.from(cached));

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../services/locale_controller.dart';
@@ -403,7 +404,7 @@ class _CommentTile extends StatelessWidget {
                     ? CachedNetworkImageProvider(author!.avatarUrl!)
                     : null,
                 child: author?.avatarUrl == null
-                    ? Text(author?.displayName[0].toUpperCase() ?? '?',
+                    ? Text(avatarInitial(author?.displayName),
                         style: const TextStyle(fontSize: 12))
                     : null,
               ),

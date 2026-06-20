@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import '../../models/profile.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_style.dart';
@@ -131,7 +132,7 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
                           backgroundColor: AppStyle.brand.withAlpha(40),
                           child: Text(
                             p.displayName.isNotEmpty
-                                ? p.displayName[0].toUpperCase()
+                                ? avatarInitial(p.displayName)
                                 : '?',
                             style: const TextStyle(color: AppStyle.brand),
                           ),

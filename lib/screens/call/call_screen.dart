@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
@@ -233,7 +234,7 @@ class _CallScreenState extends State<CallScreen> {
             backgroundColor: const Color(0xFF9575CD),
             child: Text(
               widget.displayName.isNotEmpty
-                  ? widget.displayName[0].toUpperCase()
+                  ? avatarInitial(widget.displayName)
                   : '?',
               style: const TextStyle(
                   fontSize: 40,

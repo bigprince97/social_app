@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../services/locale_controller.dart';
@@ -144,7 +145,7 @@ class _NotificationTile extends StatelessWidget {
                 ? CachedNetworkImageProvider(actor!.avatarUrl!)
                 : null,
             child: actor?.avatarUrl == null
-                ? Text(actor?.displayName[0].toUpperCase() ?? '?')
+                ? Text(avatarInitial(actor?.displayName))
                 : null,
           ),
           Positioned(

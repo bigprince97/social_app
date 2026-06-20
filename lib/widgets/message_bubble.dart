@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../utils/auth_error.dart' show avatarInitial;
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
@@ -422,7 +423,7 @@ class _AvatarSlot extends StatelessWidget {
           : null,
       child: s?.avatarUrl == null
           ? Text(
-              s?.displayName[0].toUpperCase() ?? '?',
+              avatarInitial(s?.displayName),
               style: const TextStyle(
                 fontSize: 11,
                 color: Colors.white,
