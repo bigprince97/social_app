@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -40,12 +41,28 @@ class PushNotificationService {
   /// 收到来电类推送时回调（前台/后台点开都会触发），由 HomeScreen 注册，
   /// 用 call_id 拉取通话并弹来电界面。
   static void Function(Map<String, dynamic> data)? onCallPush;
+  static void Function(
+    String? postId,
+    String? actorId,
+    String type,
+    String? conversationId,
+  )?
+  _onNotificationTap;
+  static StreamSubscription<String>? _tokenRefreshSub;
+  static StreamSubscription<RemoteMessage>? _foregroundMessageSub;
+  static StreamSubscription<RemoteMessage>? _messageOpenedSub;
 
   static Future<void> initialize({
     required void Function(
-            String? postId, String? actorId, String type, String? conversationId)
-        onNotificationTap,
+      String? postId,
+      String? actorId,
+      String type,
+      String? conversationId,
+    )
+    onNotificationTap,
   }) async {
+    _onNotificationTap = onNotificationTap;
+
     // 注册后台处理器
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -71,12 +88,12 @@ class PushNotificationService {
 
     // 保存 FCM token
     await _saveToken();
-    _messaging.onTokenRefresh.listen(_upsertToken);
+    _tokenRefreshSub ??= _messaging.onTokenRefresh.listen(_upsertToken);
 
     // 前台收到消息 → 本地通知。
     // 聊天消息跳过：前台聊天横幅由 home_screen 的 realtime 订阅负责
     // (更快、且能按"是否正在该会话页"精确抑制)，FCM 只负责后台。
-    FirebaseMessaging.onMessage.listen((msg) {
+    _foregroundMessageSub ??= FirebaseMessaging.onMessage.listen((msg) {
       // 来电：前台直接弹来电界面（兜底 realtime），不走系统通知
       if (msg.data['type'] == 'call') {
         onCallPush?.call(Map<String, dynamic>.from(msg.data));
@@ -108,12 +125,12 @@ class PushNotificationService {
     });
 
     // 点击通知打开 app（后台 → 前台）
-    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+    _messageOpenedSub ??= FirebaseMessaging.onMessageOpenedApp.listen((msg) {
       if (msg.data['type'] == 'call') {
         onCallPush?.call(Map<String, dynamic>.from(msg.data));
         return;
       }
-      _handleTap(msg.data, onNotificationTap);
+      _handleTapWithCurrentCallback(msg.data);
     });
 
     // app 从终止状态被通知打开
@@ -122,7 +139,7 @@ class PushNotificationService {
       if (initial.data['type'] == 'call') {
         onCallPush?.call(Map<String, dynamic>.from(initial.data));
       } else {
-        _handleTap(initial.data, onNotificationTap);
+        _handleTapWithCurrentCallback(initial.data);
       }
     }
   }
@@ -163,7 +180,8 @@ class PushNotificationService {
     if (Platform.isAndroid) {
       final android = _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await android?.createNotificationChannel(_androidChannel);
       await android?.createNotificationChannel(_callChannel);
       await android?.createNotificationChannel(_chatChannel);
@@ -180,7 +198,7 @@ class PushNotificationService {
         final type = parts.isNotEmpty ? parts[0] : '';
         String? part(int i) =>
             parts.length > i && parts[i].isNotEmpty ? parts[i] : null;
-        onTap(part(1), part(2), type, part(3));
+        (_onNotificationTap ?? onTap)(part(1), part(2), type, part(3));
       },
     );
   }
@@ -204,6 +222,12 @@ class PushNotificationService {
     );
   }
 
+  static void _handleTapWithCurrentCallback(Map<String, dynamic> data) {
+    final onTap = _onNotificationTap;
+    if (onTap == null) return;
+    _handleTap(data, onTap);
+  }
+
   static Future<void> _saveToken() async {
     try {
       final token = await _messaging.getToken();
@@ -216,25 +240,22 @@ class PushNotificationService {
   static Future<void> _upsertToken(String token) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
-    await Supabase.instance.client.from('push_tokens').upsert(
-      {
-        'user_id': userId,
-        'token': token,
-        'platform': Platform.isIOS ? 'ios' : 'android',
-      },
-      onConflict: 'user_id, token',
-    );
+    await Supabase.instance.client.from('push_tokens').upsert({
+      'user_id': userId,
+      'token': token,
+      'platform': Platform.isIOS ? 'ios' : 'android',
+    }, onConflict: 'user_id, token');
   }
 
-  static Future<void> deleteToken() async {
+  static Future<void> deleteToken({String? userId}) async {
     try {
       final token = await _messaging.getToken();
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (token != null && userId != null) {
+      final ownerId = userId ?? Supabase.instance.client.auth.currentUser?.id;
+      if (token != null && ownerId != null) {
         await Supabase.instance.client
             .from('push_tokens')
             .delete()
-            .eq('user_id', userId)
+            .eq('user_id', ownerId)
             .eq('token', token);
       }
       await _messaging.deleteToken();

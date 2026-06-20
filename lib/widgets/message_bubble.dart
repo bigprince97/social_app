@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../utils/auth_error.dart' show avatarInitial;
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -53,6 +54,7 @@ class MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
   final bool showAvatar;
+
   /// 是否显示发送者昵称（仅连发第一条显示，避免重复）
   final bool showSenderName;
   final bool showDateSeparator;
@@ -79,6 +81,12 @@ class MessageBubble extends StatelessWidget {
     if (!isMe) return false;
     if (message.isDeleted) return false;
     return DateTime.now().difference(message.createdAt) <= _kRecallWindow;
+  }
+
+  void _openSenderProfile(BuildContext context) {
+    final userId = message.sender?.id ?? message.senderId;
+    if (userId.isEmpty) return;
+    context.push('/profile/$userId');
   }
 
   void _showMenu(BuildContext context) {
@@ -166,7 +174,9 @@ class MessageBubble extends StatelessWidget {
                                 Navigator.pop(context);
                                 showPremiumToast(
                                   context,
-                                  AppLocalizations.of(context).copiedToClipboard,
+                                  AppLocalizations.of(
+                                    context,
+                                  ).copiedToClipboard,
                                   kind: ToastKind.success,
                                 );
                               },
@@ -366,7 +376,11 @@ class MessageBubble extends StatelessWidget {
               children: [
                 // Only show avatar slot in group chats (reserves alignment space)
                 if (!isMe && isGroupChat)
-                  _AvatarSlot(message: message, showAvatar: showAvatar),
+                  _AvatarSlot(
+                    message: message,
+                    showAvatar: showAvatar,
+                    onTap: () => _openSenderProfile(context),
+                  ),
                 if (!isMe && isGroupChat) const SizedBox(width: 6),
                 Flexible(child: _buildBubble(context)),
               ],
@@ -400,6 +414,7 @@ class MessageBubble extends StatelessWidget {
       showSenderName: !isMe && showSenderName,
       isRead: isRead,
       groupMemberNames: groupMemberNames,
+      onSenderTap: () => _openSenderProfile(context),
     );
   }
 }
@@ -409,28 +424,40 @@ class MessageBubble extends StatelessWidget {
 class _AvatarSlot extends StatelessWidget {
   final Message message;
   final bool showAvatar;
-  const _AvatarSlot({required this.message, required this.showAvatar});
+  final VoidCallback? onTap;
+  const _AvatarSlot({
+    required this.message,
+    required this.showAvatar,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (!showAvatar) return const SizedBox(width: 32);
     final s = message.sender;
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: _colorForSender(message.senderId),
-      backgroundImage: s?.avatarUrl != null
-          ? CachedNetworkImageProvider(s!.avatarUrl!)
-          : null,
-      child: s?.avatarUrl == null
-          ? Text(
-              avatarInitial(s?.displayName),
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            )
-          : null,
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: _colorForSender(message.senderId),
+          backgroundImage: s?.avatarUrl != null
+              ? CachedNetworkImageProvider(s!.avatarUrl!)
+              : null,
+          child: s?.avatarUrl == null
+              ? Text(
+                  avatarInitial(s?.displayName),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+              : null,
+        ),
+      ),
     );
   }
 }
@@ -483,9 +510,7 @@ class _CallBubble extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 18,
-              color: isMe ? Colors.white : color),
+          Icon(icon, size: 18, color: isMe ? Colors.white : color),
           const SizedBox(width: 8),
           Text(
             label,
@@ -544,6 +569,7 @@ class _TextBubble extends StatelessWidget {
   final bool showSenderName;
   final bool isRead;
   final List<String> groupMemberNames;
+  final VoidCallback? onSenderTap;
 
   const _TextBubble({
     required this.message,
@@ -551,6 +577,7 @@ class _TextBubble extends StatelessWidget {
     required this.showSenderName,
     required this.isRead,
     required this.groupMemberNames,
+    this.onSenderTap,
   });
 
   // Highlight @mentions in the text
@@ -648,12 +675,19 @@ class _TextBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (showSenderName && message.sender != null) ...[
-            Text(
-              message.sender!.displayName,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: _colorForSender(message.senderId),
+            Semantics(
+              button: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onSenderTap,
+                child: Text(
+                  message.sender!.displayName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _colorForSender(message.senderId),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 3),
@@ -781,7 +815,9 @@ class _AudioBubbleState extends State<_AudioBubble>
         updateKeepAlive();
       }
       // ignore: avoid_print
-      print('[AUDIODBG] state ${widget.message.id} playing=${s.playing} proc=${s.processingState}');
+      print(
+        '[AUDIODBG] state ${widget.message.id} playing=${s.playing} proc=${s.processingState}',
+      );
     });
     _player.positionStream.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -798,7 +834,9 @@ class _AudioBubbleState extends State<_AudioBubble>
   void didUpdateWidget(_AudioBubble old) {
     super.didUpdateWidget(old);
     // ignore: avoid_print
-    print('[AUDIODBG] didUpdate ${old.message.id}->${widget.message.id} urlChanged=${old.message.mediaUrl != widget.message.mediaUrl}');
+    print(
+      '[AUDIODBG] didUpdate ${old.message.id}->${widget.message.id} urlChanged=${old.message.mediaUrl != widget.message.mediaUrl}',
+    );
     // 若本 State 被复用到另一条语音（音频 URL 变了），重置播放器与时长，
     // 否则会显示上一条消息的时长/进度
     if (old.message.mediaUrl != widget.message.mediaUrl) {
@@ -833,7 +871,11 @@ class _AudioBubbleState extends State<_AudioBubble>
       } catch (e) {
         if (mounted) {
           setState(() => _loading = false);
-          showPremiumToast(context, AppLocalizations.of(context).audioPlayFailed(e), kind: ToastKind.error);
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).audioPlayFailed(e),
+            kind: ToastKind.error,
+          );
         }
         return;
       }
@@ -1296,9 +1338,11 @@ Future<void> _downloadAndOpen(
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (context.mounted) {
-          showPremiumToast(context,
-              AppLocalizations.of(context).cannotOpen(result.message),
-              kind: ToastKind.error);
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).cannotOpen(result.message),
+            kind: ToastKind.error,
+          );
         }
       }
     }
@@ -1311,8 +1355,10 @@ Future<void> _downloadAndOpen(
     } else {
       if (context.mounted) {
         showPremiumToast(
-            context, AppLocalizations.of(context).openFailed(e),
-            kind: ToastKind.error);
+          context,
+          AppLocalizations.of(context).openFailed(e),
+          kind: ToastKind.error,
+        );
       }
     }
   }

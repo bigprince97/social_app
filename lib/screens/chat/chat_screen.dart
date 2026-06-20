@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -165,7 +166,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).joinLivestreamFailed(e), kind: ToastKind.error);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).joinLivestreamFailed(e),
+          kind: ToastKind.error,
+        );
       }
     }
   }
@@ -341,7 +346,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
       final wasNearBottom = _isNearBottom;
       // ignore: avoid_print
-      print('[AUDIODBG] >>> NEW MSG arrived type=${msg.messageType} nearBottom=$wasNearBottom');
+      print(
+        '[AUDIODBG] >>> NEW MSG arrived type=${msg.messageType} nearBottom=$wasNearBottom',
+      );
       setState(() => _messages.add(msg));
       if (wasNearBottom) _scrollToBottom();
       _scheduleUpdateLastRead();
@@ -448,8 +455,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _showSendError(Object e) {
     final s = e.toString();
     if (s.contains('42501') || s.contains('row-level security')) {
-      showPremiumToast(context, AppLocalizations.of(context).blockedCannotSend,
-          kind: ToastKind.block);
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).blockedCannotSend,
+        kind: ToastKind.block,
+      );
       return;
     }
     showErrorIfNotNetwork(
@@ -495,7 +505,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).microphonePermissionRequired, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).microphonePermissionRequired,
+          kind: ToastKind.info,
+        );
       }
       return;
     }
@@ -550,7 +564,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (durMs < 500) {
       // 太短：明确提示，不再静默丢弃
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).recordingTooShort, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).recordingTooShort,
+          kind: ToastKind.info,
+        );
       }
       return;
     }
@@ -595,9 +613,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (picked == null) return;
       setState(() => _sending = true);
       try {
+        final imageUrl = await _storageService.uploadChatImage(picked);
         final msg = await _chatService.sendImageMessage(
           conversationId: _conversation.id,
-          imageFile: picked,
+          imageUrl: imageUrl,
         );
         if (mounted) {
           setState(() => _messages.add(msg));
@@ -766,9 +785,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (picked == null) return;
     setState(() => _sending = true);
     try {
+      final imageUrl = await _storageService.uploadChatImage(picked);
       final msg = await _chatService.sendImageMessage(
         conversationId: _conversation.id,
-        imageFile: picked,
+        imageUrl: imageUrl,
       );
       if (mounted) {
         setState(() => _messages.add(msg));
@@ -899,7 +919,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).callStartFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).callStartFailed(e.toString()),
+        );
       }
     }
   }
@@ -910,8 +934,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final msgs = await _chatService.getMessages(_conversation.id);
       if (!mounted) return;
       final existing = _messages.map((m) => m.id).toSet();
-      final fresh = msgs.where((m) =>
-          !existing.contains(m.id) && m.payload?['files_only'] != true);
+      final fresh = msgs.where(
+        (m) => !existing.contains(m.id) && m.payload?['files_only'] != true,
+      );
       if (fresh.isEmpty) return;
       setState(() => _messages.addAll(fresh));
       _scrollToBottom();
@@ -945,7 +970,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).livestreamStartFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).livestreamStartFailed(e.toString()),
+        );
       }
     }
   }
@@ -1007,8 +1036,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _blockService.unblockUser(otherUserId);
       if (mounted) {
         setState(() => _isOtherBlocked = false);
-        showPremiumToast(context, t.userUnblocked(otherName),
-            kind: ToastKind.success);
+        showPremiumToast(
+          context,
+          t.userUnblocked(otherName),
+          kind: ToastKind.success,
+        );
       }
       return;
     }
@@ -1024,7 +1056,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await _blockService.blockUser(otherUserId);
     if (mounted) {
       setState(() => _isOtherBlocked = true);
-      showPremiumToast(context, t.userBlocked2(otherName), kind: ToastKind.block);
+      showPremiumToast(
+        context,
+        t.userBlocked2(otherName),
+        kind: ToastKind.block,
+      );
     }
   }
 
@@ -1045,6 +1081,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ),
     );
     if (result == true && mounted) Navigator.pop(context);
+  }
+
+  void _openUserProfile(String userId) {
+    context.push('/profile/$userId');
   }
 
   // ─── Build ───────────────────────────────────────────────────────────────
@@ -1080,69 +1120,87 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         title: Row(
           children: [
             // Avatar with online dot
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.white.withAlpha(40),
-                  backgroundImage: avatarUrl != null
-                      ? CachedNetworkImageProvider(avatarUrl)
-                      : null,
-                  child: avatarUrl == null
-                      ? Text(
-                          title.isNotEmpty ? title[0].toUpperCase() : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: isDirect && otherMember != null
+                  ? () => _openUserProfile(otherMember.userId)
+                  : null,
+              child: Semantics(
+                button: isDirect && otherMember != null,
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.white.withAlpha(40),
+                      backgroundImage: avatarUrl != null
+                          ? CachedNetworkImageProvider(avatarUrl)
+                          : null,
+                      child: avatarUrl == null
+                          ? Text(
+                              title.isNotEmpty ? title[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF9575CD),
+                            width: 2,
                           ),
-                        )
-                      : null,
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFF9575CD),
-                        width: 2,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: isDirect && otherMember != null
+                    ? () => _openUserProfile(otherMember.userId)
+                    : null,
+                child: Semantics(
+                  button: isDirect && otherMember != null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        isGroup
+                            ? AppLocalizations.of(
+                                context,
+                              ).memberCount(_conversation.members.length)
+                            : AppLocalizations.of(context).online,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    isGroup
-                        ? AppLocalizations.of(
-                            context,
-                          ).memberCount(_conversation.members.length)
-                        : AppLocalizations.of(context).online,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -1165,33 +1223,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 // 打开菜单前实时查一次真实拉黑状态，避免 initState 异步竞态
                 // 或入口数据不全导致菜单一直显示「拉黑」
                 try {
-                  final blocked =
-                      await _blockService.isBlocked(otherMember.userId);
+                  final blocked = await _blockService.isBlocked(
+                    otherMember.userId,
+                  );
                   if (mounted) setState(() => _isOtherBlocked = blocked);
                 } catch (_) {}
                 if (!mounted) return;
                 showPremiumActionSheet(
-                context,
-                actions: [
-                  PremiumAction(
-                    icon: _isOtherBlocked
-                        ? Icons.lock_open_rounded
-                        : Icons.block_rounded,
-                    label: _isOtherBlocked
-                        ? AppLocalizations.of(context).unblock
-                        : AppLocalizations.of(context).block,
-                    destructive: !_isOtherBlocked,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showBlockDialog(
-                        otherMember.userId,
-                        otherMember.profile?.displayName ??
-                            AppLocalizations.of(context).thisUser,
-                      );
-                    },
-                  ),
-                ],
-              );
+                  context,
+                  actions: [
+                    PremiumAction(
+                      icon: _isOtherBlocked
+                          ? Icons.lock_open_rounded
+                          : Icons.block_rounded,
+                      label: _isOtherBlocked
+                          ? AppLocalizations.of(context).unblock
+                          : AppLocalizations.of(context).block,
+                      destructive: !_isOtherBlocked,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showBlockDialog(
+                          otherMember.userId,
+                          otherMember.profile?.displayName ??
+                              AppLocalizations.of(context).thisUser,
+                        );
+                      },
+                    ),
+                  ],
+                );
               },
             ),
           ],
@@ -1330,103 +1389,106 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               behavior: HitTestBehavior.translucent,
               onTap: () => FocusScope.of(context).unfocus(),
               child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 56,
-                          color: Colors.grey.withAlpha(100),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          AppLocalizations.of(context).sendFirstMessage,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    // 倒序列表（工业标准）：i=0 在底部=最新消息，
-                    // 进入聊天天然锚定最新；加载更多的转圈在顶部。
-                    reverse: true,
-                    // 关键：reverse 列表插入新消息会让所有项索引右移，ValueKey
-                    // 在 sliver 里不会跨索引保留 State，必须用此回调按 key 定位新
-                    // 索引，否则正在播放的语音气泡会被重建/串台而中断播放。
-                    findChildIndexCallback: (Key key) {
-                      if (key is! ValueKey<String>) return null;
-                      final dataIdx =
-                          _messages.indexWhere((m) => m.id == key.value);
-                      if (dataIdx < 0) return null;
-                      return _messages.length - 1 - dataIdx;
-                    },
-                    // 列表滚动/下拉时自动收起键盘（iOS 尤其需要）
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 0,
-                    ),
-                    itemCount: _messages.length + (_loadingMore ? 1 : 0),
-                    itemBuilder: (context, i) {
-                      // 顶部（最大 index）显示「加载更早消息」转圈
-                      if (_loadingMore && i == _messages.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
+                  ? const Center(child: CircularProgressIndicator())
+                  : _messages.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 56,
+                            color: Colors.grey.withAlpha(100),
                           ),
+                          const SizedBox(height: 12),
+                          Text(
+                            AppLocalizations.of(context).sendFirstMessage,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      // 倒序列表（工业标准）：i=0 在底部=最新消息，
+                      // 进入聊天天然锚定最新；加载更多的转圈在顶部。
+                      reverse: true,
+                      // 关键：reverse 列表插入新消息会让所有项索引右移，ValueKey
+                      // 在 sliver 里不会跨索引保留 State，必须用此回调按 key 定位新
+                      // 索引，否则正在播放的语音气泡会被重建/串台而中断播放。
+                      findChildIndexCallback: (Key key) {
+                        if (key is! ValueKey<String>) return null;
+                        final dataIdx = _messages.indexWhere(
+                          (m) => m.id == key.value,
                         );
-                      }
-                      // 列表下标 i → 数据下标（最新在 i=0）
-                      final msgIdx = _messages.length - 1 - i;
-                      final msg = _messages[msgIdx];
-                      final isMe = msg.senderId == _currentUserId;
-                      // 时间上更早的相邻消息（用于日期分隔/头像分组）
-                      final prev = msgIdx > 0 ? _messages[msgIdx - 1] : null;
-                      // 群聊收到的每条消息都显示头像（同一人连发三条→三个头像）
-                      final showAvatar = isGroup && !isMe;
-                      // 昵称只在连发的第一条显示，避免重复
-                      final showSenderName =
-                          isGroup &&
-                          !isMe &&
-                          (prev == null || prev.senderId != msg.senderId);
-                      final isRead =
-                          isMe &&
-                          isDirect &&
-                          _otherLastReadAt != null &&
-                          msg.createdAt.isBefore(_otherLastReadAt!);
-                      final prevDate = prev?.createdAt.toLocal();
-                      final curDate = msg.createdAt.toLocal();
-                      final showSep =
-                          prevDate == null ||
-                          prevDate.year != curDate.year ||
-                          prevDate.month != curDate.month ||
-                          prevDate.day != curDate.day;
-                      return MessageBubble(
-                        // 按消息 id 锚定，防止 reverse 列表插入新消息时
-                        // Flutter 按位置复用 State，导致音频气泡时长/播放器串台
-                        key: ValueKey(msg.id),
-                        message: msg,
-                        isMe: isMe,
-                        showAvatar: showAvatar,
-                        showSenderName: showSenderName,
-                        isRead: isRead,
-                        showDateSeparator: showSep,
-                        groupMemberNames: _memberDisplayNames,
-                        isGroupChat: isGroup,
-                        onDelete: isMe ? () => _recallMessage(msg.id) : null,
-                      );
-                    },
-                  ),
+                        if (dataIdx < 0) return null;
+                        return _messages.length - 1 - dataIdx;
+                      },
+                      // 列表滚动/下拉时自动收起键盘（iOS 尤其需要）
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 0,
+                      ),
+                      itemCount: _messages.length + (_loadingMore ? 1 : 0),
+                      itemBuilder: (context, i) {
+                        // 顶部（最大 index）显示「加载更早消息」转圈
+                        if (_loadingMore && i == _messages.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        // 列表下标 i → 数据下标（最新在 i=0）
+                        final msgIdx = _messages.length - 1 - i;
+                        final msg = _messages[msgIdx];
+                        final isMe = msg.senderId == _currentUserId;
+                        // 时间上更早的相邻消息（用于日期分隔/头像分组）
+                        final prev = msgIdx > 0 ? _messages[msgIdx - 1] : null;
+                        // 群聊收到的每条消息都显示头像（同一人连发三条→三个头像）
+                        final showAvatar = isGroup && !isMe;
+                        // 昵称只在连发的第一条显示，避免重复
+                        final showSenderName =
+                            isGroup &&
+                            !isMe &&
+                            (prev == null || prev.senderId != msg.senderId);
+                        final isRead =
+                            isMe &&
+                            isDirect &&
+                            _otherLastReadAt != null &&
+                            msg.createdAt.isBefore(_otherLastReadAt!);
+                        final prevDate = prev?.createdAt.toLocal();
+                        final curDate = msg.createdAt.toLocal();
+                        final showSep =
+                            prevDate == null ||
+                            prevDate.year != curDate.year ||
+                            prevDate.month != curDate.month ||
+                            prevDate.day != curDate.day;
+                        return MessageBubble(
+                          // 按消息 id 锚定，防止 reverse 列表插入新消息时
+                          // Flutter 按位置复用 State，导致音频气泡时长/播放器串台
+                          key: ValueKey(msg.id),
+                          message: msg,
+                          isMe: isMe,
+                          showAvatar: showAvatar,
+                          showSenderName: showSenderName,
+                          isRead: isRead,
+                          showDateSeparator: showSep,
+                          groupMemberNames: _memberDisplayNames,
+                          isGroupChat: isGroup,
+                          onDelete: isMe ? () => _recallMessage(msg.id) : null,
+                        );
+                      },
+                    ),
             ),
           ),
           // @mention suggestion strip

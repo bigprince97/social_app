@@ -1,7 +1,5 @@
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/auth_error.dart' show requireUid;
-import 'package:uuid/uuid.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
 import 'local_cache.dart';
@@ -111,13 +109,17 @@ class ChatService {
         .single();
 
     final allMembers = [requireUid(_client), ...memberIds];
-    await _client.from('conversation_members').insert(
+    await _client
+        .from('conversation_members')
+        .insert(
           allMembers
-              .map((id) => {
-                    'conversation_id': conv['id'],
-                    'user_id': id,
-                    'role': id == _userId ? 'admin' : 'member',
-                  })
+              .map(
+                (id) => {
+                  'conversation_id': conv['id'],
+                  'user_id': id,
+                  'role': id == _userId ? 'admin' : 'member',
+                },
+              )
               .toList(),
         );
 
@@ -163,10 +165,7 @@ class ChatService {
   }
 
   /// 向群里添加成员（去重已在群成员；以 member 角色加入）
-  Future<void> addMembers(
-    String conversationId,
-    List<String> userIds,
-  ) async {
+  Future<void> addMembers(String conversationId, List<String> userIds) async {
     if (userIds.isEmpty) return;
     final existing = await _client
         .from('conversation_members')
@@ -177,13 +176,17 @@ class ChatService {
     };
     final toAdd = userIds.where((id) => !existingIds.contains(id)).toList();
     if (toAdd.isEmpty) return;
-    await _client.from('conversation_members').insert(
+    await _client
+        .from('conversation_members')
+        .insert(
           toAdd
-              .map((id) => {
-                    'conversation_id': conversationId,
-                    'user_id': id,
-                    'role': 'member',
-                  })
+              .map(
+                (id) => {
+                  'conversation_id': conversationId,
+                  'user_id': id,
+                  'role': 'member',
+                },
+              )
               .toList(),
         );
   }
@@ -204,8 +207,11 @@ class ChatService {
 
   // ─── Messages ─────────────────────────────────────────────────────────────
 
-  Future<List<Message>> getMessages(String conversationId,
-      {int page = 0, int limit = 50}) async {
+  Future<List<Message>> getMessages(
+    String conversationId, {
+    int page = 0,
+    int limit = 50,
+  }) async {
     try {
       final data = await _client
           .from('messages')
@@ -225,8 +231,9 @@ class ChatService {
           .toList();
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
-        final cached =
-            await LocalCache.instance.read('messages_$conversationId');
+        final cached = await LocalCache.instance.read(
+          'messages_$conversationId',
+        );
         if (cached is List) {
           return cached
               .map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -266,18 +273,13 @@ class ChatService {
 
   Future<Message> sendImageMessage({
     required String conversationId,
-    required XFile imageFile,
+    required String imageUrl,
   }) async {
-    final ext = imageFile.name.contains('.') ? imageFile.name.split('.').last : 'jpg';
-    final path = 'chat/$_userId/${const Uuid().v4()}.$ext';
-    final bytes = await imageFile.readAsBytes();
-    await _client.storage.from('media').uploadBinary(path, bytes);
-    final url = _client.storage.from('media').getPublicUrl(path);
     return sendMessage(
       conversationId: conversationId,
       content: '',
       messageType: 'image',
-      mediaUrl: url,
+      mediaUrl: imageUrl,
     );
   }
 
@@ -306,10 +308,7 @@ class ChatService {
       content: '',
       messageType: 'video',
       mediaUrl: videoUrl,
-      payload: {
-        'size': fileSize,
-        'thumbnail': thumbnailUrl,
-      },
+      payload: {'size': fileSize, 'thumbnail': thumbnailUrl},
     );
   }
 

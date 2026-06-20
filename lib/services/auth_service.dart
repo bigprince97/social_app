@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'local_cache.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   final _client = Supabase.instance.client;
@@ -14,7 +16,11 @@ class AuthService {
     required String password,
   }) async {
     // 自动生成唯一 username：邮箱前缀 + 4位随机数
-    final prefix = email.split('@').first.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final prefix = email
+        .split('@')
+        .first
+        .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+        .toLowerCase();
     final suffix = DateTime.now().millisecondsSinceEpoch % 10000;
     final username = '${prefix}_$suffix';
 
@@ -42,20 +48,18 @@ class AuthService {
 
   /// 注册 - 重新发送邮箱验证码。
   Future<void> resendSignUpCode(String email) async {
-    await _client.auth.resend(
-      type: OtpType.signup,
-      email: email.trim(),
-    );
+    await _client.auth.resend(type: OtpType.signup, email: email.trim());
   }
 
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     await _client.auth.signInWithPassword(email: email, password: password);
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({bool deletePushToken = true}) async {
+    final userId = currentUserId;
+    if (!kIsWeb && deletePushToken && userId != null) {
+      await PushNotificationService.deleteToken(userId: userId);
+    }
     await _client.auth.signOut();
     await LocalCache.instance.clear();
   }
@@ -79,13 +83,15 @@ class AuthService {
       type: OtpType.recovery,
     );
     // 更新密码
-    await _client.auth.updateUser(
-      UserAttributes(password: newPassword),
-    );
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   Future<void> deleteAccount() async {
+    final userId = currentUserId;
+    if (!kIsWeb && userId != null) {
+      await PushNotificationService.deleteToken(userId: userId);
+    }
     await _client.rpc('delete_current_user');
-    await signOut();
+    await signOut(deletePushToken: false);
   }
 }
