@@ -352,11 +352,13 @@ class _PostListState extends State<_PostList>
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
+                    final post = _posts[i];
                     return PostCard(
-                      post: _posts[i],
+                      post: post,
                       onTopicTap: widget.onTopicTap,
-                      onDeleted: () =>
-                          setState(() => _posts.removeAt(i)),
+                      // 按 id 删除：避免列表变动后 i 失效误删别的帖子
+                      onDeleted: () => setState(
+                          () => _posts.removeWhere((p) => p.id == post.id)),
                     );
                   },
                 ),
@@ -545,12 +547,15 @@ class _TopicsTabState extends State<_TopicsTab> {
                         : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: _topicPosts.length,
-                            itemBuilder: (ctx, i) => PostCard(
-                              post: _topicPosts[i],
-                              onDeleted: () =>
-                                  setState(() => _topicPosts.removeAt(i)),
-                              onTopicTap: _selectTopic,
-                            ),
+                            itemBuilder: (ctx, i) {
+                              final post = _topicPosts[i];
+                              return PostCard(
+                                post: post,
+                                onDeleted: () => setState(() => _topicPosts
+                                    .removeWhere((p) => p.id == post.id)),
+                                onTopicTap: _selectTopic,
+                              );
+                            },
                           ),
                   ),
           ),

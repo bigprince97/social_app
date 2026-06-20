@@ -116,7 +116,10 @@ final router = GoRouter(
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
-        _readerExtraCache[id] = extra;
+        // 只保留当前章节这一条，避免长会话里缓存上千章的全卷数据导致内存增长
+        _readerExtraCache
+          ..clear()
+          ..[id] = extra;
         return ChapterReaderScreen(
           chapter: extra['chapter'] as ScriptureChapter,
           scripture: extra['scripture'] as Scripture,

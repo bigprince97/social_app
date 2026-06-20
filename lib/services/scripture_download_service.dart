@@ -49,7 +49,9 @@ class ScriptureDownloadService {
     // 先取一次总数（用于进度）
     var total = 0;
     while (true) {
-      // 整页拉取「全字段」（含正文），逐章写 chapter_<id> 缓存
+      // 整页拉取「全字段」（含正文），逐章写 chapter2_<id> 缓存
+      // （key 必须与 scripture_service 读取端 chapter2_/chapters2_ 一致，
+      //  否则离线下载写入的内容读不出来）
       final data = await _client
           .from('scripture_chapters')
           .select()
@@ -59,7 +61,7 @@ class ScriptureDownloadService {
       final page = (data as List).cast<Map<String, dynamic>>();
       for (final row in page) {
         final id = row['id'] as String;
-        await _cache.write('chapter_$id', row);
+        await _cache.write('chapter2_$id', row);
         // 章节列表只留轻量字段（与 getChapters 选择一致）
         listRows.add({
           'id': row['id'],
@@ -76,7 +78,7 @@ class ScriptureDownloadService {
       offset += step;
     }
     // 写章节列表缓存
-    await _cache.write('chapters_$scriptureId', listRows);
+    await _cache.write('chapters2_$scriptureId', listRows);
     await _setDownloaded(scriptureId, true);
     onProgress?.call(total, total);
   }
