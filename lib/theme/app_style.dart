@@ -315,8 +315,8 @@ Future<bool> showPremiumConfirm(
     barrierDismissible: true,
     barrierColor: Colors.black.withAlpha(90),
     transitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-    transitionBuilder: (ctx, anim, _, __) {
+    pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, anim, _, _) {
       final curved = CurvedAnimation(
         parent: anim,
         curve: Curves.easeOutBack,

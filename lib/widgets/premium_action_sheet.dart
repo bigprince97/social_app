@@ -46,8 +46,8 @@ Future<T?> showPremiumActionSheet<T>(
     barrierDismissible: true,
     barrierColor: Colors.black.withAlpha(60),
     transitionDuration: const Duration(milliseconds: 280),
-    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-    transitionBuilder: (ctx, anim, _, __) {
+    pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, anim, _, _) {
       final curved = CurvedAnimation(
         parent: anim,
         curve: Curves.easeOutCubic,

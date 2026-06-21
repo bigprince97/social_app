@@ -345,10 +345,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (_messages.any((m) => m.id == msg.id)) return;
       // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
       final wasNearBottom = _isNearBottom;
-      // ignore: avoid_print
-      print(
-        '[AUDIODBG] >>> NEW MSG arrived type=${msg.messageType} nearBottom=$wasNearBottom',
-      );
       setState(() => _messages.add(msg));
       if (wasNearBottom) _scrollToBottom();
       _scheduleUpdateLastRead();
@@ -573,6 +569,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
     final durationSeconds = (durMs / 1000).round().clamp(1, 6000);
+    if (!mounted) return;
     setState(() => _sending = true);
     try {
       final audioBytes = await File(path).readAsBytes();
@@ -610,6 +607,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         maxWidth: 1080,
         imageQuality: 85,
       );
+      if (!mounted) return;
       if (picked == null) return;
       setState(() => _sending = true);
       try {
@@ -637,8 +635,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       barrierDismissible: true,
       barrierColor: Colors.black.withAlpha(60),
       transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-      transitionBuilder: (ctx, anim, _, __) {
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, _, _) {
         final curved = CurvedAnimation(
           parent: anim,
           curve: Curves.easeOutCubic,
@@ -782,6 +780,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       maxWidth: 1080,
       imageQuality: 85,
     );
+    if (!mounted) return;
     if (picked == null) return;
     setState(() => _sending = true);
     try {
@@ -805,6 +804,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _sendVideo() async {
     final picked = await _picker.pickVideo(source: ImageSource.gallery);
+    if (!mounted) return;
     if (picked == null) return;
     setState(() => _sending = true);
     try {
@@ -832,11 +832,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       type: FileType.any,
       allowMultiple: false,
     );
+    if (!mounted) return;
     if (result == null || result.files.isEmpty) return;
     final picked = result.files.first;
     final bytes =
         picked.bytes ??
         (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+    if (!mounted) return;
     if (bytes == null) return;
     setState(() => _sending = true);
     try {
@@ -1228,7 +1230,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   );
                   if (mounted) setState(() => _isOtherBlocked = blocked);
                 } catch (_) {}
-                if (!mounted) return;
+                if (!context.mounted) return;
+                final t = AppLocalizations.of(context);
                 showPremiumActionSheet(
                   context,
                   actions: [
@@ -1236,16 +1239,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       icon: _isOtherBlocked
                           ? Icons.lock_open_rounded
                           : Icons.block_rounded,
-                      label: _isOtherBlocked
-                          ? AppLocalizations.of(context).unblock
-                          : AppLocalizations.of(context).block,
+                      label: _isOtherBlocked ? t.unblock : t.block,
                       destructive: !_isOtherBlocked,
                       onTap: () {
                         Navigator.pop(context);
                         _showBlockDialog(
                           otherMember.userId,
-                          otherMember.profile?.displayName ??
-                              AppLocalizations.of(context).thisUser,
+                          otherMember.profile?.displayName ?? t.thisUser,
                         );
                       },
                     ),

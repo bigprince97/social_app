@@ -62,10 +62,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _postCreatedSub = onPostCreated.listen((_) {
       if (mounted) _loadData();
     });
-    if (_isMe)
+    if (_isMe) {
       _profileUpdatedSub = onProfileUpdated.listen((_) {
         if (mounted) _loadData();
       });
+    }
     _postInteractedSub = onPostInteracted.listen((updatedPost) {
       if (mounted) {
         setState(() {
@@ -103,7 +104,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       try {
         final profile = await _profileService.getProfile(widget.userId);
         if (mounted) setState(() => _profile = profile);
-      } catch (_) {/* 无缓存且离线时保持 null，由下方网络态兜底 */}
+      } catch (_) {
+        /* 无缓存且离线时保持 null，由下方网络态兜底 */
+      }
 
       // 帖子无缓存：离线失败不影响资料展示
       try {
@@ -131,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _toggleBlock() async {
     if (_isBlocked) {
       await _blockService.unblockUser(widget.userId);
-      setState(() => _isBlocked = false);
+      if (mounted) setState(() => _isBlocked = false);
     } else {
       final confirm = await showPremiumConfirm(
         context,
@@ -143,11 +146,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         confirmLabel: AppLocalizations.of(context).block,
         destructive: true,
       );
+      if (!mounted) return;
       if (confirm) {
         await _blockService.blockUser(widget.userId);
-        setState(() => _isBlocked = true);
         if (mounted) {
-          showPremiumToast(context, AppLocalizations.of(context).userBlocked, kind: ToastKind.info);
+          setState(() => _isBlocked = true);
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).userBlocked,
+            kind: ToastKind.info,
+          );
         }
       }
     }
@@ -160,7 +168,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) context.push('/chat/${conv.id}', extra: conv);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).directMessageFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).directMessageFailed(e.toString()),
+        );
       }
     } finally {
       if (mounted) setState(() => _dmLoading = false);
@@ -189,7 +201,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     } finally {
       if (mounted) setState(() => _followLoading = false);
@@ -218,8 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Navigator.pop(context);
             Navigator.push(
               context,
-              MaterialPageRoute(
-                  builder: (_) => const BlockedUsersScreen()),
+              MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
             );
           },
         ),
@@ -427,7 +442,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
   Widget _buildHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = const Color(0xFF9575CD);
@@ -508,7 +522,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => MyPostsScreen(userId: widget.userId),
+                            builder: (_) =>
+                                MyPostsScreen(userId: widget.userId),
                           ),
                         ),
                       ),
@@ -658,7 +673,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
   Widget _buildStat(String label, int count, {VoidCallback? onTap}) {
     final col = Column(
       children: [
@@ -714,11 +728,16 @@ class _ProfileEntry extends StatelessWidget {
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                size: 20, color: Color(0xFFB0B0B5)),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Color(0xFFB0B0B5),
+            ),
           ],
         ),
       ),

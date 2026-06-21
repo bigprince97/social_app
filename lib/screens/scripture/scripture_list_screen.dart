@@ -179,35 +179,6 @@ class _ScriptureCard extends StatelessWidget {
                         Text(AppLocalizations.of(context).chaptersCountLabel(scripture.chaptersCount),
                             style: TextStyle(
                                 fontSize: 12, color: scripture.color)),
-                        if ((scripture.progressPercent ?? 0) > 0) ...[
-                          const Spacer(),
-                          SizedBox(
-                            width: 80,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  AppLocalizations.of(context).readPercent(scripture.progressPercent ?? 0),
-                                  style: TextStyle(
-                                      fontSize: 11, color: scripture.color),
-                                ),
-                                const SizedBox(height: 2),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: LinearProgressIndicator(
-                                    value:
-                                        (scripture.progressPercent ?? 0) / 100,
-                                    backgroundColor:
-                                        scripture.color.withAlpha(40),
-                                    valueColor:
-                                        AlwaysStoppedAnimation(scripture.color),
-                                    minHeight: 3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ],

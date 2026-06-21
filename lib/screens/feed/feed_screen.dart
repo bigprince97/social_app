@@ -45,7 +45,10 @@ class _FeedScreenState extends State<FeedScreen>
     super.dispose();
   }
 
-  void _showCreatePostSheet({String? initialQuote, Map<String, dynamic>? scriptureQuote}) {
+  void _showCreatePostSheet({
+    String? initialQuote,
+    Map<String, dynamic>? scriptureQuote,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -78,10 +81,14 @@ class _FeedScreenState extends State<FeedScreen>
           isScrollable: false,
           labelColor: AppStyle.brand,
           unselectedLabelColor: Colors.grey.shade500,
-          labelStyle:
-              const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          unselectedLabelStyle:
-              const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          labelStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
           indicatorSize: TabBarIndicatorSize.label,
           indicator: UnderlineTabIndicator(
             borderRadius: BorderRadius.circular(2),
@@ -101,7 +108,8 @@ class _FeedScreenState extends State<FeedScreen>
       // 叠加底部安全区，保证 iOS（home indicator 更高）上不被底栏遮挡
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
-            bottom: 70 + MediaQuery.of(context).padding.bottom),
+          bottom: 70 + MediaQuery.of(context).padding.bottom,
+        ),
         child: GestureDetector(
           onTap: () => _showCreatePostSheet(),
           child: Container(
@@ -145,9 +153,7 @@ class _FeedScreenState extends State<FeedScreen>
             cachedLoader: () => _postService.getCachedFeed('feed_hot'),
             onTopicTap: (t) => _tabController.animateTo(3),
           ),
-          _TopicsTab(
-            onTopicTap: (t) {},
-          ),
+          _TopicsTab(onTopicTap: (t) {}),
         ],
       ),
     );
@@ -289,7 +295,11 @@ class _PostListState extends State<_PostList>
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).loadFailed(e),
+        );
       }
     } finally {
       if (mounted && showFullLoading) {
@@ -311,7 +321,11 @@ class _PostListState extends State<_PostList>
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).loadFailed(e),
+        );
       }
     } finally {
       if (mounted) setState(() => _loadingMore = false);
@@ -334,7 +348,8 @@ class _PostListState extends State<_PostList>
                       height: MediaQuery.of(context).size.height * 0.6,
                       child: PremiumEmptyState(
                         icon: Icons.dynamic_feed_rounded,
-                        title: widget.emptyTitle ??
+                        title:
+                            widget.emptyTitle ??
                             AppLocalizations.of(context).emptyPostsHint,
                         subtitle: widget.emptySubtitle,
                       ),
@@ -358,7 +373,8 @@ class _PostListState extends State<_PostList>
                       onTopicTap: widget.onTopicTap,
                       // 按 id 删除：避免列表变动后 i 失效误删别的帖子
                       onDeleted: () => setState(
-                          () => _posts.removeWhere((p) => p.id == post.id)),
+                        () => _posts.removeWhere((p) => p.id == post.id),
+                      ),
                     );
                   },
                 ),
@@ -376,20 +392,25 @@ class _PostListState extends State<_PostList>
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 8,
-                            offset: Offset(0, 2))
-                      ]),
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: Text(
-                    AppLocalizations.of(context).newPostsNotification(_newPostCount),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 13),
+                    AppLocalizations.of(
+                      context,
+                    ).newPostsNotification(_newPostCount),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                 ),
               ),
@@ -467,7 +488,8 @@ class _TopicsTabState extends State<_TopicsTab> {
       // Count frequency of each topic, then sort by count descending
       final Map<String, int> freq = {};
       for (final row in data as List) {
-        final tags = (row['topics'] as List<dynamic>?)
+        final tags =
+            (row['topics'] as List<dynamic>?)
                 ?.map((e) => e as String)
                 .toList() ??
             [];
@@ -493,7 +515,11 @@ class _TopicsTabState extends State<_TopicsTab> {
       if (mounted) setState(() => _topicPosts = posts);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).loadFailed(e),
+        );
       }
     }
   }
@@ -519,8 +545,10 @@ class _TopicsTabState extends State<_TopicsTab> {
         children: [
           ListTile(
             leading: const Icon(Icons.arrow_back),
-            title: Text('#$_selectedTopic',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              '#$_selectedTopic',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             onTap: () => setState(() {
               _selectedTopic = null;
               _topicPosts = [];
@@ -537,9 +565,14 @@ class _TopicsTabState extends State<_TopicsTab> {
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: [
                               SizedBox(
-                                height: MediaQuery.of(context).size.height * 0.6,
+                                height:
+                                    MediaQuery.of(context).size.height * 0.6,
                                 child: Center(
-                                  child: Text(AppLocalizations.of(context).emptyTopicPosts),
+                                  child: Text(
+                                    AppLocalizations.of(
+                                      context,
+                                    ).emptyTopicPosts,
+                                  ),
                                 ),
                               ),
                             ],
@@ -551,8 +584,11 @@ class _TopicsTabState extends State<_TopicsTab> {
                               final post = _topicPosts[i];
                               return PostCard(
                                 post: post,
-                                onDeleted: () => setState(() => _topicPosts
-                                    .removeWhere((p) => p.id == post.id)),
+                                onDeleted: () => setState(
+                                  () => _topicPosts.removeWhere(
+                                    (p) => p.id == post.id,
+                                  ),
+                                ),
                                 onTopicTap: _selectTopic,
                               );
                             },
@@ -573,9 +609,12 @@ class _TopicsTabState extends State<_TopicsTab> {
               hintText: AppLocalizations.of(context).searchTopicsHint,
               prefixIcon: const Icon(Icons.tag),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24)),
+                borderRadius: BorderRadius.circular(24),
+              ),
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
+                horizontal: 16,
+                vertical: 8,
+              ),
             ),
             onSubmitted: (v) {
               if (v.trim().isNotEmpty) _selectTopic(v.trim());
@@ -595,7 +634,9 @@ class _TopicsTabState extends State<_TopicsTab> {
                         SizedBox(
                           height: MediaQuery.of(context).size.height * 0.6,
                           child: Center(
-                            child: Text(AppLocalizations.of(context).emptyTopics),
+                            child: Text(
+                              AppLocalizations.of(context).emptyTopics,
+                            ),
                           ),
                         ),
                       ],
@@ -604,20 +645,22 @@ class _TopicsTabState extends State<_TopicsTab> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(12),
                       children: [
-                        Text(AppLocalizations.of(context).hotTopics,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          AppLocalizations.of(context).hotTopics,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: _hotTopics
-                              .map((t) => ActionChip(
-                                    label: Text('#$t'),
-                                    onPressed: () => _selectTopic(t),
-                                  ))
+                              .map(
+                                (t) => ActionChip(
+                                  label: Text('#$t'),
+                                  onPressed: () => _selectTopic(t),
+                                ),
+                              )
                               .toList(),
                         ),
                       ],
@@ -685,8 +728,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
   }
 
   Future<void> _pickImages() async {
-    final picked =
-        await _picker.pickMultiImage(maxWidth: 1080, imageQuality: 85);
+    final picked = await _picker.pickMultiImage(
+      maxWidth: 1080,
+      imageQuality: 85,
+    );
+    if (!mounted) return;
     if (picked.isNotEmpty) {
       setState(() {
         _images.addAll(picked);
@@ -700,11 +746,16 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       source: ImageSource.gallery,
       maxDuration: const Duration(minutes: 5),
     );
+    if (!mounted) return;
     if (picked == null) return;
     final ctrl = kIsWeb
         ? VideoPlayerController.networkUrl(Uri.parse(picked.path))
         : VideoPlayerController.file(File(picked.path));
     await ctrl.initialize();
+    if (!mounted) {
+      await ctrl.dispose();
+      return;
+    }
     setState(() {
       _video = picked;
       _images.clear();
@@ -719,13 +770,18 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       _addTopic(_topicCtrl.text);
     }
     final content = _contentCtrl.text.trim();
-    if (content.isEmpty && _images.isEmpty && _video == null &&
+    if (content.isEmpty &&
+        _images.isEmpty &&
+        _video == null &&
         widget.scriptureQuote == null) {
       return;
     }
     if (ContentFilter.hasBanned(content)) {
-      showPremiumToast(context, AppLocalizations.of(context).contentBlocked,
-          kind: ToastKind.error);
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).contentBlocked,
+        kind: ToastKind.error,
+      );
       return;
     }
     setState(() => _loading = true);
@@ -748,7 +804,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).publishFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).publishFailed(e),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -767,7 +827,9 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
         color: sheetBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -781,33 +843,43 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark
                           ? const Color(0xFF2C2C2E)
                           : const Color(0xFFF0F0F5),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(AppLocalizations.of(context).cancel,
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600)),
+                    child: Text(
+                      AppLocalizations.of(context).cancel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
                   ),
                 ),
                 const Spacer(),
-                Text(AppLocalizations.of(context).postTitle,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: isDark ? Colors.white : Colors.black)),
+                Text(
+                  AppLocalizations.of(context).postTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
                 const Spacer(),
                 GestureDetector(
                   onTap: _loading ? null : _submit,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 8),
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: _loading
                           ? null
@@ -824,12 +896,18 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : Text(AppLocalizations.of(context).publish,
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            AppLocalizations.of(context).publish,
                             style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -853,20 +931,25 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                       ),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                    color: const Color(0xFF9575CD).withAlpha(80)),
+                  color: const Color(0xFF9575CD).withAlpha(80),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.auto_stories_rounded,
-                      size: 14, color: Color(0xFF9575CD)),
+                  const Icon(
+                    Icons.auto_stories_rounded,
+                    size: 14,
+                    color: Color(0xFF9575CD),
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '《${widget.scriptureQuote!['scripture']}》${widget.scriptureQuote!['chapter']}',
                       style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF9575CD),
-                          fontWeight: FontWeight.w600),
+                        fontSize: 12,
+                        color: Color(0xFF9575CD),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -882,16 +965,16 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
               minLines: 3,
               autofocus: true,
               style: TextStyle(
-                  fontSize: 16,
-                  color: isDark ? Colors.white : Colors.black87,
-                  height: 1.5),
+                fontSize: 16,
+                color: isDark ? Colors.white : Colors.black87,
+                height: 1.5,
+              ),
               decoration: InputDecoration(
                 hintText: AppLocalizations.of(context).shareThoughtsHint,
                 hintStyle: TextStyle(
-                    color: isDark
-                        ? Colors.grey.shade600
-                        : Colors.grey.shade400,
-                    fontSize: 16),
+                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  fontSize: 16,
+                ),
                 border: InputBorder.none,
                 focusedBorder: InputBorder.none,
                 filled: false,
@@ -914,18 +997,16 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                 decoration: InputDecoration(
                   hintText: AppLocalizations.of(context).addTopicHint,
                   hintStyle: TextStyle(
-                      color: isDark
-                          ? Colors.grey.shade600
-                          : Colors.grey.shade400),
-                  prefixIcon: Icon(Icons.tag_rounded,
-                      size: 18,
-                      color: isDark
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade400),
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.tag_rounded,
+                    size: 18,
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                  ),
                   border: InputBorder.none,
                   focusedBorder: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   filled: false,
                 ),
                 onSubmitted: _addTopic,
@@ -939,26 +1020,27 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                 spacing: 6,
                 runSpacing: 4,
                 children: _topics
-                    .map((t) => Chip(
-                          label: Text('#$t',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF9575CD),
-                                  fontWeight: FontWeight.w500)),
-                          onDeleted: () =>
-                              setState(() => _topics.remove(t)),
-                          deleteIconColor:
-                              const Color(0xFF9575CD).withAlpha(160),
-                          backgroundColor:
-                              const Color(0xFF9575CD).withAlpha(20),
-                          side: BorderSide(
-                              color: const Color(0xFF9575CD).withAlpha(60)),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4),
-                          visualDensity: VisualDensity.compact,
-                        ))
+                    .map(
+                      (t) => Chip(
+                        label: Text(
+                          '#$t',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF9575CD),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        onDeleted: () => setState(() => _topics.remove(t)),
+                        deleteIconColor: const Color(0xFF9575CD).withAlpha(160),
+                        backgroundColor: const Color(0xFF9575CD).withAlpha(20),
+                        side: BorderSide(
+                          color: const Color(0xFF9575CD).withAlpha(60),
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -969,10 +1051,8 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
               height: 80,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount:
-                    _images.length + (_images.length < 9 ? 1 : 0),
-                separatorBuilder: (_, _) =>
-                    const SizedBox(width: 8),
+                itemCount: _images.length + (_images.length < 9 ? 1 : 0),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, i) {
                   if (i == _images.length) {
                     return GestureDetector(
@@ -984,8 +1064,7 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                           border: Border.all(color: Colors.grey),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child:
-                            const Icon(Icons.add, color: Colors.grey),
+                        child: const Icon(Icons.add, color: Colors.grey),
                       ),
                     );
                   }
@@ -994,24 +1073,34 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: kIsWeb
-                            ? Image.network(_images[i].path,
-                                width: 80, height: 80, fit: BoxFit.cover)
-                            : Image.file(File(_images[i].path),
-                                width: 80, height: 80, fit: BoxFit.cover),
+                            ? Image.network(
+                                _images[i].path,
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(_images[i].path),
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
                       ),
                       Positioned(
                         top: 2,
                         right: 2,
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _images.removeAt(i)),
+                          onTap: () => setState(() => _images.removeAt(i)),
                           child: Container(
                             decoration: const BoxDecoration(
                               color: Colors.black54,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.close,
-                                color: Colors.white, size: 16),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ),
@@ -1048,8 +1137,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                         color: Colors.black54,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close,
-                          color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
@@ -1083,10 +1175,9 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                 Text(
                   '${_contentCtrl.text.length}/500',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: isDark
-                          ? Colors.grey.shade600
-                          : Colors.grey.shade400),
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  ),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -1125,9 +1216,7 @@ class _MediaToolBtn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: enabled
-              ? (isDark
-                  ? const Color(0xFF2C2C2E)
-                  : const Color(0xFFF0F0F5))
+              ? (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF0F0F5))
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
@@ -1136,11 +1225,14 @@ class _MediaToolBtn extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: color,
-                    fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),

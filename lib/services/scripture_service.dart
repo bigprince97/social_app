@@ -25,29 +25,6 @@ class ScriptureService {
       await _cache.write(cacheKey, rawList);
     }
     final list = rawList.map((e) => Scripture.fromJson(e)).toList();
-
-    final uid = _userId;
-    if (uid != null && list.isNotEmpty) {
-      // 进度是联网增强项，离线则跳过，不影响经书正常显示
-      try {
-        final ids = list.map((s) => s.id).toList();
-        final progress = await _client
-            .from('reading_progress')
-            .select()
-            .eq('user_id', uid)
-            .inFilter('scripture_id', ids);
-        final progressMap = {
-          for (final p in progress as List) p['scripture_id'] as String: p
-        };
-        for (final s in list) {
-          final p = progressMap[s.id];
-          if (p != null) {
-            s.progressPercent = (p['progress_percent'] as int?) ?? 0;
-            s.lastChapterId = p['chapter_id'] as String?;
-          }
-        }
-      } catch (_) {/* 离线忽略进度 */}
-    }
     return list;
   }
 
@@ -57,21 +34,7 @@ class ScriptureService {
         .select()
         .eq('id', id)
         .single();
-    final s = Scripture.fromJson(data);
-    final uid = _userId;
-    if (uid != null) {
-      final progress = await _client
-          .from('reading_progress')
-          .select()
-          .eq('user_id', uid)
-          .eq('scripture_id', id)
-          .maybeSingle();
-      if (progress != null) {
-        s.progressPercent = (progress['progress_percent'] as int?) ?? 0;
-        s.lastChapterId = progress['chapter_id'] as String?;
-      }
-    }
-    return s;
+    return Scripture.fromJson(data);
   }
 
   Future<List<Scripture>> getAllScriptures() async {
@@ -107,7 +70,8 @@ class ScriptureService {
           final data = await _client
               .from('scripture_chapters')
               .select(
-                  'id, scripture_id, chapter_number, title, title_i18n, created_at')
+                'id, scripture_id, chapter_number, title, title_i18n, created_at',
+              )
               .eq('scripture_id', scriptureId)
               .order('chapter_number', ascending: true)
               .range(from, from + batch - 1);
@@ -142,16 +106,18 @@ class ScriptureService {
               .inFilter('chapter_id', ids),
         ]);
         final bkIds = {
-          for (final r in results[0] as List) r['chapter_id'] as String
+          for (final r in results[0] as List) r['chapter_id'] as String,
         };
         final hlIds = {
-          for (final r in results[1] as List) r['chapter_id'] as String
+          for (final r in results[1] as List) r['chapter_id'] as String,
         };
         for (final c in all) {
           c.isBookmarked = bkIds.contains(c.id);
           c.isHighlighted = hlIds.contains(c.id);
         }
-      } catch (_) {/* 离线忽略书签/划线 */}
+      } catch (_) {
+        /* 离线忽略书签/划线 */
+      }
     }
     return all;
   }
@@ -174,18 +140,115 @@ class ScriptureService {
     return ScriptureChapter.fromJson(data);
   }
 
+  Future<List<ScriptureSearchResult>> searchScriptureText(
+    String query, {
+    String? scriptureId,
+    Scripture? scripture,
+    int limit = 40,
+  }) async {
+    final q = query.trim();
+    if (q.isEmpty) return [];
+
+    var request = _client
+        .from('scripture_chapters')
+        .select(
+          'id, scripture_id, chapter_number, title, original_text, annotation, '
+          'translation, text_i18n, title_i18n, created_at',
+        )
+        .ilike('original_text', '%$q%');
+    if (scriptureId != null) {
+      request = request.eq('scripture_id', scriptureId);
+    }
+    final rows = await request
+        .order('chapter_number', ascending: true)
+        .limit(limit);
+
+    final chapters = (rows as List)
+        .map((e) => ScriptureChapter.fromJson(e as Map<String, dynamic>))
+        .toList();
+    if (chapters.isEmpty) return [];
+
+    final scriptures = <String, Scripture>{};
+    if (scripture != null) {
+      scriptures[scripture.id] = scripture;
+    }
+    final missingIds = chapters
+        .map((c) => c.scriptureId)
+        .where((id) => !scriptures.containsKey(id))
+        .toSet()
+        .toList();
+    if (missingIds.isNotEmpty) {
+      final scriptureRows = await _client
+          .from('scriptures')
+          .select()
+          .inFilter('id', missingIds);
+      for (final row in scriptureRows as List) {
+        final map = row as Map<String, dynamic>;
+        scriptures[map['id'] as String] = Scripture.fromJson(map);
+      }
+    }
+
+    return [
+      for (final chapter in chapters)
+        if (scriptures[chapter.scriptureId] != null)
+          ScriptureSearchResult(
+            scripture: scriptures[chapter.scriptureId]!,
+            chapter: chapter,
+            verseNumber: _matchedVerseNumber(chapter.originalText ?? '', q),
+            snippet: _matchedSnippet(chapter.originalText ?? '', q),
+          ),
+    ];
+  }
+
+  int? _matchedVerseNumber(String text, String query) {
+    final lowerQuery = query.toLowerCase();
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      if (!trimmed.toLowerCase().contains(lowerQuery)) continue;
+      final space = trimmed.indexOf(' ');
+      if (space <= 0) return null;
+      return int.tryParse(trimmed.substring(0, space));
+    }
+    return null;
+  }
+
+  String _matchedSnippet(String text, String query) {
+    final lowerQuery = query.toLowerCase();
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.toLowerCase().contains(lowerQuery)) {
+        final space = trimmed.indexOf(' ');
+        final body = space > 0 ? trimmed.substring(space + 1) : trimmed;
+        return _compactSnippet(body, query);
+      }
+    }
+    return _compactSnippet(text.replaceAll('\n', ' '), query);
+  }
+
+  String _compactSnippet(String text, String query) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= 96) return normalized;
+    final idx = normalized.toLowerCase().indexOf(query.toLowerCase());
+    if (idx < 0) return '${normalized.substring(0, 96)}...';
+    final start = (idx - 36).clamp(0, normalized.length);
+    final end = (idx + query.length + 56).clamp(0, normalized.length);
+    return '${start > 0 ? '...' : ''}${normalized.substring(start, end)}${end < normalized.length ? '...' : ''}';
+  }
+
   /// 取本章每节的交叉引用（当前为新约引用旧约），按节号 → 引用列表分组，
   /// 每节内按 votes 降序。
   Future<Map<int, List<CrossReference>>> getCrossReferences(
-      String chapterId) async {
+    String chapterId,
+  ) async {
     final cacheKey = 'xref_$chapterId';
     List rows;
     try {
       final data = await _client
           .from('scripture_cross_references')
           .select(
-              'id, from_verse, to_chapter_id, to_verse_start, to_verse_end, votes, '
-              'to_chapter:scripture_chapters!scripture_cross_references_to_chapter_id_fkey(title)')
+            'id, from_verse, to_chapter_id, to_verse_start, to_verse_end, votes, '
+            'to_chapter:scripture_chapters!scripture_cross_references_to_chapter_id_fkey(title)',
+          )
           .eq('from_chapter_id', chapterId)
           .order('votes', ascending: false);
       rows = data as List;
@@ -249,7 +312,10 @@ class ScriptureService {
         .eq('chapter_id', chapterId)
         .maybeSingle();
     if (existing != null) {
-      await _client.from('bookmarks').delete().eq('id', existing['id'] as String);
+      await _client
+          .from('bookmarks')
+          .delete()
+          .eq('id', existing['id'] as String);
       return false;
     }
     await _client.from('bookmarks').insert({
@@ -269,7 +335,10 @@ class ScriptureService {
         .eq('chapter_id', chapterId)
         .maybeSingle();
     if (existing != null) {
-      await _client.from('highlights').delete().eq('id', existing['id'] as String);
+      await _client
+          .from('highlights')
+          .delete()
+          .eq('id', existing['id'] as String);
       return false;
     }
     await _client.from('highlights').insert({
@@ -283,7 +352,10 @@ class ScriptureService {
   }
 
   Future<void> saveNote(
-      String chapterId, String scriptureId, String content) async {
+    String chapterId,
+    String scriptureId,
+    String content,
+  ) async {
     final uid = requireUid(_client);
     final existing = await _client
         .from('reading_notes')
@@ -294,7 +366,10 @@ class ScriptureService {
     if (existing != null) {
       await _client
           .from('reading_notes')
-          .update({'content': content, 'updated_at': DateTime.now().toIso8601String()})
+          .update({
+            'content': content,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
           .eq('id', existing['id'] as String);
     } else {
       await _client.from('reading_notes').insert({
@@ -315,28 +390,14 @@ class ScriptureService {
         .eq('chapter_id', chapterId);
   }
 
-  Future<void> saveProgress({
-    required String scriptureId,
-    required String chapterId,
-    required int progressPercent,
-  }) async {
-    final uid = _userId;
-    if (uid == null) return;
-    await _client.from('reading_progress').upsert({
-      'user_id': uid,
-      'scripture_id': scriptureId,
-      'chapter_id': chapterId,
-      'progress_percent': progressPercent,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
-  }
-
   Future<List<UserBookmark>> getMyBookmarks() async {
     final uid = _userId;
     if (uid == null) return [];
     final data = await _client
         .from('bookmarks')
-        .select('*, scripture_chapters!chapter_id(*), scriptures!scripture_id(*)')
+        .select(
+          '*, scripture_chapters!chapter_id(*), scriptures!scripture_id(*)',
+        )
         .eq('user_id', uid)
         .order('created_at', ascending: false);
     return (data as List).map((e) => UserBookmark.fromJson(e)).toList();

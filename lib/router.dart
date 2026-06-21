@@ -18,6 +18,7 @@ import 'screens/scripture/bookmarks_screen.dart';
 import 'screens/scripture/chapter_reader_screen.dart';
 import 'screens/scripture/scripture_detail_screen.dart';
 import 'screens/scripture/scripture_list_screen.dart';
+import 'screens/scripture/scripture_search_screen.dart';
 import 'screens/search_screen.dart';
 
 // go_router 在路由栈重建时会丢失底层路由的 extra（变 null）。
@@ -29,7 +30,8 @@ final router = GoRouter(
   initialLocation: '/login',
   redirect: (_, state) {
     final session = Supabase.instance.client.auth.currentSession;
-    final onAuth = state.matchedLocation == '/login' ||
+    final onAuth =
+        state.matchedLocation == '/login' ||
         state.matchedLocation == '/register' ||
         state.matchedLocation == '/forgot-password' ||
         state.matchedLocation == '/verify-email';
@@ -42,12 +44,13 @@ final router = GoRouter(
     GoRoute(path: '/login', builder: (ctx, s) => const LoginScreen()),
     GoRoute(path: '/register', builder: (ctx, s) => const RegisterScreen()),
     GoRoute(
-        path: '/forgot-password',
-        builder: (ctx, s) => const ForgotPasswordScreen()),
+      path: '/forgot-password',
+      builder: (ctx, s) => const ForgotPasswordScreen(),
+    ),
     GoRoute(
-        path: '/verify-email',
-        builder: (ctx, s) =>
-            VerifyEmailScreen(email: (s.extra as String?) ?? '')),
+      path: '/verify-email',
+      builder: (ctx, s) => VerifyEmailScreen(email: (s.extra as String?) ?? ''),
+    ),
     GoRoute(path: '/', builder: (ctx, s) => const HomeScreen()),
     GoRoute(
       path: '/post/:id',
@@ -56,8 +59,7 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/profile/:id',
-      builder: (_, state) =>
-          ProfileScreen(userId: state.pathParameters['id']!),
+      builder: (_, state) => ProfileScreen(userId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/chat/:id',
@@ -68,10 +70,7 @@ final router = GoRouter(
         return _ConvLoader(conversationId: state.pathParameters['id']!);
       },
     ),
-    GoRoute(
-      path: '/search',
-      builder: (ctx, s) => const SearchScreen(),
-    ),
+    GoRoute(path: '/search', builder: (ctx, s) => const SearchScreen()),
     GoRoute(
       path: '/edit-profile',
       builder: (ctx, s) => const EditProfileScreen(),
@@ -82,9 +81,8 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/scripture/list/:category',
-      builder: (_, state) => ScriptureListScreen(
-        category: state.pathParameters['category']!,
-      ),
+      builder: (_, state) =>
+          ScriptureListScreen(category: state.pathParameters['category']!),
     ),
     GoRoute(
       path: '/scripture/detail/:id',
@@ -101,8 +99,24 @@ final router = GoRouter(
         if (extra is Scripture) {
           return ScriptureDetailScreen(scripture: extra);
         }
-        return ScriptureDetailScreen(
-            scriptureId: state.pathParameters['id']!);
+        return ScriptureDetailScreen(scriptureId: state.pathParameters['id']!);
+      },
+    ),
+    GoRoute(
+      path: '/scripture/search/:id',
+      builder: (_, state) {
+        final extra = state.extra;
+        if (extra is Map<String, dynamic> && extra['scripture'] is Scripture) {
+          return ScriptureSearchScreen(
+            scripture: extra['scripture'] as Scripture,
+            chapters:
+                (extra['chapters'] as List<ScriptureChapter>?) ?? const [],
+          );
+        }
+        if (extra is Scripture) {
+          return ScriptureSearchScreen(scripture: extra);
+        }
+        return ScriptureSearchScreen(scriptureId: state.pathParameters['id']!);
       },
     ),
     GoRoute(
@@ -110,11 +124,12 @@ final router = GoRouter(
       builder: (_, state) {
         final id = state.pathParameters['id']!;
         // 重建时 extra 可能为 null，回退到首次缓存，避免崩溃灰屏。
-        final extra = (state.extra as Map<String, dynamic>?) ??
-            _readerExtraCache[id];
+        final extra =
+            (state.extra as Map<String, dynamic>?) ?? _readerExtraCache[id];
         if (extra == null) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         // 只保留当前章节这一条，避免长会话里缓存上千章的全卷数据导致内存增长
         _readerExtraCache
@@ -125,6 +140,7 @@ final router = GoRouter(
           scripture: extra['scripture'] as Scripture,
           allChapters: extra['allChapters'] as List<ScriptureChapter>,
           initialIndex: extra['initialIndex'] as int,
+          initialVerse: extra['initialVerse'] as int?,
         );
       },
     ),

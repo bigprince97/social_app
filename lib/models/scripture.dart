@@ -13,8 +13,6 @@ class Scripture {
   final DateTime createdAt;
   // 目录多语言（目前繁体）：{'zh_Hant': {title,category,author,dynasty,description}}
   final Map<String, dynamic>? metaI18n;
-  int? progressPercent;
-  String? lastChapterId;
 
   Scripture({
     required this.id,
@@ -27,8 +25,6 @@ class Scripture {
     this.chaptersCount = 0,
     required this.createdAt,
     this.metaI18n,
-    this.progressPercent,
-    this.lastChapterId,
   });
 
   // 繁体 locale 下取目录的繁体字段，缺失回退原值（简体）。
@@ -220,4 +216,18 @@ class CrossReference {
       votes: (json['votes'] as int?) ?? 0,
     );
   }
+}
+
+class ScriptureSearchResult {
+  final Scripture scripture;
+  final ScriptureChapter chapter;
+  final int? verseNumber;
+  final String snippet;
+
+  const ScriptureSearchResult({
+    required this.scripture,
+    required this.chapter,
+    required this.snippet,
+    this.verseNumber,
+  });
 }

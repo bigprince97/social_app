@@ -182,7 +182,11 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       if (mounted) setState(() => _connected = true);
     } catch (e) {
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).connectionFailed('$e'), kind: ToastKind.error);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).connectionFailed('$e'),
+          kind: ToastKind.error,
+        );
         Navigator.pop(context);
       }
     }
@@ -258,7 +262,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       ),
       builder: (ctx) => ValueListenableBuilder<int>(
         valueListenable: _roomTick,
-        builder: (ctx, _, __) {
+        builder: (ctx, _, _) {
           final t = AppLocalizations.of(ctx);
           final list = _allParticipants;
           return SafeArea(
@@ -413,10 +417,10 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
     final int cols = n == 2
         ? 1
         : n <= 4
-            ? 2
-            : n <= 9
-                ? 3
-                : 4;
+        ? 2
+        : n <= 9
+        ? 3
+        : 4;
     final int rows = (n / cols).ceil();
 
     return Padding(
@@ -431,8 +435,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           final tileH = (c.maxHeight - (rows - 1) * spacing) / rows;
           final ratio = (scroll || tileH <= 0) ? 3 / 4 : tileW / tileH;
           return GridView.count(
-            physics:
-                scroll ? null : const NeverScrollableScrollPhysics(),
+            physics: scroll ? null : const NeverScrollableScrollPhysics(),
             crossAxisCount: cols,
             mainAxisSpacing: spacing,
             crossAxisSpacing: spacing,

@@ -64,13 +64,15 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           controller: ctrl,
           autofocus: true,
           maxLength: 30,
-          decoration:
-              InputDecoration(hintText: AppLocalizations.of(context).groupNameHint),
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context).groupNameHint,
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(AppLocalizations.of(context).cancel)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.of(context).cancel),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
             child: Text(AppLocalizations.of(context).save),
@@ -78,6 +80,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         ],
       ),
     );
+    if (!mounted) return;
     if (result == null || result.isEmpty || result == _name) return;
     setState(() => _saving = true);
     try {
@@ -88,7 +91,10 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     } catch (e) {
       if (mounted) {
         showErrorIfNotNetwork(
-            context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+          context,
+          e,
+          AppLocalizations.of(context).saveFailed(e.toString()),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -102,11 +108,14 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       maxHeight: 1024,
       imageQuality: 85,
     );
+    if (!mounted) return;
     if (file == null) return;
     setState(() => _saving = true);
     try {
-      final url =
-          await _storage.uploadGroupAvatar(widget.conversation.id, file);
+      final url = await _storage.uploadGroupAvatar(
+        widget.conversation.id,
+        file,
+      );
       await _chatService.updateGroupAvatar(widget.conversation.id, url);
       widget.conversation.avatarUrl = url;
       setState(() => _avatarUrl = url);
@@ -114,7 +123,10 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     } catch (e) {
       if (mounted) {
         showErrorIfNotNetwork(
-            context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+          context,
+          e,
+          AppLocalizations.of(context).saveFailed(e.toString()),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -125,8 +137,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   bool get _isOwner => widget.conversation.createdBy == _myId;
 
   void _recomputeIsAdmin() {
-    _isAdmin = _isOwner ||
-        _members.any((m) => m.userId == _myId && m.role == 'admin');
+    _isAdmin =
+        _isOwner || _members.any((m) => m.userId == _myId && m.role == 'admin');
   }
 
   /// 成员变更后就地刷新名单，不退出页面
@@ -155,13 +167,15 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           controller: ctrl,
           maxLines: 4,
           autofocus: true,
-          decoration:
-              InputDecoration(hintText: AppLocalizations.of(context).announcementHint),
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context).announcementHint,
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(AppLocalizations.of(context).cancel)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.of(context).cancel),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
             child: Text(AppLocalizations.of(context).save),
@@ -169,18 +183,26 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         ],
       ),
     );
+    if (!mounted) return;
     if (result == null) return;
     setState(() => _saving = true);
     try {
-      await _client.from('conversations').update({
-        'announcement': result.isEmpty ? null : result,
-        'announcement_updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', widget.conversation.id);
+      await _client
+          .from('conversations')
+          .update({
+            'announcement': result.isEmpty ? null : result,
+            'announcement_updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', widget.conversation.id);
       setState(() => _announcement = result.isEmpty ? null : result);
       widget.onAnnouncementUpdated?.call(result);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).saveFailed(e.toString()),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -197,16 +219,25 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         builder: (_) => AddMembersScreen(excludeIds: existingIds),
       ),
     );
+    if (!mounted) return;
     if (picked == null || picked.isEmpty) return;
     try {
       await _chatService.addMembers(widget.conversation.id, picked);
       await _reloadMembers();
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).membersAdded, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).membersAdded,
+          kind: ToastKind.info,
+        );
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     }
   }
@@ -218,19 +249,25 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       confirmLabel: '移出',
       destructive: true,
     );
+    if (!mounted) return;
     if (!confirm) return;
     try {
-      await _client
-          .from('conversation_members')
-          .delete()
-          .eq('id', member.id);
+      await _client.from('conversation_members').delete().eq('id', member.id);
       await _reloadMembers();
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).removedFromGroup, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).removedFromGroup,
+          kind: ToastKind.info,
+        );
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     }
   }
@@ -238,20 +275,28 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   Future<void> _promoteToAdmin(ConversationMember member) async {
     final confirm = await _confirmDialog(
       title: AppLocalizations.of(context).promoteToAdmin,
-      content:
-          '确定要将 ${member.profile?.displayName ?? '该成员'} 设为管理员吗？',
+      content: '确定要将 ${member.profile?.displayName ?? '该成员'} 设为管理员吗？',
       confirmLabel: AppLocalizations.of(context).confirm,
     );
+    if (!mounted) return;
     if (!confirm) return;
     try {
       await _chatService.promoteToAdmin(member.id);
       await _reloadMembers();
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).promotedToAdmin, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).promotedToAdmin,
+          kind: ToastKind.info,
+        );
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     }
   }
@@ -259,21 +304,29 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   Future<void> _demoteToMember(ConversationMember member) async {
     final confirm = await _confirmDialog(
       title: AppLocalizations.of(context).demoteAdmin,
-      content:
-          '确定要撤销 ${member.profile?.displayName ?? '该成员'} 的管理员权限吗？',
+      content: '确定要撤销 ${member.profile?.displayName ?? '该成员'} 的管理员权限吗？',
       confirmLabel: AppLocalizations.of(context).confirm,
       destructive: true,
     );
+    if (!mounted) return;
     if (!confirm) return;
     try {
       await _chatService.demoteToMember(member.id);
       await _reloadMembers();
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).demotedAdmin, kind: ToastKind.info);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).demotedAdmin,
+          kind: ToastKind.info,
+        );
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     }
   }
@@ -294,13 +347,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       confirmLabel: AppLocalizations.of(context).confirmButton,
       destructive: true,
     );
+    if (!mounted) return;
     if (!confirm) return;
     try {
       await _client.from('conversation_members').delete().eq('id', meMember.id);
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).leaveFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).leaveFailed(e.toString()),
+        );
       }
     }
   }
@@ -312,13 +370,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       confirmLabel: '解散',
       destructive: true,
     );
+    if (!mounted) return;
     if (!confirm) return;
     try {
       await _chatService.disbandGroup(widget.conversation.id);
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     }
   }
@@ -335,7 +398,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       message: content,
       confirmLabel: confirmLabel,
       destructive: destructive,
-      icon: destructive ? Icons.warning_amber_rounded : Icons.help_outline_rounded,
+      icon: destructive
+          ? Icons.warning_amber_rounded
+          : Icons.help_outline_rounded,
     );
   }
 
@@ -401,9 +466,10 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             const Padding(
               padding: EdgeInsets.all(16),
               child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
         ],
       ),
@@ -420,20 +486,23 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     children: [
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primaryContainer,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
                         backgroundImage: (_avatarUrl?.isNotEmpty == true)
                             ? NetworkImage(_avatarUrl!)
                             : null,
                         child: (_avatarUrl?.isNotEmpty == true)
                             ? null
                             : Text(
-                                (_name ?? AppLocalizations.of(context).group)[0],
+                                (_name ??
+                                    AppLocalizations.of(context).group)[0],
                                 style: TextStyle(
-                                    fontSize: 24,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimaryContainer),
+                                  fontSize: 24,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
                               ),
                       ),
                       if (_isAdmin)
@@ -446,11 +515,17 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               color: Theme.of(context).colorScheme.primary,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                  color: Theme.of(context).scaffoldBackgroundColor,
-                                  width: 2),
+                                color: Theme.of(
+                                  context,
+                                ).scaffoldBackgroundColor,
+                                width: 2,
+                              ),
                             ),
-                            child: const Icon(Icons.camera_alt,
-                                size: 12, color: Colors.white),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 12,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                     ],
@@ -468,25 +543,26 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                             Flexible(
                               child: Text(
                                 _name ?? AppLocalizations.of(context).group,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                             ),
                             if (_isAdmin) ...[
                               const SizedBox(width: 6),
-                              Icon(Icons.edit_outlined,
-                                  size: 16,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withAlpha(140)),
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 16,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withAlpha(140),
+                              ),
                             ],
                           ],
                         ),
                         Text(
-                          AppLocalizations.of(context).memberCount(_members.length),
+                          AppLocalizations.of(
+                            context,
+                          ).memberCount(_members.length),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -503,16 +579,21 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             leading: const Icon(Icons.campaign_outlined),
             title: Text(AppLocalizations.of(context).announcement),
             subtitle: _announcement?.isNotEmpty == true
-                ? Text(_announcement!,
+                ? Text(
+                    _announcement!,
                     maxLines: 3,
-                    overflow: TextOverflow.ellipsis)
+                    overflow: TextOverflow.ellipsis,
+                  )
                 : Text(
-                    _isAdmin ? AppLocalizations.of(context).clickToSetAnnouncement : AppLocalizations.of(context).noAnnouncement,
+                    _isAdmin
+                        ? AppLocalizations.of(context).clickToSetAnnouncement
+                        : AppLocalizations.of(context).noAnnouncement,
                     style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withAlpha(120))),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withAlpha(120),
+                    ),
+                  ),
             trailing: _isAdmin ? const Icon(Icons.edit_outlined) : null,
             onTap: _isAdmin ? _editAnnouncement : null,
           ),
@@ -528,7 +609,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               MaterialPageRoute(
                 builder: (_) => GroupFilesScreen(
                   conversationId: conv.id,
-                  conversationName: conv.name ?? AppLocalizations.of(context).group,
+                  conversationName:
+                      conv.name ?? AppLocalizations.of(context).group,
                 ),
               ),
             ),
@@ -543,10 +625,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 Expanded(
                   child: Text(
                     AppLocalizations.of(context).members(_members.length),
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 TextButton.icon(
@@ -565,11 +646,14 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               if (m.role == 'admin') return 1;
               return 2;
             }
-            final sorted = [..._members]..sort((a, b) {
+
+            final sorted = [..._members]
+              ..sort((a, b) {
                 final r = rank(a).compareTo(rank(b));
                 if (r != 0) return r;
-                return (a.profile?.displayName ?? '')
-                    .compareTo(b.profile?.displayName ?? '');
+                return (a.profile?.displayName ?? '').compareTo(
+                  b.profile?.displayName ?? '',
+                );
               });
             return sorted;
           })().map((m) {
@@ -578,14 +662,14 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             return ListTile(
               onTap: () => _showMemberActions(m),
               leading: CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer,
                 child: Text(
                   (m.profile?.displayName ?? '?')[0].toUpperCase(),
                   style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSecondaryContainer),
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
                 ),
               ),
               title: Text(
@@ -601,13 +685,13 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   if (isOwnerMember || m.role == 'admin')
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: isOwnerMember
                             ? const Color(0xFFFFE0B2)
-                            : Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
+                            : Theme.of(context).colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -618,15 +702,14 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                           fontSize: 11,
                           color: isOwnerMember
                               ? const Color(0xFFE65100)
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ),
                   if (_isAdmin && !isMe)
-                    const Icon(Icons.more_vert,
-                        size: 18, color: Colors.grey),
+                    const Icon(Icons.more_vert, size: 18, color: Colors.grey),
                 ],
               ),
             );
@@ -636,18 +719,21 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           // 退出群聊
           ListTile(
             leading: const Icon(Icons.exit_to_app, color: Colors.red),
-            title: Text(AppLocalizations.of(context).leaveGroup,
-                style: const TextStyle(color: Colors.red)),
+            title: Text(
+              AppLocalizations.of(context).leaveGroup,
+              style: const TextStyle(color: Colors.red),
+            ),
             onTap: _leaveGroup,
           ),
 
           // 解散群聊（仅群主）
           if (_isOwner) ...[
             ListTile(
-              leading:
-                  const Icon(Icons.delete_forever, color: Colors.red),
-              title: Text(AppLocalizations.of(context).disbandGroup,
-                  style: const TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              title: Text(
+                AppLocalizations.of(context).disbandGroup,
+                style: const TextStyle(color: Colors.red),
+              ),
               onTap: _disbandGroup,
             ),
           ],

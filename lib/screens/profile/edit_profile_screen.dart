@@ -65,6 +65,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       maxHeight: 512,
       imageQuality: 85,
     );
+    if (!mounted) return;
     if (picked != null) {
       setState(() => _newAvatarFile = picked);
     }
@@ -73,15 +74,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _save() async {
     final displayName = _displayNameCtrl.text.trim();
     if (displayName.isEmpty) {
-      showPremiumToast(context, AppLocalizations.of(context).displayNameRequired, kind: ToastKind.info);
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).displayNameRequired,
+        kind: ToastKind.info,
+      );
       return;
     }
     setState(() => _saving = true);
     try {
       String? avatarUrl = _profile?.avatarUrl;
       if (_newAvatarFile != null) {
-        avatarUrl = await _storageService.uploadAvatar(_newAvatarFile!,
-            oldUrl: _profile?.avatarUrl);
+        avatarUrl = await _storageService.uploadAvatar(
+          _newAvatarFile!,
+          oldUrl: _profile?.avatarUrl,
+        );
       }
       await _profileService.updateProfile(
         displayName: displayName,
@@ -89,18 +96,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         avatarUrl: avatarUrl,
       );
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).savingSucceeded, kind: ToastKind.success);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).savingSucceeded,
+          kind: ToastKind.success,
+        );
         notifyProfileUpdated();
         context.pop();
       }
     } catch (e) {
       if (mounted) {
         if (isAuthExpiredError(e)) {
-          showPremiumToast(context, AppLocalizations.of(context).sessionExpired,
-              kind: ToastKind.error);
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).sessionExpired,
+            kind: ToastKind.error,
+          );
         } else {
           showErrorIfNotNetwork(
-              context, e, AppLocalizations.of(context).saveFailed(e.toString()));
+            context,
+            e,
+            AppLocalizations.of(context).saveFailed(e.toString()),
+          );
         }
       }
     } finally {
@@ -140,16 +157,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           radius: 52,
                           backgroundImage: _newAvatarFile != null
                               ? (kIsWeb
-                                  ? NetworkImage(_newAvatarFile!.path)
-                                  : FileImage(
-                                      // ignore: avoid_dynamic_calls
-                                      File(_newAvatarFile!.path)) as ImageProvider)
+                                    ? NetworkImage(_newAvatarFile!.path)
+                                    : FileImage(
+                                            // ignore: avoid_dynamic_calls
+                                            File(_newAvatarFile!.path),
+                                          )
+                                          as ImageProvider)
                               : _profile?.avatarUrl != null
-                                  ? CachedNetworkImageProvider(
-                                          _profile!.avatarUrl!)
-                                      as ImageProvider
-                                  : null,
-                          child: _newAvatarFile == null &&
+                              ? CachedNetworkImageProvider(_profile!.avatarUrl!)
+                                    as ImageProvider
+                              : null,
+                          child:
+                              _newAvatarFile == null &&
                                   _profile?.avatarUrl == null
                               ? Text(
                                   avatarInitial(_profile?.displayName),
@@ -166,8 +185,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               color: Theme.of(context).colorScheme.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.camera_alt,
-                                color: Colors.white, size: 18),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                           ),
                         ),
                       ],
@@ -182,16 +204,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   TextFormField(
                     controller: _displayNameCtrl,
                     style: const TextStyle(
-                        color: Color(0xFF1C1C1E), fontSize: 16),
+                      color: Color(0xFF1C1C1E),
+                      fontSize: 16,
+                    ),
                     decoration: InputDecoration(
                       labelText: AppLocalizations.of(context).displayName,
                       labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
-                      floatingLabelStyle:
-                          const TextStyle(color: Color(0xFF9575CD)),
+                      floatingLabelStyle: const TextStyle(
+                        color: Color(0xFF9575CD),
+                      ),
                       filled: true,
                       fillColor: const Color(0xFFF5F5F8),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -203,7 +230,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: const BorderSide(
-                            color: Color(0xFF9575CD), width: 1.5),
+                          color: Color(0xFF9575CD),
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -213,17 +242,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     maxLines: 4,
                     maxLength: 150,
                     style: const TextStyle(
-                        color: Color(0xFF1C1C1E), fontSize: 16),
+                      color: Color(0xFF1C1C1E),
+                      fontSize: 16,
+                    ),
                     decoration: InputDecoration(
                       labelText: AppLocalizations.of(context).bio,
                       labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
-                      floatingLabelStyle:
-                          const TextStyle(color: Color(0xFF9575CD)),
+                      floatingLabelStyle: const TextStyle(
+                        color: Color(0xFF9575CD),
+                      ),
                       alignLabelWithHint: true,
                       filled: true,
                       fillColor: const Color(0xFFF5F5F8),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -235,7 +269,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: const BorderSide(
-                            color: Color(0xFF9575CD), width: 1.5),
+                          color: Color(0xFF9575CD),
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),

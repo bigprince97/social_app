@@ -16,6 +16,7 @@ class ChapterReaderScreen extends StatefulWidget {
   final Scripture scripture;
   final List<ScriptureChapter> allChapters;
   final int initialIndex;
+  final int? initialVerse;
 
   const ChapterReaderScreen({
     super.key,
@@ -23,6 +24,7 @@ class ChapterReaderScreen extends StatefulWidget {
     required this.scripture,
     required this.allChapters,
     required this.initialIndex,
+    this.initialVerse,
   });
 
   @override
@@ -41,6 +43,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   bool _uiBusy = false;
   final _scrollController = ScrollController();
   double _swipeDx = 0;
+  int? _targetVerse;
+  int? _flashVerse;
+  final Map<int, GlobalKey> _verseKeys = {};
 
   bool get _isBible => widget.scripture.category == '基督';
 
@@ -50,6 +55,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (_isBible) return bl;
     return bl == 'zh_Hant' ? 'zh_Hant' : 'zh';
   }
+
   String get _displayText => _chapter.localizedText(_lang);
   String get _displayTitle => _chapter.localizedTitle(_lang);
 
@@ -87,11 +93,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (text.isEmpty) return;
     Clipboard.setData(
       ClipboardData(
-        text: '"$text"\n——《${widget.scripture.displayTitle}》${_displayTitle}',
+        text: '"$text"\n——《${widget.scripture.displayTitle}》$_displayTitle',
       ),
     );
     setState(() => _selectedVerses.clear());
-    showPremiumToast(context, AppLocalizations.of(context).copiedToClipboard, kind: ToastKind.success);
+    showPremiumToast(
+      context,
+      AppLocalizations.of(context).copiedToClipboard,
+      kind: ToastKind.success,
+    );
   }
 
   Future<void> _quoteSelectedVerses() async {
@@ -140,7 +150,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         chapterTitle: _displayTitle,
                       );
                       if (mounted) {
-                        showPremiumToast(context, AppLocalizations.of(context).sentToChat, kind: ToastKind.success);
+                        showPremiumToast(
+                          context,
+                          AppLocalizations.of(context).sentToChat,
+                          kind: ToastKind.success,
+                        );
                       }
                     },
                   );
@@ -158,16 +172,22 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _chapter = widget.chapter;
+    _targetVerse = widget.initialVerse;
+    _flashVerse = widget.initialVerse;
     _ensureContent();
     _loadUserState();
     _loadCrossRefs();
-    _saveProgress();
+    _scheduleVerseScroll();
+    _clearVerseFlashLater();
   }
 
   Future<void> _ensureContent() async {
     if (_chapter.originalText != null) return;
     final full = await _service.getChapterContent(_chapter.id);
-    if (mounted) setState(() => _chapter = full);
+    if (mounted) {
+      setState(() => _chapter = full);
+      _scheduleVerseScroll();
+    }
   }
 
   Future<void> _loadCrossRefs() async {
@@ -202,17 +222,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _saveProgress() async {
-    final total = widget.allChapters.length;
-    if (total == 0) return;
-    final percent = ((_currentIndex + 1) / total * 100).round();
-    await _service.saveProgress(
-      scriptureId: widget.scripture.id,
-      chapterId: _chapter.id,
-      progressPercent: percent,
-    );
   }
 
   Future<void> _toggleBookmark() async {
@@ -302,7 +311,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   void _showQuoteOptions() {
     final plainQuote =
-        '"${_displayText}"\n——《${widget.scripture.displayTitle}》${_displayTitle}';
+        '"$_displayText"\n——《${widget.scripture.displayTitle}》$_displayTitle';
     showPremiumActionSheet(
       context,
       title: _displayTitle,
@@ -314,7 +323,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           onTap: () {
             Clipboard.setData(ClipboardData(text: plainQuote));
             Navigator.pop(context);
-            showPremiumToast(context, AppLocalizations.of(context).copiedToClipboard, kind: ToastKind.success);
+            showPremiumToast(
+              context,
+              AppLocalizations.of(context).copiedToClipboard,
+              kind: ToastKind.success,
+            );
           },
         ),
         PremiumAction(
@@ -374,7 +387,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                         chapterTitle: _displayTitle,
                       );
                       if (mounted) {
-                        showPremiumToast(context, AppLocalizations.of(context).sentToChat, kind: ToastKind.success);
+                        showPremiumToast(
+                          context,
+                          AppLocalizations.of(context).sentToChat,
+                          kind: ToastKind.success,
+                        );
                       }
                     },
                   );
@@ -387,11 +404,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
-  void _goToChapter(int index) {
+  void _goToChapter(int index, {int? verse}) {
     if (index < 0 || index >= widget.allChapters.length) return;
+    _verseKeys.clear();
     setState(() {
       _currentIndex = index;
       _chapter = widget.allChapters[index];
+      _targetVerse = verse;
+      _flashVerse = verse;
       _userNote = null;
       _isBookmarked = false;
       _isHighlighted = false;
@@ -408,7 +428,40 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _ensureContent();
     _loadUserState();
     _loadCrossRefs();
-    _saveProgress();
+    _scheduleVerseScroll();
+    _clearVerseFlashLater();
+  }
+
+  void _scheduleVerseScroll({int retry = 0}) {
+    final verse = _targetVerse;
+    if (!_isBible || verse == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _verseKeys[verse]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          alignment: 0.18,
+        );
+      } else if (retry < 4) {
+        Future.delayed(
+          const Duration(milliseconds: 120),
+          () => _scheduleVerseScroll(retry: retry + 1),
+        );
+      }
+    });
+  }
+
+  void _clearVerseFlashLater() {
+    final verse = _flashVerse;
+    if (verse == null) return;
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && _flashVerse == verse) {
+        setState(() => _flashVerse = null);
+      }
+    });
   }
 
   @override
@@ -468,6 +521,24 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (!mounted || id == null) return;
     final idx = widget.allChapters.indexWhere((c) => c.id == id);
     if (idx >= 0 && idx != _currentIndex) _goToChapter(idx);
+  }
+
+  Future<void> _openSearch() async {
+    final result = await context.push<ScriptureSearchResult>(
+      '/scripture/search/${widget.scripture.id}',
+      extra: {'scripture': widget.scripture, 'chapters': widget.allChapters},
+    );
+    if (!mounted || result == null) return;
+    final idx = widget.allChapters.indexWhere((c) => c.id == result.chapter.id);
+    if (idx >= 0) {
+      _goToChapter(idx, verse: result.verseNumber);
+    } else {
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).chapterNotFound,
+        kind: ToastKind.info,
+      );
+    }
   }
 
   // ── 圣经专属阅读器 ─────────────────────────────────────────────
@@ -571,8 +642,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Icon(Icons.arrow_drop_down,
-                      color: Colors.white70, size: 20),
+                  const Icon(
+                    Icons.arrow_drop_down,
+                    color: Colors.white70,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
@@ -615,6 +689,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       ),
       centerTitle: true,
       actions: [
+        IconButton(
+          icon: const Icon(Icons.search_rounded, color: Colors.white),
+          onPressed: _openSearch,
+          tooltip: AppLocalizations.of(context).search,
+        ),
         PopupMenuButton<double>(
           icon: const Icon(Icons.format_size, color: Colors.white),
           onSelected: (v) => setState(() => _fontSize = v),
@@ -822,6 +901,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            onPressed: _openSearch,
+            tooltip: AppLocalizations.of(context).search,
+          ),
           IconButton(
             icon: Icon(
               _isBookmarked ? Icons.bookmark : Icons.bookmark_outline,
@@ -1050,20 +1134,36 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   Widget _buildVerseRow(_BibleVerse verse) {
     final isSelected = _selectedVerses.contains(verse.number);
+    final isTarget = _flashVerse == verse.number;
     final refs = _crossRefs[verse.number];
     final hasRefs = refs != null && refs.isNotEmpty;
     return GestureDetector(
+      key: _verseKeys.putIfAbsent(verse.number, GlobalKey.new),
       onTap: () => _toggleVerseSelection(verse.number),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         width: double.infinity,
-        padding: EdgeInsets.fromLTRB(isSelected ? 10.0 : 0.0, 4, 4, 4),
+        padding: EdgeInsets.fromLTRB(
+          isSelected || isTarget ? 10.0 : 0.0,
+          4,
+          4,
+          4,
+        ),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFF9C4) : Colors.transparent,
+          color: isSelected
+              ? const Color(0xFFFFF9C4)
+              : isTarget
+              ? AppStyle.orange.withAlpha(34)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          border: isSelected
-              ? const Border(left: BorderSide(color: _bibleAccent, width: 3))
+          border: isSelected || isTarget
+              ? Border(
+                  left: BorderSide(
+                    color: isSelected ? _bibleAccent : AppStyle.orange,
+                    width: 3,
+                  ),
+                )
               : null,
         ),
         child: RichText(
@@ -1136,7 +1236,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
-  /// 展示某节引用的旧约出处列表，点击跳转到对应章节。
+  /// 展示某节引用的旧约出处列表，点击跳转到对应章节和具体节。
   void _showCrossRefs(int verse, List<CrossReference> refs) {
     showPremiumActionSheet(
       context,
@@ -1151,19 +1251,23 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             color: AppStyle.orange,
             onTap: () {
               Navigator.pop(context);
-              _jumpToChapter(ref.toChapterId);
+              _jumpToChapter(ref.toChapterId, verse: ref.toVerseStart);
             },
           ),
       ],
     );
   }
 
-  void _jumpToChapter(String chapterId) {
+  void _jumpToChapter(String chapterId, {int? verse}) {
     final idx = widget.allChapters.indexWhere((c) => c.id == chapterId);
     if (idx >= 0) {
-      _goToChapter(idx);
+      _goToChapter(idx, verse: verse);
     } else {
-      showPremiumToast(context, AppLocalizations.of(context).chapterNotFound, kind: ToastKind.info);
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).chapterNotFound,
+        kind: ToastKind.info,
+      );
     }
   }
 

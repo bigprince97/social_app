@@ -99,6 +99,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
 
   Future<void> _createFolder() async {
     final name = await _promptName();
+    if (!mounted) return;
     if (name == null || name.trim().isEmpty) return;
     try {
       await _client.from('group_folders').insert({
@@ -108,6 +109,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
       });
       await _load();
     } catch (e) {
+      if (!mounted) return;
       _snack(AppLocalizations.of(context).createFailed(e.toString()));
     }
   }
@@ -121,18 +123,21 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
       confirmLabel: AppLocalizations.of(context).delete,
       destructive: true,
     );
+    if (!mounted) return;
     if (!ok) return;
     try {
       await _client.from('group_folders').delete().eq('id', f.id);
       if (_currentFolderId == f.id) _currentFolderId = null;
       await _load();
     } catch (e) {
+      if (!mounted) return;
       _snack(AppLocalizations.of(context).deleteFailed(e.toString()));
     }
   }
 
   Future<void> _renameFolder(_Folder f) async {
     final name = await _promptName(initial: f.name);
+    if (!mounted) return;
     if (name == null || name.trim().isEmpty) return;
     try {
       await _client
@@ -141,6 +146,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
           .eq('id', f.id);
       await _load();
     } catch (e) {
+      if (!mounted) return;
       _snack(AppLocalizations.of(context).renameFailed(e.toString()));
     }
   }
@@ -228,6 +234,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
       }
       await _load();
     } catch (e) {
+      if (!mounted) return;
       _snack(AppLocalizations.of(context).moveFailed(e.toString()));
     }
   }
@@ -235,6 +242,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
   // 直接在群文件页上传文件：选文件→上传→发为文件消息→（若在文件夹内）归入当前文件夹
   Future<void> _uploadFile() async {
     final result = await FilePicker.platform.pickFiles(withData: true);
+    if (!mounted) return;
     if (result == null || result.files.isEmpty) return;
     final f = result.files.first;
     final bytes = f.bytes;
@@ -277,6 +285,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
+      if (!mounted) return;
       _snack(AppLocalizations.of(context).cannotOpenFile);
     }
   }
@@ -300,12 +309,17 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
     final m = mime ?? '';
     final n = name ?? '';
     if (m.contains('pdf') || n.endsWith('.pdf')) return Icons.picture_as_pdf;
-    if (m.contains('word') || n.endsWith('.doc') || n.endsWith('.docx'))
+    if (m.contains('word') || n.endsWith('.doc') || n.endsWith('.docx')) {
       return Icons.description;
-    if (m.contains('sheet') || n.endsWith('.xls') || n.endsWith('.xlsx'))
+    }
+    if (m.contains('sheet') || n.endsWith('.xls') || n.endsWith('.xlsx')) {
       return Icons.table_chart;
-    if (m.contains('presentation') || n.endsWith('.ppt') || n.endsWith('.pptx'))
+    }
+    if (m.contains('presentation') ||
+        n.endsWith('.ppt') ||
+        n.endsWith('.pptx')) {
       return Icons.slideshow;
+    }
     if (m.contains('image')) return Icons.image;
     if (m.contains('audio')) return Icons.audio_file;
     if (m.contains('video')) return Icons.video_file;
@@ -318,12 +332,17 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
     final m = mime ?? '';
     final n = name ?? '';
     if (m.contains('pdf') || n.endsWith('.pdf')) return Colors.red.shade400;
-    if (m.contains('word') || n.endsWith('.doc') || n.endsWith('.docx'))
+    if (m.contains('word') || n.endsWith('.doc') || n.endsWith('.docx')) {
       return Colors.blue.shade400;
-    if (m.contains('sheet') || n.endsWith('.xls') || n.endsWith('.xlsx'))
+    }
+    if (m.contains('sheet') || n.endsWith('.xls') || n.endsWith('.xlsx')) {
       return Colors.green.shade500;
-    if (m.contains('presentation') || n.endsWith('.ppt') || n.endsWith('.pptx'))
+    }
+    if (m.contains('presentation') ||
+        n.endsWith('.ppt') ||
+        n.endsWith('.pptx')) {
       return Colors.orange.shade400;
+    }
     if (m.contains('image')) return Colors.purple.shade400;
     if (m.contains('audio')) return Colors.teal.shade400;
     if (m.contains('video')) return Colors.indigo.shade400;
@@ -348,11 +367,13 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
   @override
   Widget build(BuildContext context) {
     // 当前目录下的文件
-    final visibleFiles =
-        _files.where((f) => _effectiveFolder(f) == _currentFolderId).toList();
+    final visibleFiles = _files
+        .where((f) => _effectiveFolder(f) == _currentFolderId)
+        .toList();
     // 「聊天文件」虚拟文件夹内的文件数
-    final chatFileCount =
-        _files.where((f) => _effectiveFolder(f) == _kChatFolderId).length;
+    final chatFileCount = _files
+        .where((f) => _effectiveFolder(f) == _kChatFolderId)
+        .length;
     final inChatFolder = _currentFolderId == _kChatFolderId;
     final currentFolder = (_currentFolderId == null || inChatFolder)
         ? null
@@ -391,7 +412,7 @@ class _GroupFilesScreenState extends State<GroupFilesScreen> {
               inChatFolder
                   ? AppLocalizations.of(context).chatFiles
                   : currentFolder?.name ??
-                      AppLocalizations.of(context).groupFiles,
+                        AppLocalizations.of(context).groupFiles,
             ),
             Text(
               currentFolder == null

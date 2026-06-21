@@ -27,7 +27,6 @@ class _SearchScreenState extends State<SearchScreen>
 
   List<Profile> _userResults = [];
   List<Post> _postResults = [];
-  List<Map<String, dynamic>> _scriptureResults = [];
   bool _searching = false;
   bool _hasSearched = false;
   String _lastQuery = '';
@@ -36,7 +35,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -53,7 +52,6 @@ class _SearchScreenState extends State<SearchScreen>
       setState(() {
         _userResults = [];
         _postResults = [];
-        _scriptureResults = [];
         _hasSearched = false;
         _lastQuery = '';
       });
@@ -66,13 +64,11 @@ class _SearchScreenState extends State<SearchScreen>
       final results = await Future.wait([
         _profileService.searchUsers(trimmed),
         _searchPosts(trimmed),
-        _searchScriptures(trimmed),
       ]);
       if (mounted && trimmed == _lastQuery) {
         setState(() {
           _userResults = results[0] as List<Profile>;
           _postResults = results[1] as List<Post>;
-          _scriptureResults = results[2] as List<Map<String, dynamic>>;
           _hasSearched = true;
         });
       }
@@ -96,15 +92,6 @@ class _SearchScreenState extends State<SearchScreen>
     return (data as List).map((e) => Post.fromJson(e)).toList();
   }
 
-  Future<List<Map<String, dynamic>>> _searchScriptures(String q) async {
-    final data = await _client
-        .from('scriptures')
-        .select('id, title, category, author, dynasty')
-        .or('title.ilike.%$q%,author.ilike.%$q%,description.ilike.%$q%')
-        .limit(20);
-    return (data as List).cast<Map<String, dynamic>>();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -114,14 +101,17 @@ class _SearchScreenState extends State<SearchScreen>
           controller: _searchCtrl,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: AppLocalizations.of(context).searchHint,
+            hintText: _globalSearchHint(context),
             border: InputBorder.none,
             contentPadding: EdgeInsets.symmetric(horizontal: 8),
           ),
           onChanged: (v) {
             setState(() {});
             _debounce?.cancel();
-            _debounce = Timer(const Duration(milliseconds: 400), () => _search(v));
+            _debounce = Timer(
+              const Duration(milliseconds: 400),
+              () => _search(v),
+            );
           },
           onSubmitted: _search,
         ),
@@ -139,9 +129,14 @@ class _SearchScreenState extends State<SearchScreen>
             ? TabBar(
                 controller: _tabCtrl,
                 tabs: [
-                  Tab(text: '${AppLocalizations.of(context).users} (${_userResults.length})'),
-                  Tab(text: '${AppLocalizations.of(context).posts2} (${_postResults.length})'),
-                  Tab(text: '${AppLocalizations.of(context).scripture} (${_scriptureResults.length})'),
+                  Tab(
+                    text:
+                        '${AppLocalizations.of(context).users} (${_userResults.length})',
+                  ),
+                  Tab(
+                    text:
+                        '${AppLocalizations.of(context).posts2} (${_postResults.length})',
+                  ),
                 ],
               )
             : null,
@@ -149,16 +144,20 @@ class _SearchScreenState extends State<SearchScreen>
       body: _searching
           ? const Center(child: CircularProgressIndicator())
           : !_hasSearched
-              ? _buildEmptyState()
-              : TabBarView(
-                  controller: _tabCtrl,
-                  children: [
-                    _buildUserResults(),
-                    _buildPostResults(),
-                    _buildScriptureResults(),
-                  ],
-                ),
+          ? _buildEmptyState()
+          : TabBarView(
+              controller: _tabCtrl,
+              children: [_buildUserResults(), _buildPostResults()],
+            ),
     );
+  }
+
+  String _globalSearchHint(BuildContext context) {
+    final lang = Localizations.localeOf(context).toLanguageTag();
+    if (lang.startsWith('zh-Hant')) return '搜尋使用者、動態';
+    if (lang.startsWith('zh')) return '搜索用户、动态';
+    if (lang.startsWith('ja')) return 'ユーザー、投稿を検索';
+    return 'Search users and posts';
   }
 
   Widget _buildEmptyState() {
@@ -194,52 +193,6 @@ class _SearchScreenState extends State<SearchScreen>
       itemBuilder: (context, i) => PostCard(post: _postResults[i]),
     );
   }
-
-  Widget _buildScriptureResults() {
-    if (_scriptureResults.isEmpty) {
-      return PremiumEmptyState(
-        icon: Icons.menu_book_rounded,
-        title: AppLocalizations.of(context).emptyScriptures,
-      );
-    }
-    return ListView.builder(
-      itemCount: _scriptureResults.length,
-      itemBuilder: (context, i) {
-        final s = _scriptureResults[i];
-        final title = s['title'] as String? ?? '';
-        final author = s['author'] as String?;
-        final dynasty = s['dynasty'] as String?;
-        final category = s['category'] as String? ?? '';
-        return ListTile(
-          leading: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                title.isNotEmpty ? title[0] : '经',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-          ),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: Text([
-            author,
-            dynasty,
-            category,
-          ].whereType<String>().join(' · ')),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/scripture/detail/${s['id']}'),
-        );
-      },
-    );
-  }
 }
 
 class _UserTile extends StatelessWidget {
@@ -258,8 +211,10 @@ class _UserTile extends StatelessWidget {
             ? Text(avatarInitial(profile.displayName))
             : null,
       ),
-      title: Text(profile.displayName,
-          style: const TextStyle(fontWeight: FontWeight.bold)),
+      title: Text(
+        profile.displayName,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
       trailing: Text(
         AppLocalizations.of(context).followerCount(profile.followersCount),
         style: Theme.of(context).textTheme.bodySmall,
