@@ -190,15 +190,10 @@ class ActiveMediaSession extends ChangeNotifier {
         if (!ended) unawaited(end());
       });
 
-    _statusChannel = _callService.subscribeToCallStatus(call.id, (nextStatus) {
-      status = nextStatus;
-      _changed();
-      if (nextStatus == 'declined' ||
-          nextStatus == 'ended' ||
-          nextStatus == 'missed') {
-        unawaited(end(remote: true));
-      }
-    });
+    _statusChannel = _callService.subscribeToCallStatus(
+      call.id,
+      _handleRemoteStatus,
+    );
 
     await room.connect(livekitUrl, livekitToken);
     await room.localParticipant?.setMicrophoneEnabled(true);
@@ -231,13 +226,10 @@ class ActiveMediaSession extends ChangeNotifier {
         if (!ended) unawaited(leaveLivestream());
       });
 
-    _statusChannel = _callService.subscribeToCallStatus(call.id, (nextStatus) {
-      status = nextStatus;
-      _changed();
-      if (nextStatus == 'ended') {
-        unawaited(end(remote: true));
-      }
-    });
+    _statusChannel = _callService.subscribeToCallStatus(
+      call.id,
+      _handleRemoteStatus,
+    );
 
     await room.connect(livekitUrl, livekitToken);
     _syncRemoteSnapshot();
@@ -256,6 +248,17 @@ class ActiveMediaSession extends ChangeNotifier {
     _ringTimeout = Timer(const Duration(seconds: 60), () {
       if (!ended && status == 'ringing') unawaited(end());
     });
+  }
+
+  void _handleRemoteStatus(String nextStatus) {
+    if (ended) return;
+    status = nextStatus;
+    _changed();
+    if (nextStatus == 'declined' ||
+        nextStatus == 'ended' ||
+        nextStatus == 'missed') {
+      unawaited(end(remote: true));
+    }
   }
 
   void _syncRemoteSnapshot() {
@@ -381,7 +384,9 @@ class ActiveMediaSession extends ChangeNotifier {
       unawaited(_callService.endCall(call.id));
     } else if (closeRemoteCall) {
       try {
-        await _callService.endCall(call.id).timeout(const Duration(seconds: 3));
+        await _callService
+            .closeLivestreamCall(call.id)
+            .timeout(const Duration(seconds: 3));
       } catch (_) {}
     }
     unawaited(PushNotificationService.cancelActiveMediaNotification());

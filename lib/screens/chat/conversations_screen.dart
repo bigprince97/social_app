@@ -15,7 +15,9 @@ import '../../services/local_cache.dart';
 import '../../widgets/premium_toast.dart';
 
 class ConversationsScreen extends StatefulWidget {
-  const ConversationsScreen({super.key});
+  final VoidCallback? onUnreadChanged;
+
+  const ConversationsScreen({super.key, this.onUnreadChanged});
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
@@ -60,7 +62,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
           schema: 'public',
           table: 'messages',
           callback: (_) {
-            if (mounted) _loadConversations(silent: true);
+            if (mounted) {
+              _loadConversations(silent: true);
+              widget.onUnreadChanged?.call();
+            }
           },
         )
         // 会话本身的变更：触发器写入的最新预览/时间、撤回刷新、群名修改等
@@ -255,9 +260,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   currentUserId: userId,
                                   onTap: () => context
                                       .push('/chat/${conv.id}', extra: conv)
-                                      .then(
-                                        (_) => _loadConversations(silent: true),
-                                      ),
+                                      .then((_) {
+                                        _loadConversations(silent: true);
+                                        widget.onUnreadChanged?.call();
+                                      }),
                                 ),
                               );
                             },

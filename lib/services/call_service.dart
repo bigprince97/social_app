@@ -83,14 +83,12 @@ class CallService {
     required String callType,
     String? calleeId,
   }) async {
-    final now = DateTime.now().toIso8601String();
     if (callType == 'livestream') {
-      await _client
-          .from('calls')
-          .update({'status': 'ended', 'ended_at': now})
-          .eq('conversation_id', conversationId)
-          .eq('call_type', 'livestream')
-          .inFilter('status', ['ringing', 'accepted']);
+      final data = await _client.rpc<Map<String, dynamic>>(
+        'start_livestream_call',
+        params: {'p_conversation_id': conversationId},
+      );
+      return CallInfo.fromJson(data);
     }
     final roomName = 'call_${DateTime.now().millisecondsSinceEpoch}';
     final data = await _client
@@ -102,7 +100,6 @@ class CallService {
           'call_type': callType,
           'status': 'ringing',
           'livekit_room': roomName,
-          if (callType == 'livestream') 'last_heartbeat_at': now,
         })
         .select()
         .single();
@@ -137,6 +134,10 @@ class CallService {
           'ended_at': DateTime.now().toIso8601String(),
         })
         .eq('id', callId);
+  }
+
+  Future<void> closeLivestreamCall(String callId) async {
+    await _client.rpc('close_livestream_call', params: {'p_call_id': callId});
   }
 
   Future<void> markLivestreamHeartbeat(String callId) async {

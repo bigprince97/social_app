@@ -70,17 +70,22 @@ class ChatService {
   /// 失败时保留占位值（仍能指示"有未读"），不影响列表显示。
   Future<void> _applyUnreadCounts(List<Conversation> convs) async {
     try {
-      final rows = await _client.rpc('get_unread_counts') as List;
-      final counts = <String, int>{
-        for (final r in rows)
-          (r['conversation_id'] as String): (r['cnt'] as num).toInt(),
-      };
+      final counts = await getUnreadCounts();
       for (final c in convs) {
         c.unreadCount = counts[c.id] ?? 0;
       }
     } catch (_) {
       // RPC 不可用：保留布尔占位，不报错
     }
+  }
+
+  /// 拉取真实未读消息数。key 是 conversation_id，value 是该会话未读条数。
+  Future<Map<String, int>> getUnreadCounts() async {
+    final rows = await _client.rpc('get_unread_counts') as List;
+    return {
+      for (final r in rows)
+        (r['conversation_id'] as String): (r['cnt'] as num).toInt(),
+    };
   }
 
   List<Conversation> _processConversations(List data) {

@@ -179,18 +179,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _loadBadges() async {
     try {
-      final convs = await _chatService.getConversations();
-      final userId = Supabase.instance.client.auth.currentUser!.id;
-      int msgCount = 0;
-      for (final conv in convs) {
-        final me = conv.members.where((m) => m.userId == userId).firstOrNull;
-        if (me != null && conv.lastMessageAt != null) {
-          if (me.lastReadAt == null ||
-              conv.lastMessageAt!.isAfter(me.lastReadAt!)) {
-            msgCount++;
-          }
-        }
-      }
+      final counts = await _chatService.getUnreadCounts();
+      final msgCount = counts.values.where((count) => count > 0).length;
       if (mounted) setState(() => _unreadMessages = msgCount);
     } catch (_) {}
   }
@@ -207,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           callback: (payload) {
             final senderId = payload.newRecord['sender_id'] as String?;
             if (senderId == null || senderId == userId) return;
-            if (_currentIndex != 2 && mounted) _loadBadges();
+            if (mounted) _loadBadges();
             _maybeShowChatBanner(payload.newRecord);
           },
         )
@@ -249,8 +239,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _onTabSelected(int i) {
     setState(() {
       _currentIndex = i;
-      if (i == 2) _unreadMessages = 0;
     });
+    _loadBadges();
   }
 
   @override
@@ -259,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final screens = [
       const FeedScreen(),
       const ScriptureHomeScreen(),
-      const ConversationsScreen(),
+      ConversationsScreen(onUnreadChanged: _loadBadges),
       ProfileScreen(userId: userId),
     ];
 

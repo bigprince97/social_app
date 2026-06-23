@@ -14,6 +14,7 @@ import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
+import '../../widgets/scripture_download_button.dart';
 
 class ChapterReaderScreen extends StatefulWidget {
   final ScriptureChapter chapter;
@@ -1133,6 +1134,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         ),
         centerTitle: true,
         actions: [
+          ScriptureDownloadButton(scriptureId: s.id),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             onPressed: _openSearch,
