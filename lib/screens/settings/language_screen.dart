@@ -13,21 +13,18 @@ class _LanguageScreenState extends State<LanguageScreen> {
   @override
   Widget build(BuildContext context) {
     final current = LocaleController.instance.locale.value;
-    final currentKey =
-        current == null ? null : LocaleController.keyOf(current);
+    final currentKey = current == null ? null : LocaleController.keyOf(current);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('语言 / Language')),
+      appBar: AppBar(title: const Text('语言')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          // 暂时只显示简体/繁体，隐藏英语和日语
-          for (final loc in LocaleController.supported.where((l) =>
-              LocaleController.keyOf(l) != 'en' &&
-              LocaleController.keyOf(l) != 'ja'))
+          for (final loc in LocaleController.supported)
             _LangTile(
-              label: LocaleController.labels[LocaleController.keyOf(loc)] ??
+              label:
+                  LocaleController.labels[LocaleController.keyOf(loc)] ??
                   LocaleController.keyOf(loc),
               selected: currentKey == LocaleController.keyOf(loc),
               isDark: isDark,
@@ -38,7 +35,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
             ),
           const SizedBox(height: 8),
           _LangTile(
-            label: '跟随系统 / System',
+            label: '跟随系统（仅中文）',
             selected: current == null,
             isDark: isDark,
             onTap: () async {
@@ -75,20 +72,22 @@ class _LangTile extends StatelessWidget {
           color: selected
               ? AppStyle.brand
               : (isDark
-                  ? Colors.white.withAlpha(12)
-                  : Colors.black.withAlpha(10)),
+                    ? Colors.white.withAlpha(12)
+                    : Colors.black.withAlpha(10)),
           width: selected ? 1.5 : 0.6,
         ),
         boxShadow: AppStyle.softShadow(isDark, blur: 10),
       ),
       child: ListTile(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(label,
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? AppStyle.brand : null)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? AppStyle.brand : null,
+          ),
+        ),
         trailing: selected
             ? const Icon(Icons.check_circle_rounded, color: AppStyle.brand)
             : null,

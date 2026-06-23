@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -28,6 +29,16 @@ class PushNotificationService {
     importance: Importance.max,
   );
 
+  static const _activeMediaChannel = AndroidNotificationChannel(
+    'active_media',
+    '通话和直播',
+    description: '正在进行的通话或直播',
+    importance: Importance.high,
+    playSound: false,
+  );
+
+  static const _activeMediaNotificationId = 9001;
+
   // 前台聊天横幅：静音频道。带声音的通知会抢占音频焦点，打断正在
   // 播放的语音消息，因此聊天横幅不出声（playSound:false）。
   static const _chatChannel = AndroidNotificationChannel(
@@ -41,6 +52,7 @@ class PushNotificationService {
   /// 收到来电类推送时回调（前台/后台点开都会触发），由 HomeScreen 注册，
   /// 用 call_id 拉取通话并弹来电界面。
   static void Function(Map<String, dynamic> data)? onCallPush;
+  static VoidCallback? onActiveMediaTap;
   static void Function(
     String? postId,
     String? actorId,
@@ -51,6 +63,7 @@ class PushNotificationService {
   static StreamSubscription<String>? _tokenRefreshSub;
   static StreamSubscription<RemoteMessage>? _foregroundMessageSub;
   static StreamSubscription<RemoteMessage>? _messageOpenedSub;
+  static Timer? _tokenRetryTimer;
 
   static Future<void> initialize({
     required void Function(
@@ -184,6 +197,7 @@ class PushNotificationService {
           >();
       await android?.createNotificationChannel(_androidChannel);
       await android?.createNotificationChannel(_callChannel);
+      await android?.createNotificationChannel(_activeMediaChannel);
       await android?.createNotificationChannel(_chatChannel);
     }
 
@@ -196,12 +210,54 @@ class PushNotificationService {
         if (response.payload == null) return;
         final parts = response.payload!.split('|');
         final type = parts.isNotEmpty ? parts[0] : '';
+        if (type == 'active_media') {
+          onActiveMediaTap?.call();
+          return;
+        }
         String? part(int i) =>
             parts.length > i && parts[i].isNotEmpty ? parts[i] : null;
         (_onNotificationTap ?? onTap)(part(1), part(2), type, part(3));
       },
     );
   }
+
+  static Future<void> showActiveMediaNotification({
+    required String title,
+    required String body,
+    required bool isCall,
+  }) async {
+    await _localNotifications.show(
+      _activeMediaNotificationId,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _activeMediaChannel.id,
+          _activeMediaChannel.name,
+          channelDescription: _activeMediaChannel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: false,
+          enableVibration: false,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+          usesChronometer: isCall,
+          category: AndroidNotificationCategory.call,
+          visibility: NotificationVisibility.public,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'active_media',
+    );
+  }
+
+  static Future<void> cancelActiveMediaNotification() =>
+      _localNotifications.cancel(_activeMediaNotificationId);
 
   static String _buildPayload(Map<String, dynamic> data) =>
       '${data['type'] ?? ''}|${data['post_id'] ?? ''}|${data['actor_id'] ?? ''}|${data['conversation_id'] ?? ''}';
@@ -228,13 +284,33 @@ class PushNotificationService {
     _handleTap(data, onTap);
   }
 
-  static Future<void> _saveToken() async {
+  static Future<void> _saveToken({int attempt = 0}) async {
     try {
+      if (Platform.isIOS) {
+        final apnsToken = await _waitForApnsToken();
+        if (apnsToken == null) {
+          throw StateError('APNs token is not ready.');
+        }
+      }
       final token = await _messaging.getToken();
       if (token != null) await _upsertToken(token);
     } catch (e) {
-      // APNs not configured yet (iOS requires APNs key in Firebase Console)
+      debugPrint('Push token registration failed: $e');
+      if (attempt >= 5) return;
+      _tokenRetryTimer?.cancel();
+      _tokenRetryTimer = Timer(Duration(seconds: 2 + attempt * 2), () {
+        _saveToken(attempt: attempt + 1);
+      });
     }
+  }
+
+  static Future<String?> _waitForApnsToken() async {
+    for (var i = 0; i < 10; i++) {
+      final token = await _messaging.getAPNSToken();
+      if (token != null && token.isNotEmpty) return token;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return null;
   }
 
   static Future<void> _upsertToken(String token) async {

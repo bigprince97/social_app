@@ -21,6 +21,7 @@ import '../../services/call_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
+import '../../utils/content_filter.dart';
 import '../../widgets/message_bubble.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../widgets/premium_toast.dart';
@@ -63,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   late final String _currentUserId;
   late Conversation _conversation;
   Timer? _readTimer;
+  Timer? _livestreamExpiryTimer;
 
   // read receipts
   DateTime? _otherLastReadAt;
@@ -141,8 +143,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _refreshActiveLivestream() async {
     try {
       final live = await _callService.getActiveLivestream(_conversation.id);
-      if (mounted) setState(() => _activeLivestream = live);
+      if (!mounted) return;
+      setState(() => _activeLivestream = live);
+      _scheduleLivestreamExpiryCheck(live);
     } catch (_) {}
+  }
+
+  void _scheduleLivestreamExpiryCheck(CallInfo? live) {
+    _livestreamExpiryTimer?.cancel();
+    if (live == null) return;
+    final lastHeartbeat = live.lastHeartbeatAt ?? live.createdAt;
+    final expiresAt = lastHeartbeat.add(const Duration(seconds: 46));
+    final delay = expiresAt.difference(DateTime.now());
+    _livestreamExpiryTimer = Timer(
+      delay.isNegative ? const Duration(milliseconds: 300) : delay,
+      _refreshActiveLivestream,
+    );
   }
 
   Future<void> _joinLivestream(CallInfo live) async {
@@ -160,6 +176,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             livekitUrl: tokenData.url,
             livekitToken: tokenData.token,
             isHost: false,
+            canManageLivestream: _canManageGroup,
             groupName: _conversation.name ?? AppLocalizations.of(context).group,
           ),
         ),
@@ -248,6 +265,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _subscribeToMessages();
       _subscribeToMessageUpdates();
       _subscribeToReadReceipts();
+      if (_conversation.type == 'group') {
+        _refreshActiveLivestream();
+      }
     }
   }
 
@@ -267,6 +287,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _recorder.dispose();
     _recordTimer?.cancel();
     _readTimer?.cancel();
+    _livestreamExpiryTimer?.cancel();
     // 离开聊天时立即落库已读：避免 2s 内快速返回时定时器被取消，
     // 导致 last_read 未更新、会话列表未读 badge 不清除。
     _chatService.updateLastRead(_conversation.id);
@@ -336,6 +357,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _cacheCurrentMessages() {
+    unawaited(_chatService.cacheMessages(_conversation.id, _messages));
+  }
+
   void _subscribeToMessages() {
     _msgChannel = _chatService.subscribeToMessages(_conversation.id, (msg) {
       if (!mounted) return;
@@ -346,6 +371,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
       final wasNearBottom = _isNearBottom;
       setState(() => _messages.add(msg));
+      _cacheCurrentMessages();
       if (wasNearBottom) _scrollToBottom();
       _scheduleUpdateLastRead();
     });
@@ -353,28 +379,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _subscribeToMessageUpdates() {
     _updateChannel = _chatService.subscribeToMessageUpdates(_conversation.id, (
-      messageId,
-      isDeleted,
+      updatedMessage,
     ) {
       if (mounted) {
         setState(() {
-          final idx = _messages.indexWhere((m) => m.id == messageId);
+          final idx = _messages.indexWhere((m) => m.id == updatedMessage.id);
           if (idx != -1) {
-            final old = _messages[idx];
-            _messages[idx] = Message(
-              id: old.id,
-              conversationId: old.conversationId,
-              senderId: old.senderId,
-              content: old.content,
-              messageType: old.messageType,
-              mediaUrl: old.mediaUrl,
-              isDeleted: isDeleted,
-              createdAt: old.createdAt,
-              sender: old.sender,
-              payload: old.payload,
-            );
+            _messages[idx] = updatedMessage;
           }
         });
+        _cacheCurrentMessages();
       }
     });
   }
@@ -436,6 +450,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         mentionedUserIds: mentionIds.isEmpty ? null : mentionIds,
       );
       setState(() => _messages.add(msg));
+      _cacheCurrentMessages();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -461,8 +476,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     showErrorIfNotNetwork(
       context,
       e,
-      AppLocalizations.of(context).sendFailed(e),
+      AppLocalizations.of(context).sendFailed(_retryLaterMessage(context)),
     );
+  }
+
+  String _retryLaterMessage(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    if (locale.languageCode == 'ja') return 'しばらくしてからもう一度お試しください';
+    if (locale.languageCode == 'en') return 'Please try again later';
+    return '请稍后重试';
   }
 
   // ─── @mention picker ────────────────────────────────────────────────────
@@ -582,6 +604,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _cacheCurrentMessages();
         _scrollToBottom();
       }
     } catch (e) {
@@ -618,6 +641,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         );
         if (mounted) {
           setState(() => _messages.add(msg));
+          _cacheCurrentMessages();
           _scrollToBottom();
         }
       } catch (e) {
@@ -791,6 +815,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _cacheCurrentMessages();
         _scrollToBottom();
       }
     } catch (e) {
@@ -816,6 +841,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _cacheCurrentMessages();
         _scrollToBottom();
       }
     } catch (e) {
@@ -854,6 +880,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _cacheCurrentMessages();
         _scrollToBottom();
       }
     } catch (e) {
@@ -941,6 +968,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
       if (fresh.isEmpty) return;
       setState(() => _messages.addAll(fresh));
+      _cacheCurrentMessages();
       _scrollToBottom();
     } catch (_) {}
   }
@@ -964,6 +992,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               livekitUrl: tokenData.url,
               livekitToken: tokenData.token,
               isHost: true,
+              canManageLivestream: _canManageGroup,
               groupName:
                   _conversation.name ?? AppLocalizations.of(context).group,
             ),
@@ -1006,7 +1035,94 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         payload: old.payload,
       );
     });
+    _cacheCurrentMessages();
     _chatService.deleteMessage(messageId);
+  }
+
+  Future<void> _showEditMessageDialog(Message message) async {
+    final ctrl = TextEditingController(text: message.content ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('编辑消息'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 6,
+            textInputAction: TextInputAction.newline,
+            decoration: const InputDecoration(
+              hintText: '输入消息',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(AppLocalizations.of(context).cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = ctrl.text.trim();
+                if (value.isEmpty || value == (message.content ?? '').trim()) {
+                  Navigator.pop(dialogContext);
+                  return;
+                }
+                if (ContentFilter.hasBanned(value)) {
+                  showPremiumToast(
+                    dialogContext,
+                    AppLocalizations.of(context).contentBlocked,
+                    kind: ToastKind.block,
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, value);
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+    ctrl.dispose();
+    if (result == null || result.isEmpty) return;
+    await _editMessage(message, result);
+  }
+
+  Future<void> _editMessage(Message message, String content) async {
+    final idx = _messages.indexWhere((m) => m.id == message.id);
+    if (idx == -1) return;
+    final old = _messages[idx];
+    final editedPayload = <String, dynamic>{
+      ...?old.payload,
+      'edited_at': DateTime.now().toIso8601String(),
+    };
+    setState(() {
+      _messages[idx] = old.copyWith(content: content, payload: editedPayload);
+    });
+    _cacheCurrentMessages();
+    try {
+      final updated = await _chatService.editMessage(
+        messageId: message.id,
+        content: content,
+        currentPayload: old.payload,
+      );
+      if (!mounted) return;
+      setState(() {
+        final currentIdx = _messages.indexWhere((m) => m.id == message.id);
+        if (currentIdx != -1) _messages[currentIdx] = updated;
+      });
+      _cacheCurrentMessages();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        final currentIdx = _messages.indexWhere((m) => m.id == message.id);
+        if (currentIdx != -1) _messages[currentIdx] = old;
+      });
+      _cacheCurrentMessages();
+      showPremiumToast(context, '编辑失败，请稍后重试', kind: ToastKind.error);
+    }
   }
 
   // ─── Group actions ───────────────────────────────────────────────────────
@@ -1124,11 +1240,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             // Avatar with online dot
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: isDirect && otherMember != null
+              onTap: isGroup
+                  ? _openGroupInfo
+                  : isDirect && otherMember != null
                   ? () => _openUserProfile(otherMember.userId)
                   : null,
               child: Semantics(
-                button: isDirect && otherMember != null,
+                button: isGroup || (isDirect && otherMember != null),
                 child: Stack(
                   children: [
                     CircleAvatar(
@@ -1172,11 +1290,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: isDirect && otherMember != null
+                onTap: isGroup
+                    ? _openGroupInfo
+                    : isDirect && otherMember != null
                     ? () => _openUserProfile(otherMember.userId)
                     : null,
                 child: Semantics(
-                  button: isDirect && otherMember != null,
+                  button: isGroup || (isDirect && otherMember != null),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1486,6 +1606,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           groupMemberNames: _memberDisplayNames,
                           isGroupChat: isGroup,
                           onDelete: isMe ? () => _recallMessage(msg.id) : null,
+                          onEdit: isMe
+                              ? () => _showEditMessageDialog(msg)
+                              : null,
                         );
                       },
                     ),

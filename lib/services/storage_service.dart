@@ -87,7 +87,7 @@ class StorageService {
         .uploadBinary(
           path,
           bytes,
-          fileOptions: FileOptions(contentType: 'video/$ext', upsert: false),
+          fileOptions: FileOptions(contentType: _videoMime(ext), upsert: false),
         );
     return _client.storage.from('media').getPublicUrl(path);
   }
@@ -204,9 +204,26 @@ class StorageService {
         .uploadBinary(
           path,
           bytes,
-          fileOptions: FileOptions(upsert: false, contentType: 'video/$ext'),
+          fileOptions: FileOptions(upsert: false, contentType: _videoMime(ext)),
         );
     final url = _client.storage.from('media').getPublicUrl(path);
     return (url: url, size: bytes.length);
+  }
+
+  static String _videoMime(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'mp4':
+      case 'm4v':
+        return 'video/mp4';
+      case 'webm':
+        return 'video/webm';
+      case 'mov':
+      case 'qt':
+        return 'video/quicktime';
+      default:
+        // The media bucket allows application/octet-stream. Use it for less
+        // common video containers so uploads do not fail on a MIME whitelist.
+        return 'application/octet-stream';
+    }
   }
 }

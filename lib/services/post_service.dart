@@ -3,6 +3,16 @@ import '../utils/auth_error.dart' show requireUid;
 import '../models/post.dart';
 import 'local_cache.dart';
 
+class PostNotFoundException implements Exception {
+  const PostNotFoundException();
+
+  @override
+  String toString() => 'PostNotFoundException: 帖子已删除或不存在';
+}
+
+bool isPostNotFoundError(Object e) =>
+    e is PostNotFoundException || e.toString().contains('PGRST116');
+
 class PostService {
   final _client = Supabase.instance.client;
   String? get currentUserId => _client.auth.currentUser?.id;
@@ -10,8 +20,8 @@ class PostService {
   // 缓存优先（SWR）：成功写盘，离线读回，保证冷启动也有内容。
   List<Post> _parseCached(dynamic cached) => cached is List
       ? cached
-          .map((e) => Post.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList()
+            .map((e) => Post.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList()
       : <Post>[];
 
   /// 只读本地缓存（不碰网络），用于「缓存优先」秒显。
@@ -23,7 +33,9 @@ class PostService {
     try {
       final data = await _client
           .from('posts')
-          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .select(
+            '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+          )
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
       if (page == 0) await LocalCache.instance.write('feed_latest', data);
@@ -56,16 +68,23 @@ class PostService {
           if (topics.isNotEmpty) 'topics': topics,
           'scripture_quote': scriptureQuote,
         })
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+        .select(
+          '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+        )
         .single();
     return Post.fromJson(data);
   }
 
-  Future<List<Post>> getPostsByTopic(String topic,
-      {int page = 0, int limit = 20}) async {
+  Future<List<Post>> getPostsByTopic(
+    String topic, {
+    int page = 0,
+    int limit = 20,
+  }) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+        .select(
+          '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+        )
         .contains('topics', [topic])
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
@@ -78,7 +97,9 @@ class PostService {
     try {
       final data = await _client
           .from('posts')
-          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .select(
+            '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+          )
           .order('likes_count', ascending: false)
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
@@ -98,35 +119,40 @@ class PostService {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || posts.isEmpty) return;
     try {
-    final postIds = posts.map((p) => p.id).toList();
-    final results = await Future.wait<dynamic>([
-      _client
-          .from('post_likes')
-          .select('post_id')
-          .eq('user_id', userId)
-          .inFilter('post_id', postIds),
-      _client
-          .from('post_bookmarks')
-          .select('post_id')
-          .eq('user_id', userId)
-          .inFilter('post_id', postIds),
-    ]);
-    final likedIds =
-        (results[0] as List).map((l) => l['post_id'] as String).toSet();
-    final bookmarkedIds =
-        (results[1] as List).map((l) => l['post_id'] as String).toSet();
-    for (final post in posts) {
-      post.isLiked = likedIds.contains(post.id);
-      post.isBookmarked = bookmarkedIds.contains(post.id);
+      final postIds = posts.map((p) => p.id).toList();
+      final results = await Future.wait<dynamic>([
+        _client
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', userId)
+            .inFilter('post_id', postIds),
+        _client
+            .from('post_bookmarks')
+            .select('post_id')
+            .eq('user_id', userId)
+            .inFilter('post_id', postIds),
+      ]);
+      final likedIds = (results[0] as List)
+          .map((l) => l['post_id'] as String)
+          .toSet();
+      final bookmarkedIds = (results[1] as List)
+          .map((l) => l['post_id'] as String)
+          .toSet();
+      for (final post in posts) {
+        post.isLiked = likedIds.contains(post.id);
+        post.isBookmarked = bookmarkedIds.contains(post.id);
+      }
+    } catch (_) {
+      /* 点赞/收藏状态属增强信息，离线失败不影响帖子展示 */
     }
-    } catch (_) {/* 点赞/收藏状态属增强信息，离线失败不影响帖子展示 */}
   }
 
   Future<void> bookmarkPost(String postId) async {
     final userId = requireUid(_client);
-    await _client
-        .from('post_bookmarks')
-        .insert({'post_id': postId, 'user_id': userId});
+    await _client.from('post_bookmarks').insert({
+      'post_id': postId,
+      'user_id': userId,
+    });
   }
 
   Future<void> unbookmarkPost(String postId) async {
@@ -152,13 +178,14 @@ class PostService {
     if (ids.isEmpty) return [];
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+        .select(
+          '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+        )
         .inFilter('id', ids);
     final posts = (data as List).map((e) => Post.fromJson(e)).toList();
     // 保持收藏时间顺序
     final orderMap = {for (var i = 0; i < ids.length; i++) ids[i]: i};
-    posts.sort((a, b) =>
-        (orderMap[a.id] ?? 0).compareTo(orderMap[b.id] ?? 0));
+    posts.sort((a, b) => (orderMap[a.id] ?? 0).compareTo(orderMap[b.id] ?? 0));
     await _hydrateIsLiked(posts);
     return posts;
   }
@@ -169,12 +196,16 @@ class PostService {
 
   Future<Post> getPostById(String postId) async {
     final userId = _client.auth.currentUser?.id;
+    final postData = await _client
+        .from('posts')
+        .select(
+          '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+        )
+        .eq('id', postId)
+        .maybeSingle();
+    if (postData == null) throw const PostNotFoundException();
+
     final results = await Future.wait<dynamic>([
-      _client
-          .from('posts')
-          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
-          .eq('id', postId)
-          .single(),
       if (userId != null)
         _client
             .from('post_likes')
@@ -195,15 +226,18 @@ class PostService {
         Future<dynamic>.value(null),
     ]);
 
-    final post = Post.fromJson(results[0] as Map<String, dynamic>);
-    post.isLiked = results[1] != null;
-    post.isBookmarked = results[2] != null;
+    final post = Post.fromJson(postData);
+    post.isLiked = results[0] != null;
+    post.isBookmarked = results[1] != null;
     return post;
   }
 
   Future<void> likePost(String postId) async {
     final userId = requireUid(_client);
-    await _client.from('post_likes').insert({'post_id': postId, 'user_id': userId});
+    await _client.from('post_likes').insert({
+      'post_id': postId,
+      'user_id': userId,
+    });
   }
 
   Future<void> unlikePost(String postId) async {
@@ -249,12 +283,15 @@ class PostService {
           .from('follows')
           .select('following_id')
           .eq('follower_id', userId);
-      final ids =
-          (follows as List).map((f) => f['following_id'] as String).toList();
+      final ids = (follows as List)
+          .map((f) => f['following_id'] as String)
+          .toList();
       if (ids.isEmpty) return [];
       final data = await _client
           .from('posts')
-          .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+          .select(
+            '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+          )
           .inFilter('user_id', ids)
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
@@ -273,7 +310,9 @@ class PostService {
   Future<List<Post>> getUserPosts(String userId) async {
     final data = await _client
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)')
+        .select(
+          '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
+        )
         .eq('user_id', userId)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Post.fromJson(e)).toList();

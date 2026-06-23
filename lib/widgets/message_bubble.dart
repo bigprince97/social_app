@@ -60,6 +60,7 @@ class MessageBubble extends StatelessWidget {
   final bool showDateSeparator;
   final bool isRead;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final List<String> groupMemberNames; // username list for @mention highlight
   /// True for group chats — reserves avatar slot space so bubbles align
   final bool isGroupChat;
@@ -73,6 +74,7 @@ class MessageBubble extends StatelessWidget {
     this.showDateSeparator = false,
     this.isRead = false,
     this.onDelete,
+    this.onEdit,
     this.groupMemberNames = const [],
     this.isGroupChat = false,
   });
@@ -91,12 +93,12 @@ class MessageBubble extends StatelessWidget {
 
   void _showMenu(BuildContext context) {
     final isText = message.messageType == 'text' && !message.isDeleted;
+    final canEdit = isMe && isText && onEdit != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final previewBg = isDark
         ? const Color(0xFF2C2C2E)
         : const Color(0xFFF5F5F8);
-    final divColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFEEEEEE);
 
     showDialog(
       context: context,
@@ -157,57 +159,75 @@ class MessageBubble extends StatelessWidget {
                   // ── Action buttons ───────────────────────────────────
                   if (isText || _canRecall || !isMe)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          if (isText)
-                            _MenuActionBtn(
-                              icon: Icons.copy_all_rounded,
-                              label: AppLocalizations.of(context).copy,
-                              color: const Color(0xFF1E88E5),
-                              isDark: isDark,
-                              onTap: () {
-                                Clipboard.setData(
-                                  ClipboardData(text: message.content ?? ''),
-                                );
-                                Navigator.pop(context);
-                                showPremiumToast(
-                                  context,
-                                  AppLocalizations.of(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isText)
+                              _MenuActionBtn(
+                                icon: Icons.copy_all_rounded,
+                                label: AppLocalizations.of(context).copy,
+                                color: const Color(0xFF1E88E5),
+                                isDark: isDark,
+                                onTap: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: message.content ?? ''),
+                                  );
+                                  Navigator.pop(context);
+                                  showPremiumToast(
                                     context,
-                                  ).copiedToClipboard,
-                                  kind: ToastKind.success,
-                                );
-                              },
-                            ),
-                          if (isText && (_canRecall || !isMe))
-                            Container(width: 1, height: 40, color: divColor),
-                          if (_canRecall && onDelete != null)
-                            _MenuActionBtn(
-                              icon: Icons.undo_rounded,
-                              label: AppLocalizations.of(context).recall,
-                              color: const Color(0xFFE53935),
-                              isDark: isDark,
-                              onTap: () {
-                                Navigator.pop(context);
-                                onDelete?.call();
-                              },
-                            ),
-                          if (_canRecall && !isMe)
-                            Container(width: 1, height: 40, color: divColor),
-                          if (!isMe)
-                            _MenuActionBtn(
-                              icon: Icons.report_problem_outlined,
-                              label: AppLocalizations.of(context).report,
-                              color: const Color(0xFFFF9500),
-                              isDark: isDark,
-                              onTap: () {
-                                Navigator.pop(context);
-                                _showReportMenu(context);
-                              },
-                            ),
-                        ],
+                                    AppLocalizations.of(
+                                      context,
+                                    ).copiedToClipboard,
+                                    kind: ToastKind.success,
+                                  );
+                                },
+                              ),
+                            if (isText && (canEdit || _canRecall || !isMe))
+                              _ActionDivider(isDark: isDark),
+                            if (canEdit)
+                              _MenuActionBtn(
+                                icon: Icons.edit_rounded,
+                                label: '编辑',
+                                color: const Color(0xFF43A047),
+                                isDark: isDark,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  onEdit?.call();
+                                },
+                              ),
+                            if (canEdit && (_canRecall || !isMe))
+                              _ActionDivider(isDark: isDark),
+                            if (_canRecall && onDelete != null)
+                              _MenuActionBtn(
+                                icon: Icons.undo_rounded,
+                                label: AppLocalizations.of(context).recall,
+                                color: const Color(0xFFE53935),
+                                isDark: isDark,
+                                destructive: true,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  onDelete?.call();
+                                },
+                              ),
+                            if (_canRecall && onDelete != null && !isMe)
+                              _ActionDivider(isDark: isDark),
+                            if (!isMe)
+                              _MenuActionBtn(
+                                icon: Icons.report_problem_outlined,
+                                label: AppLocalizations.of(context).report,
+                                color: const Color(0xFFFF9500),
+                                isDark: isDark,
+                                destructive: true,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _showReportMenu(context);
+                                },
+                              ),
+                          ],
+                        ),
                       ),
                     ),
 
@@ -743,6 +763,7 @@ class _TextBubble extends StatelessWidget {
             time: DateFormat('HH:mm').format(message.createdAt.toLocal()),
             isMe: isMe,
             isRead: isRead,
+            isEdited: message.isEdited,
           ),
         ],
       ),
@@ -1385,11 +1406,13 @@ class _TimeStamp extends StatelessWidget {
   final bool isMe;
   final bool isRead;
   final bool forceWhite;
+  final bool isEdited;
   const _TimeStamp({
     required this.time,
     required this.isMe,
     required this.isRead,
     this.forceWhite = false,
+    this.isEdited = false,
   });
 
   @override
@@ -1402,6 +1425,16 @@ class _TimeStamp extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (isEdited) ...[
+          Text(
+            '已编辑 ',
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
         Text(
           time,
           style: TextStyle(
@@ -1468,6 +1501,7 @@ class _MenuActionBtn extends StatelessWidget {
   final String label;
   final Color color;
   final bool isDark;
+  final bool destructive;
   final VoidCallback onTap;
 
   const _MenuActionBtn({
@@ -1475,39 +1509,68 @@ class _MenuActionBtn extends StatelessWidget {
     required this.label,
     required this.color,
     required this.isDark,
+    this.destructive = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final rowBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF7F7FA);
     return GestureDetector(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Container(
+        height: 52,
+        width: double.infinity,
+        color: rowBg,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: color.withAlpha(isDark ? 45 : 20),
-                borderRadius: BorderRadius.circular(12),
+                shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: color,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: destructive
+                      ? color
+                      : isDark
+                      ? Colors.white
+                      : const Color(0xFF1C1C1E),
+                ),
               ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isDark ? Colors.white24 : Colors.black26,
+              size: 20,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ActionDivider extends StatelessWidget {
+  final bool isDark;
+  const _ActionDivider({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.only(left: 58),
+      color: isDark ? Colors.white.withAlpha(18) : Colors.black.withAlpha(14),
     );
   }
 }

@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../models/bible_version.dart';
 import '../../models/scripture.dart';
+import '../../services/bible_content_service.dart';
+import '../../services/bible_version_controller.dart';
 import '../../services/chat_service.dart';
 import '../../services/locale_controller.dart';
 import '../../services/scripture_service.dart';
@@ -46,6 +50,13 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   int? _targetVerse;
   int? _flashVerse;
   final Map<int, GlobalKey> _verseKeys = {};
+  final _bibleContentService = BibleContentService.instance;
+  BibleVersion? _bibleVersion;
+  String? _remoteBibleText;
+  String? _remoteBibleTitle;
+  String? _remoteBibleCopyright;
+  String? _remoteBibleError;
+  bool _remoteBibleLoading = false;
 
   bool get _isBible => widget.scripture.category == '基督';
 
@@ -56,8 +67,17 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     return bl == 'zh_Hant' ? 'zh_Hant' : 'zh';
   }
 
-  String get _displayText => _chapter.localizedText(_lang);
-  String get _displayTitle => _chapter.localizedTitle(_lang);
+  bool get _usesRemoteBible => _isBible && (_lang == 'en' || _lang == 'ja');
+  BibleVersion? get _activeBibleVersion =>
+      _bibleVersion ??
+      BibleVersionController.instance.versionForLanguage(_lang);
+
+  String get _displayText => _usesRemoteBible
+      ? (_remoteBibleText ?? '')
+      : _chapter.localizedText(_lang);
+  String get _displayTitle => _usesRemoteBible
+      ? (_remoteBibleTitle ?? _chapter.localizedTitle(_lang))
+      : _chapter.localizedTitle(_lang);
 
   // ── 交叉引用（新约引用旧约）──────────────────────────────────
   Map<int, List<CrossReference>> _crossRefs = {};
@@ -77,7 +97,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   String _selectedVersesText() {
-    if (_chapter.originalText == null || _selectedVerses.isEmpty) return '';
+    if (_displayText.isEmpty || _selectedVerses.isEmpty) return '';
     final sorted = _selectedVerses.toList()..sort();
     final verses = _parseBibleVerses(_displayText);
     final verseMap = {for (final v in verses) v.number: v};
@@ -174,6 +194,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _chapter = widget.chapter;
     _targetVerse = widget.initialVerse;
     _flashVerse = widget.initialVerse;
+    _bibleVersion = BibleVersionController.instance.versionForLanguage(_lang);
     _ensureContent();
     _loadUserState();
     _loadCrossRefs();
@@ -182,6 +203,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   Future<void> _ensureContent() async {
+    if (_usesRemoteBible) {
+      await _loadRemoteBibleContent();
+      return;
+    }
     if (_chapter.originalText != null) return;
     final full = await _service.getChapterContent(_chapter.id);
     if (mounted) {
@@ -243,10 +268,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     if (_uiBusy) return;
     setState(() => _uiBusy = true);
     try {
-      final result = await _service.toggleHighlight(
-        _chapter.id,
-        _chapter.originalText ?? '',
-      );
+      final result = await _service.toggleHighlight(_chapter.id, _displayText);
       if (mounted) setState(() => _isHighlighted = result);
       HapticFeedback.lightImpact();
     } finally {
@@ -417,6 +439,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       _isHighlighted = false;
       _selectedVerses.clear();
       _crossRefs = {};
+      _remoteBibleText = null;
+      _remoteBibleTitle = null;
+      _remoteBibleCopyright = null;
+      _remoteBibleError = null;
+      _remoteBibleLoading = false;
     });
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -430,6 +457,58 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     _loadCrossRefs();
     _scheduleVerseScroll();
     _clearVerseFlashLater();
+  }
+
+  Future<void> _loadRemoteBibleContent({bool force = false}) async {
+    final version = _activeBibleVersion;
+    if (!_usesRemoteBible || version == null) return;
+    if (!force &&
+        _remoteBibleText != null &&
+        _remoteBibleText!.isNotEmpty &&
+        _remoteBibleError == null) {
+      return;
+    }
+    final chapterId = _chapter.id;
+    setState(() {
+      _remoteBibleLoading = true;
+      _remoteBibleError = null;
+      _remoteBibleText = null;
+      _remoteBibleTitle = null;
+      _remoteBibleCopyright = null;
+      _selectedVerses.clear();
+    });
+    try {
+      final content = await _bibleContentService.getChapter(
+        version: version,
+        chapter: _chapter,
+        fallbackIndex: _currentIndex,
+      );
+      if (!mounted || _chapter.id != chapterId) return;
+      setState(() {
+        _remoteBibleText = content.text;
+        _remoteBibleTitle = content.title;
+        _remoteBibleCopyright = content.copyright;
+        _remoteBibleLoading = false;
+      });
+      _scheduleVerseScroll();
+    } catch (e) {
+      if (!mounted || _chapter.id != chapterId) return;
+      setState(() {
+        _remoteBibleError = e.toString();
+        _remoteBibleLoading = false;
+      });
+    }
+  }
+
+  Future<void> _changeBibleVersion(BibleVersion version) async {
+    setState(() => _bibleVersion = version);
+    await BibleVersionController.instance.setVersion(version);
+    await _loadRemoteBibleContent(force: true);
+  }
+
+  Future<void> _openApiBible() async {
+    final uri = Uri.parse('https://api.bible');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void _scheduleVerseScroll({int retry = 0}) {
@@ -544,16 +623,22 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   // ── 圣经专属阅读器 ─────────────────────────────────────────────
 
   Widget _buildBibleReader() {
+    final loading = _usesRemoteBible
+        ? _remoteBibleLoading
+        : _chapter.originalText == null;
     return Scaffold(
       backgroundColor: _bibleBg,
       appBar: _buildBibleAppBar(),
       body: Column(
         children: [
           Expanded(
-            child: _chapter.originalText == null
+            child: loading
                 ? const Center(
                     child: CircularProgressIndicator(color: _bibleAccent),
                   )
+                : _usesRemoteBible &&
+                      (_remoteBibleError != null || _displayText.isEmpty)
+                ? _buildBibleUnavailable()
                 : _buildBibleContent(),
           ),
           if (_selectedVerses.isNotEmpty) _buildVerseSelectionBar(),
@@ -689,6 +774,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       ),
       centerTitle: true,
       actions: [
+        if (_usesRemoteBible) _buildBibleVersionMenu(),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: Colors.white),
           onPressed: _openSearch,
@@ -720,6 +806,42 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
+  Widget _buildBibleVersionMenu() {
+    final current = _activeBibleVersion;
+    final versions = BibleVersionController.instance.versionsForLanguage(_lang);
+    return PopupMenuButton<BibleVersion>(
+      icon: const Icon(Icons.translate_rounded, color: Colors.white),
+      tooltip: '圣经版本',
+      onSelected: _changeBibleVersion,
+      itemBuilder: (_) => [
+        for (final version in versions)
+          PopupMenuItem(
+            value: version,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    version.label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    version.description,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (current?.id == version.id)
+                  const Icon(Icons.check_rounded, size: 18),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildBibleContent() {
     final verses = _parseBibleVerses(_displayText);
     return SingleChildScrollView(
@@ -743,6 +865,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (_usesRemoteBible && _activeBibleVersion != null) ...[
+                  const SizedBox(height: 8),
+                  _BibleVersionChip(version: _activeBibleVersion!),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   _lang == 'en'
@@ -806,8 +932,114 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             ),
           ),
 
-          const SizedBox(height: 60),
+          const SizedBox(height: 48),
+          if (_usesRemoteBible) _buildRemoteBibleAttribution(),
+          const SizedBox(height: 18),
+          if ((_remoteBibleCopyright ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: Text(
+                _remoteBibleCopyright!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  height: 1.35,
+                  color: Color(0xFF777777),
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRemoteBibleAttribution() {
+    final version = _activeBibleVersion;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF9575CD).withAlpha(14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF9575CD).withAlpha(42),
+          width: 0.7,
+        ),
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          Text(
+            version == null
+                ? 'Bible text provided by'
+                : '${version.label} provided by',
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.3,
+              color: Color(0xFF777777),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          InkWell(
+            onTap: _openApiBible,
+            borderRadius: BorderRadius.circular(4),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+              child: Text(
+                'API.Bible',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.3,
+                  color: Color(0xFF6D53B3),
+                  fontWeight: FontWeight.w800,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBibleUnavailable() {
+    final version = _activeBibleVersion;
+    final title = version == null ? '当前语言没有配置圣经版本' : '${version.label} 暂时不可用';
+    final detail =
+        _remoteBibleError ??
+        '请先在 Supabase Edge Function secrets 中配置 API.Bible key 和该版本的 Bible ID。';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: _bibleAccent, size: 42),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              detail,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                color: Color(0xFF777777),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _loadRemoteBibleContent(force: true),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1306,6 +1538,35 @@ class _BibleVerse {
   final int number;
   final String text;
   const _BibleVerse({required this.number, required this.text});
+}
+
+class _BibleVersionChip extends StatelessWidget {
+  final BibleVersion version;
+
+  const _BibleVersionChip({required this.version});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF9575CD).withAlpha(22),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(
+          color: const Color(0xFF9575CD).withAlpha(70),
+          width: 0.7,
+        ),
+      ),
+      child: Text(
+        '${version.label} · ${version.description}',
+        style: const TextStyle(
+          color: Color(0xFF6D53B3),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
 }
 
 class _BibleBarBtn extends StatelessWidget {

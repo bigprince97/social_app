@@ -7,9 +7,11 @@ class CallInfo {
   final String callerId;
   final String? calleeId;
   final String callType; // 'voice' | 'video' | 'livestream'
-  final String status;   // 'ringing' | 'accepted' | 'declined' | 'ended' | 'missed'
+  final String
+  status; // 'ringing' | 'accepted' | 'declined' | 'ended' | 'missed'
   final String? livekitRoom;
   final DateTime createdAt;
+  final DateTime? lastHeartbeatAt;
 
   CallInfo({
     required this.id,
@@ -20,18 +22,22 @@ class CallInfo {
     required this.status,
     this.livekitRoom,
     required this.createdAt,
+    this.lastHeartbeatAt,
   });
 
   factory CallInfo.fromJson(Map<String, dynamic> j) => CallInfo(
-        id: j['id'] as String,
-        conversationId: j['conversation_id'] as String,
-        callerId: j['caller_id'] as String,
-        calleeId: j['callee_id'] as String?,
-        callType: (j['call_type'] as String?) ?? 'voice',
-        status: (j['status'] as String?) ?? 'ringing',
-        livekitRoom: j['livekit_room'] as String?,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    conversationId: j['conversation_id'] as String,
+    callerId: j['caller_id'] as String,
+    calleeId: j['callee_id'] as String?,
+    callType: (j['call_type'] as String?) ?? 'voice',
+    status: (j['status'] as String?) ?? 'ringing',
+    livekitRoom: j['livekit_room'] as String?,
+    createdAt: DateTime.parse(j['created_at'] as String),
+    lastHeartbeatAt: j['last_heartbeat_at'] != null
+        ? DateTime.parse(j['last_heartbeat_at'] as String)
+        : null,
+  );
 }
 
 class CallService {
@@ -68,10 +74,7 @@ class CallService {
       throw Exception('Failed to get LiveKit token: ${res.data}');
     }
     final data = res.data as Map<String, dynamic>;
-    return (
-      token: data['token'] as String,
-      url: data['url'] as String,
-    );
+    return (token: data['token'] as String, url: data['url'] as String);
   }
 
   // Create a call (caller side)
@@ -80,6 +83,15 @@ class CallService {
     required String callType,
     String? calleeId,
   }) async {
+    final now = DateTime.now().toIso8601String();
+    if (callType == 'livestream') {
+      await _client
+          .from('calls')
+          .update({'status': 'ended', 'ended_at': now})
+          .eq('conversation_id', conversationId)
+          .eq('call_type', 'livestream')
+          .inFilter('status', ['ringing', 'accepted']);
+    }
     final roomName = 'call_${DateTime.now().millisecondsSinceEpoch}';
     final data = await _client
         .from('calls')
@@ -90,6 +102,7 @@ class CallService {
           'call_type': callType,
           'status': 'ringing',
           'livekit_room': roomName,
+          if (callType == 'livestream') 'last_heartbeat_at': now,
         })
         .select()
         .single();
@@ -97,24 +110,40 @@ class CallService {
   }
 
   Future<void> acceptCall(String callId) async {
-    await _client.from('calls').update({
-      'status': 'accepted',
-      'started_at': DateTime.now().toIso8601String(),
-    }).eq('id', callId);
+    await _client
+        .from('calls')
+        .update({
+          'status': 'accepted',
+          'started_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', callId);
   }
 
   Future<void> declineCall(String callId) async {
-    await _client.from('calls').update({
-      'status': 'declined',
-      'ended_at': DateTime.now().toIso8601String(),
-    }).eq('id', callId);
+    await _client
+        .from('calls')
+        .update({
+          'status': 'declined',
+          'ended_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', callId);
   }
 
   Future<void> endCall(String callId) async {
-    await _client.from('calls').update({
-      'status': 'ended',
-      'ended_at': DateTime.now().toIso8601String(),
-    }).eq('id', callId);
+    await _client
+        .from('calls')
+        .update({
+          'status': 'ended',
+          'ended_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', callId);
+  }
+
+  Future<void> markLivestreamHeartbeat(String callId) async {
+    await _client.rpc(
+      'mark_livestream_heartbeat',
+      params: {'p_call_id': callId},
+    );
   }
 
   /// 通话结束后在会话里留一条「通话记录」消息（仅主叫方调用，避免重复）。
@@ -145,8 +174,11 @@ class CallService {
 
   /// 按 id 取通话（推送收到来电后用 call_id 拉取完整信息）
   Future<CallInfo?> getCallById(String callId) async {
-    final data =
-        await _client.from('calls').select().eq('id', callId).maybeSingle();
+    final data = await _client
+        .from('calls')
+        .select()
+        .eq('id', callId)
+        .maybeSingle();
     if (data == null) return null;
     return CallInfo.fromJson(data);
   }
@@ -178,7 +210,7 @@ class CallService {
           callback: (payload) {
             final row = payload.newRecord;
             // Only notify if we are the callee
-            if (row['callee_id'] == uid) {
+            if (row['callee_id'] == uid && row['call_type'] != 'livestream') {
               onIncomingCall(CallInfo.fromJson(row));
             }
           },
@@ -233,16 +265,11 @@ class CallService {
 
   // 取会话内进行中的直播（群成员加入用）
   Future<CallInfo?> getActiveLivestream(String conversationId) async {
-    final data = await _client
-        .from('calls')
-        .select()
-        .eq('conversation_id', conversationId)
-        .eq('call_type', 'livestream')
-        .inFilter('status', ['ringing', 'accepted'])
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    if (data == null) return null;
-    return CallInfo.fromJson(data);
+    final data = await _client.rpc<List<dynamic>>(
+      'get_active_livestream',
+      params: {'p_conversation_id': conversationId},
+    );
+    if (data.isEmpty) return null;
+    return CallInfo.fromJson(Map<String, dynamic>.from(data.first as Map));
   }
 }

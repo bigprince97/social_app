@@ -49,6 +49,23 @@ class ChatService {
     return [];
   }
 
+  Future<void> cacheMessages(
+    String conversationId,
+    List<Message> messages, {
+    int limit = 100,
+  }) async {
+    final visible = messages
+        .where((message) => message.payload?['files_only'] != true)
+        .toList();
+    final latest = visible.length > limit
+        ? visible.sublist(visible.length - limit)
+        : visible;
+    await LocalCache.instance.write(
+      'messages_$conversationId',
+      latest.reversed.map((message) => message.toJson()).toList(),
+    );
+  }
+
   /// 拉取每个会话的真实未读数（RPC），覆盖 _processConversations 的占位 1。
   /// 失败时保留占位值（仍能指示"有未读"），不影响列表显示。
   Future<void> _applyUnreadCounts(List<Conversation> convs) async {
@@ -362,6 +379,28 @@ class ChatService {
         .eq('id', messageId);
   }
 
+  Future<Message> editMessage({
+    required String messageId,
+    required String content,
+    Map<String, dynamic>? currentPayload,
+  }) async {
+    final uid = requireUid(_client);
+    final payload = <String, dynamic>{
+      ...?currentPayload,
+      'edited_at': DateTime.now().toIso8601String(),
+    };
+    final data = await _client
+        .from('messages')
+        .update({'content': content, 'payload': payload})
+        .eq('id', messageId)
+        .eq('sender_id', uid)
+        .eq('message_type', 'text')
+        .eq('is_deleted', false)
+        .select('*, profiles(*)')
+        .single();
+    return Message.fromJson(data);
+  }
+
   /// 更新已读时间：尽力而为，离线/网络异常静默忽略（调用方多为 fire-and-forget）。
   Future<void> updateLastRead(String conversationId) async {
     final uid = _userId;
@@ -411,7 +450,7 @@ class ChatService {
   // Subscribe to message updates (recall / edit)
   RealtimeChannel subscribeToMessageUpdates(
     String conversationId,
-    void Function(String messageId, bool isDeleted) onUpdate,
+    void Function(Message message) onUpdate,
   ) {
     return _client
         .channel('messages_update:$conversationId')
@@ -424,11 +463,16 @@ class ChatService {
             column: 'conversation_id',
             value: conversationId,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             final updated = payload.newRecord;
             final id = updated['id'] as String?;
-            final isDeleted = (updated['is_deleted'] as bool?) ?? false;
-            if (id != null) onUpdate(id, isDeleted);
+            if (id == null) return;
+            final full = await _client
+                .from('messages')
+                .select('*, profiles(*)')
+                .eq('id', id)
+                .single();
+            onUpdate(Message.fromJson(full));
           },
         )
         .subscribe();

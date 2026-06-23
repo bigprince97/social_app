@@ -12,9 +12,10 @@ import 'l10n/app_localizations.dart';
 import 'router.dart';
 import 'services/locale_controller.dart';
 import 'services/local_cache.dart';
+import 'services/bible_version_controller.dart';
 import 'services/push_notification_service.dart';
 
-const _kPrimary = Color(0xFF9575CD);   // app purple
+const _kPrimary = Color(0xFF9575CD); // app purple
 const _kPrimaryDark = Color(0xFFB39DDB);
 
 void main() async {
@@ -24,8 +25,9 @@ void main() async {
   // 加超时兜底：网络/DNS 异常时初始化不能无限阻塞，否则永久卡在原生启动白屏。
   if (!kIsWeb) {
     try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
-          .timeout(const Duration(seconds: 8));
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(const Duration(seconds: 8));
     } catch (_) {
       // 推送初始化失败不阻断启动（登录后 onAuthStateChange 会再次尝试注册推送）
     }
@@ -35,8 +37,9 @@ void main() async {
   // 弱网下会话刷新可能拖慢，超时后照常进入 app（client 已可用，请求各自降级）。
   try {
     await Supabase.initialize(
-            url: supabaseUrl, publishableKey: supabasePublishableKey)
-        .timeout(const Duration(seconds: 8));
+      url: supabaseUrl,
+      publishableKey: supabasePublishableKey,
+    ).timeout(const Duration(seconds: 8));
   } catch (_) {}
 
   timeago.setLocaleMessages('zh', timeago.ZhCnMessages()); // 简体
@@ -45,6 +48,11 @@ void main() async {
 
   try {
     await LocaleController.instance.load().timeout(const Duration(seconds: 3));
+  } catch (_) {}
+  try {
+    await BibleVersionController.instance.load().timeout(
+      const Duration(seconds: 3),
+    );
   } catch (_) {}
 
   runApp(const SocialApp());
@@ -58,37 +66,55 @@ class SocialApp extends StatefulWidget {
 }
 
 class _SocialAppState extends State<SocialApp> {
+  String? _pushRegistrationUserId;
+
   @override
   void initState() {
     super.initState();
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       // signedIn = 刚登录；initialSession = 冷启动恢复已有登录态。
       // 两者都要初始化推送，否则冷启动后通知点击回调未注册。
-      final signedIn = data.event == AuthChangeEvent.signedIn ||
+      final signedIn =
+          data.event == AuthChangeEvent.signedIn ||
           (data.event == AuthChangeEvent.initialSession &&
               data.session != null);
       if (!kIsWeb && signedIn) {
-        PushNotificationService.initialize(
-          onNotificationTap: (postId, actorId, type, conversationId) {
-            final ctx = router.routerDelegate.navigatorKey.currentContext;
-            if (ctx == null) return;
-            if (type == 'chat' && conversationId != null) {
-              ctx.push('/chat/$conversationId');
-            } else if (postId != null && postId.isNotEmpty) {
-              ctx.push('/post/$postId');
-            } else if (type == 'follow' &&
-                actorId != null &&
-                actorId.isNotEmpty) {
-              ctx.push('/profile/$actorId');
-            }
-          },
-        );
+        _registerPushNotifications();
       } else if (data.event == AuthChangeEvent.signedOut) {
         // 登出（含 SDK 自动登出）：清本地缓存，避免下个登录用户看到上个用户内容
+        _pushRegistrationUserId = null;
         LocalCache.instance.clear();
         if (!kIsWeb) PushNotificationService.deleteToken();
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kIsWeb) _registerPushNotifications();
+    });
+  }
+
+  Future<void> _registerPushNotifications() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || _pushRegistrationUserId == userId) return;
+    _pushRegistrationUserId = userId;
+    try {
+      await PushNotificationService.initialize(
+        onNotificationTap: (postId, actorId, type, conversationId) {
+          final ctx = router.routerDelegate.navigatorKey.currentContext;
+          if (ctx == null) return;
+          if (type == 'chat' && conversationId != null) {
+            ctx.push('/chat/$conversationId');
+          } else if (postId != null && postId.isNotEmpty) {
+            ctx.push('/post/$postId');
+          } else if (type == 'follow' &&
+              actorId != null &&
+              actorId.isNotEmpty) {
+            ctx.push('/profile/$actorId');
+          }
+        },
+      );
+    } catch (_) {
+      _pushRegistrationUserId = null;
+    }
   }
 
   @override
@@ -107,6 +133,17 @@ class _SocialAppState extends State<SocialApp> {
           ],
           supportedLocales: LocaleController.supported,
           locale: locale,
+          localeResolutionCallback: (deviceLocale, supportedLocales) {
+            final requested = locale ?? deviceLocale;
+            if (requested?.languageCode == 'zh' &&
+                requested?.scriptCode == 'Hant') {
+              return const Locale.fromSubtags(
+                languageCode: 'zh',
+                scriptCode: 'Hant',
+              );
+            }
+            return const Locale('zh');
+          },
           theme: _buildTheme(Brightness.light),
           // 去掉暗色模式：始终用浅色主题，不跟随系统
           themeMode: ThemeMode.light,
@@ -122,11 +159,13 @@ ThemeData _buildTheme(Brightness brightness) {
 
   // Instagram/Telegram color palette
   final scaffoldBg = isDark ? const Color(0xFF111111) : const Color(0xFFF2F2F7);
-  final surfaceBg  = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-  final fillColor  = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF0F0F5);
+  final surfaceBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+  final fillColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF0F0F5);
 
   return ThemeData(
-    textTheme: GoogleFonts.notoSansScTextTheme(ThemeData(brightness: brightness).textTheme),
+    textTheme: GoogleFonts.notoSansScTextTheme(
+      ThemeData(brightness: brightness).textTheme,
+    ),
     colorSchemeSeed: _kPrimary,
     brightness: brightness,
     useMaterial3: true,
@@ -159,8 +198,7 @@ ThemeData _buildTheme(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: fillColor,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -171,7 +209,10 @@ ThemeData _buildTheme(Brightness brightness) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: isDark ? _kPrimaryDark : _kPrimary, width: 1.5),
+        borderSide: BorderSide(
+          color: isDark ? _kPrimaryDark : _kPrimary,
+          width: 1.5,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -181,7 +222,9 @@ ThemeData _buildTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Colors.red, width: 1.5),
       ),
-      hintStyle: TextStyle(color: isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+      hintStyle: TextStyle(
+        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+      ),
     ),
 
     // ── Bottom sheet ──────────────────────────────────────────────────────
@@ -217,9 +260,7 @@ ThemeData _buildTheme(Brightness brightness) {
     ),
 
     // ── ListTile ──────────────────────────────────────────────────────────
-    listTileTheme: ListTileThemeData(
-      tileColor: surfaceBg,
-    ),
+    listTileTheme: ListTileThemeData(tileColor: surfaceBg),
 
     // ── Outlined button ───────────────────────────────────────────────────
     outlinedButtonTheme: OutlinedButtonThemeData(

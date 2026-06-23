@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../models/bible_version.dart';
 import '../../models/scripture.dart';
+import '../../services/bible_content_service.dart';
+import '../../services/bible_version_controller.dart';
 import '../../services/locale_controller.dart';
 import '../../services/scripture_service.dart';
 import '../../theme/app_style.dart';
@@ -26,6 +29,7 @@ class ScriptureSearchScreen extends StatefulWidget {
 
 class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
   final _service = ScriptureService();
+  final _bibleContentService = BibleContentService.instance;
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
 
@@ -38,6 +42,11 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
   String _lastQuery = '';
 
   bool get _isBible => _scripture?.category == '基督';
+  String get _lang => LocaleController.instance.bibleLang;
+  bool get _usesRemoteBibleSearch =>
+      _isBible && (_lang == 'en' || _lang == 'ja');
+  BibleVersion? get _bibleVersion =>
+      BibleVersionController.instance.versionForLanguage(_lang);
 
   @override
   void initState() {
@@ -80,11 +89,25 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
     _lastQuery = q;
     setState(() => _searching = true);
     try {
-      final results = await _service.searchScriptureText(
-        q,
-        scriptureId: scripture.id,
-        scripture: scripture,
-      );
+      final results = _usesRemoteBibleSearch && _bibleVersion != null
+          ? [
+              for (final hit in await _bibleContentService.search(
+                query: q,
+                version: _bibleVersion!,
+                chapters: _chapters,
+              ))
+                ScriptureSearchResult(
+                  scripture: scripture,
+                  chapter: hit.chapter,
+                  verseNumber: hit.verseNumber,
+                  snippet: hit.snippet,
+                ),
+            ]
+          : await _service.searchScriptureText(
+              q,
+              scriptureId: scripture.id,
+              scripture: scripture,
+            );
       if (mounted && q == _lastQuery) {
         setState(() {
           _results = results;
@@ -104,8 +127,7 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
   }
 
   String _reference(ScriptureSearchResult result) {
-    final lang = LocaleController.instance.bibleLang;
-    final chapterTitle = result.chapter.localizedTitle(lang);
+    final chapterTitle = result.chapter.localizedTitle(_lang);
     if (_isBible && result.verseNumber != null) {
       return AppLocalizations.of(
         context,
@@ -129,8 +151,10 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final scripture = _scripture;
+    final version = _usesRemoteBibleSearch ? _bibleVersion : null;
     final title =
         scripture?.displayTitle ?? AppLocalizations.of(context).scripture;
+    final searchTitle = version == null ? title : '$title ${version.label}';
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -138,7 +162,7 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
           controller: _searchCtrl,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: '${AppLocalizations.of(context).search}《$title》',
+            hintText: '${AppLocalizations.of(context).search}《$searchTitle》',
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
@@ -168,7 +192,7 @@ class _ScriptureSearchScreenState extends State<ScriptureSearchScreen> {
           : !_hasSearched
           ? PremiumEmptyState(
               icon: Icons.search_rounded,
-              title: '${AppLocalizations.of(context).search}《$title》',
+              title: '${AppLocalizations.of(context).search}《$searchTitle》',
               subtitle: _chapters.isEmpty
                   ? AppLocalizations.of(context).noChapterContent
                   : _emptySubtitle(context),

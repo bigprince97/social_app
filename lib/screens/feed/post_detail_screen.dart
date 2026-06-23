@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../services/locale_controller.dart';
 import '../../l10n/app_localizations.dart';
@@ -33,28 +35,90 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   List<PostComment> _comments = [];
   bool _loading = true;
   bool _submitting = false;
+  bool _postMissing = false;
+  StreamSubscription<String>? _deletedSub;
+  RealtimeChannel? _deleteChannel;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _deletedSub = onPostDeleted.listen((postId) {
+      if (postId == widget.postId) _markPostDeleted();
+    });
+    _subscribeToPostDelete();
   }
 
   @override
   void dispose() {
     _commentCtrl.dispose();
     _scrollController.dispose();
+    _deletedSub?.cancel();
+    if (_deleteChannel != null) {
+      Supabase.instance.client.removeChannel(_deleteChannel!);
+    }
     super.dispose();
   }
 
+  void _subscribeToPostDelete() {
+    _deleteChannel = Supabase.instance.client
+        .channel(
+          'post_detail_delete:${widget.postId}:${identityHashCode(this)}',
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'posts',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.postId,
+          ),
+          callback: (_) {
+            _markPostDeleted();
+            notifyPostDeleted(widget.postId);
+          },
+        )
+        .subscribe();
+  }
+
+  void _markPostDeleted() {
+    if (!mounted) return;
+    setState(() {
+      _postMissing = true;
+      _post = null;
+      _comments = [];
+      _loading = false;
+      _submitting = false;
+    });
+  }
+
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _postMissing = false;
+    });
     // 帖子与评论各自独立加载：离线/某一项失败不连累另一项，也不抛未捕获异常
     try {
       final post = await _postService.getPostById(widget.postId);
       if (mounted) setState(() => _post = post);
     } catch (e) {
-      if (mounted) showErrorIfNotNetwork(context, e, '$e');
+      if (isPostNotFoundError(e)) {
+        _markPostDeleted();
+        notifyPostDeleted(widget.postId);
+        return;
+      }
+      if (mounted) {
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).loadFailed('请稍后重试'),
+        );
+      }
+    }
+    if (_post == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
     }
     try {
       final comments = await _postService.getComments(widget.postId);
@@ -64,7 +128,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           _post = _post?.copyWith(commentsCount: comments.length);
         });
       }
-    } catch (_) {/* 评论拉取失败（离线）静默 */}
+    } catch (_) {
+      /* 评论拉取失败（离线）静默 */
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -72,8 +138,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final content = _commentCtrl.text.trim();
     if (content.isEmpty) return;
     if (ContentFilter.hasBanned(content)) {
-      showPremiumToast(context, AppLocalizations.of(context).contentBlocked,
-          kind: ToastKind.error);
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).contentBlocked,
+        kind: ToastKind.error,
+      );
       return;
     }
     setState(() => _submitting = true);
@@ -96,7 +165,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       if (mounted) FocusScope.of(context).unfocus();
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).commentFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).commentFailed(e),
+        );
         _commentCtrl.text = content;
       }
     } finally {
@@ -119,7 +192,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).deleteFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).deleteFailed(e),
+        );
       }
     }
   }
@@ -130,6 +207,38 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       appBar: AppBar(title: Text(AppLocalizations.of(context).postDetail)),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _postMissing
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 180),
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    size: 54,
+                    color: Color(0xFF9E9E9E),
+                  ),
+                  SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      '帖子已删除',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      '这条帖子已被删除或不存在',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
+                    ),
+                  ),
+                ],
+              ),
+            )
           : Column(
               children: [
                 Expanded(
@@ -137,53 +246,56 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () => FocusScope.of(context).unfocus(),
                     child: RefreshIndicator(
-                    onRefresh: _load,
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      controller: _scrollController,
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      slivers: [
-                        if (_post != null)
-                          SliverToBoxAdapter(
-                            child: PostCard(
-                              post: _post!,
-                              tappable: false,
-                              onDeleted: () => context.pop(),
-                            ),
-                          ),
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                            child: Text(
-                              '${AppLocalizations.of(context).comments} (${_comments.length})',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                        _comments.isEmpty
-                            ? SliverToBoxAdapter(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Center(child: Text(AppLocalizations.of(context).emptyComments)),
-                                ),
-                              )
-                            : SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, i) =>
-                                      _CommentTile(
-                                        comment: _comments[i],
-                                        onDeleted: () => _deleteCommentAt(i),
-                                      ),
-                                  childCount: _comments.length,
-                                ),
+                      onRefresh: _load,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        controller: _scrollController,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: [
+                          if (_post != null)
+                            SliverToBoxAdapter(
+                              child: PostCard(
+                                post: _post!,
+                                tappable: false,
+                                onDeleted: () => context.pop(),
                               ),
-                      ],
+                            ),
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                              child: Text(
+                                '${AppLocalizations.of(context).comments} (${_comments.length})',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                          _comments.isEmpty
+                              ? SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Center(
+                                      child: Text(
+                                        AppLocalizations.of(
+                                          context,
+                                        ).emptyComments,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, i) => _CommentTile(
+                                      comment: _comments[i],
+                                      onDeleted: () => _deleteCommentAt(i),
+                                    ),
+                                    childCount: _comments.length,
+                                  ),
+                                ),
+                        ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
                 _buildInputBar(),
@@ -196,14 +308,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     const brand = Color(0xFF9575CD);
     return Container(
       padding: EdgeInsets.fromLTRB(
-          12,
-          10,
-          12,
-          // 键盘弹出时 Scaffold 已上移，无需再留安全区空白，避免下方大空隙
-          (MediaQuery.of(context).viewInsets.bottom > 0
-                  ? 0.0
-                  : MediaQuery.of(context).padding.bottom) +
-              10),
+        12,
+        10,
+        12,
+        // 键盘弹出时 Scaffold 已上移，无需再留安全区空白，避免下方大空隙
+        (MediaQuery.of(context).viewInsets.bottom > 0
+                ? 0.0
+                : MediaQuery.of(context).padding.bottom) +
+            10,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Color(0xFFEDEDF0))),
@@ -226,7 +339,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 fillColor: const Color(0xFFF2F2F7),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(21),
                   borderSide: BorderSide.none,
@@ -252,9 +367,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.arrow_upward_rounded,
-                      color: Colors.white, size: 22),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.arrow_upward_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
             ),
           ),
         ],
@@ -404,8 +525,10 @@ class _CommentTile extends StatelessWidget {
                     ? CachedNetworkImageProvider(author!.avatarUrl!)
                     : null,
                 child: author?.avatarUrl == null
-                    ? Text(avatarInitial(author?.displayName),
-                        style: const TextStyle(fontSize: 12))
+                    ? Text(
+                        avatarInitial(author?.displayName),
+                        style: const TextStyle(fontSize: 12),
+                      )
                     : null,
               ),
             ),
@@ -419,14 +542,20 @@ class _CommentTile extends StatelessWidget {
                       GestureDetector(
                         onTap: () => context.push('/profile/${comment.userId}'),
                         child: Text(
-                          author?.displayName ?? AppLocalizations.of(context).unknownUser,
+                          author?.displayName ??
+                              AppLocalizations.of(context).unknownUser,
                           style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 13),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        timeago.format(comment.createdAt, locale: LocaleController.instance.timeagoLocale),
+                        timeago.format(
+                          comment.createdAt,
+                          locale: LocaleController.instance.timeagoLocale,
+                        ),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -437,7 +566,11 @@ class _CommentTile extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.more_horiz_rounded, size: 18, color: Colors.grey),
+              icon: const Icon(
+                Icons.more_horiz_rounded,
+                size: 18,
+                color: Colors.grey,
+              ),
               onPressed: () => _showMenu(context, isOwn),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),

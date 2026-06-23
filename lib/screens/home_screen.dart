@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
+import '../services/active_media_session.dart';
 import '../services/local_cache.dart';
 import '../services/active_conversation.dart';
 import '../services/call_service.dart';
@@ -10,6 +11,7 @@ import '../services/push_notification_service.dart';
 import '../theme/app_style.dart';
 import 'call/call_screen.dart';
 import 'call/incoming_call_screen.dart';
+import 'call/livestream_screen.dart';
 import 'chat/conversations_screen.dart';
 import 'feed/feed_screen.dart';
 import 'profile/profile_screen.dart';
@@ -33,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _callChannel;
   bool _handlingCall = false; // 防止重复弹出来电界面
+  final _mediaController = ActiveMediaSessionController.instance;
 
   @override
   void initState() {
@@ -42,11 +45,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadBadges();
     _subscribeToMessages();
     _subscribeToIncomingCalls();
+    PushNotificationService.onActiveMediaTap = _restoreMediaSession;
     // 来电推送兜底：FCM 收到 type=call 时用 call_id 拉取并弹来电界面
     PushNotificationService.onCallPush = _onIncomingCallFromPush;
   }
 
   Future<void> _onIncomingCallFromPush(Map<String, dynamic> data) async {
+    if (data['call_type'] == 'livestream') return;
     final callId = data['call_id'] as String?;
     if (callId == null || callId.isEmpty) return;
     try {
@@ -64,6 +69,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _removeCh(_callChannel);
       _subscribeToMessages();
       _subscribeToIncomingCalls();
+      final session = _mediaController.session;
+      if (session != null && !session.minimized) {
+        PushNotificationService.cancelActiveMediaNotification();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _mediaController.session?.showSystemNotification();
     }
   }
 
@@ -77,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _removeCh(_msgChannel);
     _removeCh(_callChannel);
+    PushNotificationService.onActiveMediaTap = null;
     PushNotificationService.onCallPush = null;
     super.dispose();
   }
@@ -88,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _onIncomingCall(CallInfo call) async {
     if (_handlingCall || !mounted) return;
+    if (call.callType == 'livestream') return;
     // 仅响应仍在振铃的来电
     if (call.status != 'ringing') return;
     _handlingCall = true;
@@ -141,7 +155,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             } catch (e) {
               if (navigator.canPop()) navigator.pop();
               if (mounted) {
-                showErrorIfNotNetwork(context, e, AppLocalizations.of(context).acceptCallFailed(e.toString()));
+                showErrorIfNotNetwork(
+                  context,
+                  e,
+                  AppLocalizations.of(context).acceptCallFailed(e.toString()),
+                );
               }
             }
           },
@@ -254,6 +272,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         unreadMessages: _unreadMessages,
       ),
     );
+  }
+
+  void _restoreMediaSession() {
+    final session = _mediaController.session;
+    if (session == null || session.ended) return;
+    if (session.pageVisible) {
+      session.restore();
+      return;
+    }
+    session.restore();
+    final navigator = Navigator.of(context, rootNavigator: true);
+    if (session.isCall) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => CallScreen(
+            session: session,
+            call: session.call,
+            livekitUrl: session.livekitUrl,
+            livekitToken: session.livekitToken,
+            displayName: session.displayName,
+          ),
+        ),
+      );
+    } else {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => LivestreamScreen(
+            session: session,
+            call: session.call,
+            livekitUrl: session.livekitUrl,
+            livekitToken: session.livekitToken,
+            isHost: session.isHost,
+            canManageLivestream: session.canManageLivestream,
+            groupName: session.groupName,
+          ),
+        ),
+      );
+    }
   }
 }
 

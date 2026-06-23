@@ -251,6 +251,17 @@ class _PostListState extends State<_PostList>
             }
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'posts',
+          callback: (payload) {
+            final postId = payload.oldRecord['id'] as String?;
+            if (postId != null && postId.isNotEmpty) {
+              notifyPostDeleted(postId);
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -807,12 +818,21 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
         showErrorIfNotNetwork(
           context,
           e,
-          AppLocalizations.of(context).publishFailed(e),
+          AppLocalizations.of(
+            context,
+          ).publishFailed(_retryLaterMessage(context)),
         );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _retryLaterMessage(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    if (locale.languageCode == 'ja') return 'しばらくしてからもう一度お試しください';
+    if (locale.languageCode == 'en') return 'Please try again later';
+    return '请稍后重试';
   }
 
   @override
@@ -821,369 +841,449 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
     final sheetBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final fieldBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF5F5F8);
     final divColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFEEEEEE);
+    final media = MediaQuery.of(context);
+    final sheetMaxHeight = media.size.height * 0.9;
+    final videoPreviewMaxHeight = media.size.height * 0.34;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: sheetBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── Header ──────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF2C2C2E)
-                          : const Color(0xFFF0F0F5),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      AppLocalizations.of(context).cancel,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  AppLocalizations.of(context).postTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: _loading ? null : _submit,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: _loading
-                          ? null
-                          : const LinearGradient(
-                              colors: [Color(0xFF7B5EA7), Color(0xFF9575CD)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                      color: _loading ? Colors.grey.shade300 : null,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            AppLocalizations.of(context).publish,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+        child: Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
-
-          Divider(height: 16, thickness: 0.5, color: divColor),
-
-          // ── Scripture quote preview ──────────────────────────────────────
-          if (widget.scriptureQuote != null)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: isDark
-                    ? const LinearGradient(
-                        colors: [Color(0xFF2A1F3D), Color(0xFF1E1E2E)],
-                      )
-                    : const LinearGradient(
-                        colors: [Color(0xFFF3EDF9), Color(0xFFEDE7F6)],
-                      ),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFF9575CD).withAlpha(80),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Header ──────────────────────────────────────────────────────
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  12 + media.padding.top * 0.2,
+                  16,
+                  0,
                 ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.auto_stories_rounded,
-                    size: 14,
-                    color: Color(0xFF9575CD),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '《${widget.scriptureQuote!['scripture']}》${widget.scriptureQuote!['chapter']}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF9575CD),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // ── Text input ───────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              controller: _contentCtrl,
-              maxLines: 5,
-              minLines: 3,
-              autofocus: true,
-              style: TextStyle(
-                fontSize: 16,
-                color: isDark ? Colors.white : Colors.black87,
-                height: 1.5,
-              ),
-              decoration: InputDecoration(
-                hintText: AppLocalizations.of(context).shareThoughtsHint,
-                hintStyle: TextStyle(
-                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                  fontSize: 16,
-                ),
-                border: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-
-          // ── Topic input + chips ──────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: fieldBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _topicCtrl,
-                style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: AppLocalizations.of(context).addTopicHint,
-                  hintStyle: TextStyle(
-                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.tag_rounded,
-                    size: 18,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
-                  ),
-                  border: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  filled: false,
-                ),
-                onSubmitted: _addTopic,
-              ),
-            ),
-          ),
-          if (_topics.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: _topics
-                    .map(
-                      (t) => Chip(
-                        label: Text(
-                          '#$t',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF9575CD),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        onDeleted: () => setState(() => _topics.remove(t)),
-                        deleteIconColor: const Color(0xFF9575CD).withAlpha(160),
-                        backgroundColor: const Color(0xFF9575CD).withAlpha(20),
-                        side: BorderSide(
-                          color: const Color(0xFF9575CD).withAlpha(60),
-                        ),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          ],
-          if (_images.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 80,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _images.length + (_images.length < 9 ? 1 : 0),
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  if (i == _images.length) {
-                    return GestureDetector(
-                      onTap: _pickImages,
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
                       child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
                         ),
-                        child: const Icon(Icons.add, color: Colors.grey),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF2C2C2E)
+                              : const Color(0xFFF0F0F5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          AppLocalizations.of(context).cancel,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
                       ),
-                    );
-                  }
-                  return Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: kIsWeb
-                            ? Image.network(
-                                _images[i].path,
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
+                    ),
+                    const Spacer(),
+                    Text(
+                      AppLocalizations.of(context).postTitle,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: _loading ? null : _submit,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: _loading
+                              ? null
+                              : const LinearGradient(
+                                  colors: [
+                                    Color(0xFF7B5EA7),
+                                    Color(0xFF9575CD),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                          color: _loading ? Colors.grey.shade300 : null,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
-                            : Image.file(
-                                File(_images[i].path),
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
+                            : Text(
+                                AppLocalizations.of(context).publish,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
                               ),
                       ),
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _images.removeAt(i)),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(height: 16, thickness: 0.5, color: divColor),
+
+              Flexible(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ── Scripture quote preview ──────────────────────────────
+                      if (widget.scriptureQuote != null)
+                        Container(
+                          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2A1F3D),
+                                      Color(0xFF1E1E2E),
+                                    ],
+                                  )
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFFF3EDF9),
+                                      Color(0xFFEDE7F6),
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF9575CD).withAlpha(80),
                             ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 16,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.auto_stories_rounded,
+                                size: 14,
+                                color: Color(0xFF9575CD),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '《${widget.scriptureQuote!['scripture']}》${widget.scriptureQuote!['chapter']}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF9575CD),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // ── Text input ───────────────────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: TextField(
+                          controller: _contentCtrl,
+                          maxLines: 5,
+                          minLines: 3,
+                          autofocus: true,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: isDark ? Colors.white : Colors.black87,
+                            height: 1.5,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: AppLocalizations.of(
+                              context,
+                            ).shareThoughtsHint,
+                            hintStyle: TextStyle(
+                              color: isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
+                              fontSize: 16,
                             ),
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ),
+
+                      // ── Topic input + chips ──────────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: fieldBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: TextField(
+                            controller: _topicCtrl,
+                            style: const TextStyle(fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: AppLocalizations.of(
+                                context,
+                              ).addTopicHint,
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey.shade600
+                                    : Colors.grey.shade400,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.tag_rounded,
+                                size: 18,
+                                color: isDark
+                                    ? Colors.grey.shade500
+                                    : Colors.grey.shade400,
+                              ),
+                              border: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                              filled: false,
+                            ),
+                            onSubmitted: _addTopic,
+                          ),
+                        ),
+                      ),
+                      if (_topics.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: _topics
+                                .map(
+                                  (t) => Chip(
+                                    label: Text(
+                                      '#$t',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF9575CD),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    onDeleted: () =>
+                                        setState(() => _topics.remove(t)),
+                                    deleteIconColor: const Color(
+                                      0xFF9575CD,
+                                    ).withAlpha(160),
+                                    backgroundColor: const Color(
+                                      0xFF9575CD,
+                                    ).withAlpha(20),
+                                    side: BorderSide(
+                                      color: const Color(
+                                        0xFF9575CD,
+                                      ).withAlpha(60),
+                                    ),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                      if (_images.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 80,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount:
+                                _images.length + (_images.length < 9 ? 1 : 0),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, i) {
+                              if (i == _images.length) {
+                                return GestureDetector(
+                                  onTap: _pickImages,
+                                  child: Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.add,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: kIsWeb
+                                        ? Image.network(
+                                            _images[i].path,
+                                            width: 80,
+                                            height: 80,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Image.file(
+                                            File(_images[i].path),
+                                            width: 80,
+                                            height: 80,
+                                            fit: BoxFit.cover,
+                                          ),
+                                  ),
+                                  Positioned(
+                                    top: 2,
+                                    right: 2,
+                                    child: GestureDetector(
+                                      onTap: () =>
+                                          setState(() => _images.removeAt(i)),
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                      if (_video != null && _videoPreviewCtrl != null) ...[
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: videoPreviewMaxHeight,
+                                maxWidth: media.size.width - 32,
+                              ),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: AspectRatio(
+                                      aspectRatio:
+                                          _videoPreviewCtrl!.value.aspectRatio,
+                                      child: VideoPlayer(_videoPreviewCtrl!),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        _videoPreviewCtrl?.dispose();
+                                        setState(() {
+                                          _video = null;
+                                          _videoPreviewCtrl = null;
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  );
-                },
-              ),
-            ),
-          ],
-          if (_video != null && _videoPreviewCtrl != null) ...[
-            const SizedBox(height: 8),
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: AspectRatio(
-                    aspectRatio: _videoPreviewCtrl!.value.aspectRatio,
-                    child: VideoPlayer(_videoPreviewCtrl!),
                   ),
                 ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: GestureDetector(
-                    onTap: () {
-                      _videoPreviewCtrl?.dispose();
-                      setState(() {
-                        _video = null;
-                        _videoPreviewCtrl = null;
-                      });
-                    },
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 20,
+              ),
+              // ── Media toolbar ────────────────────────────────────────────────
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  8,
+                  6,
+                  8,
+                  12 + media.padding.bottom,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: divColor, width: 0.5)),
+                ),
+                child: Row(
+                  children: [
+                    _MediaToolBtn(
+                      icon: Icons.image_rounded,
+                      label: AppLocalizations.of(context).attachmentPhoto,
+                      enabled: _video == null && _images.length < 9,
+                      onTap: _pickImages,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(width: 4),
+                    _MediaToolBtn(
+                      icon: Icons.videocam_rounded,
+                      label: AppLocalizations.of(context).attachmentVideo,
+                      enabled: _images.isEmpty && _video == null,
+                      onTap: _pickVideo,
+                      isDark: isDark,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${_contentCtrl.text.length}/500',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade400,
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                  ],
                 ),
-              ],
-            ),
-          ],
-          // ── Media toolbar ────────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: divColor, width: 0.5)),
-            ),
-            child: Row(
-              children: [
-                _MediaToolBtn(
-                  icon: Icons.image_rounded,
-                  label: AppLocalizations.of(context).attachmentPhoto,
-                  enabled: _video == null && _images.length < 9,
-                  onTap: _pickImages,
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 4),
-                _MediaToolBtn(
-                  icon: Icons.videocam_rounded,
-                  label: AppLocalizations.of(context).attachmentVideo,
-                  enabled: _images.isEmpty && _video == null,
-                  onTap: _pickVideo,
-                  isDark: isDark,
-                ),
-                const Spacer(),
-                Text(
-                  '${_contentCtrl.text.length}/500',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

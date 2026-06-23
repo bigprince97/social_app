@@ -149,8 +149,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       if (mounted) {
         setState(() {
           _members = List.of(conv.members);
+          widget.conversation.members
+            ..clear()
+            ..addAll(_members);
           _recomputeIsAdmin();
         });
+        widget.onGroupUpdated?.call();
       }
     } catch (_) {}
   }

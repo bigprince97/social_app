@@ -100,13 +100,19 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     try {
       await _chatService.deleteConversation(conv.id);
       if (mounted) {
-        showPremiumToast(context, AppLocalizations.of(context).conversationDeleted,
-            kind: ToastKind.success);
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).conversationDeleted,
+          kind: ToastKind.success,
+        );
       }
     } catch (e) {
       if (mounted) {
         showErrorIfNotNetwork(
-            context, e, AppLocalizations.of(context).operationFailed('$e'));
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed('$e'),
+        );
         _loadConversations(silent: true);
       }
     }
@@ -127,13 +133,17 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     }
     if (!silent && _conversations.isEmpty) setState(() => _loading = true);
     try {
-      final convs = await _chatService
-          .getConversations()
-          .timeout(const Duration(seconds: 12));
+      final convs = await _chatService.getConversations().timeout(
+        const Duration(seconds: 12),
+      );
       if (mounted) setState(() => _conversations = convs);
     } catch (e) {
       if (mounted && !silent) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).loadFailed(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).loadFailed(e),
+        );
       }
     } finally {
       if (mounted && !silent) setState(() => _loading = false);
@@ -180,7 +190,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: Color(0xFF9575CD), width: 1.5),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF9575CD),
+                    width: 1.5,
+                  ),
                 ),
                 filled: true,
               ),
@@ -197,14 +210,22 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: [
                               SizedBox(
-                                height: MediaQuery.of(context).size.height * 0.6,
+                                height:
+                                    MediaQuery.of(context).size.height * 0.6,
                                 child: PremiumEmptyState(
                                   icon: _query.isEmpty
                                       ? Icons.forum_outlined
                                       : Icons.search_off_rounded,
-                                  title: _query.isEmpty ? AppLocalizations.of(context).noMessages : AppLocalizations.of(context).noSearchResults,
-                                  subtitle:
-                                      _query.isEmpty ? AppLocalizations.of(context).createNewChat : null,
+                                  title: _query.isEmpty
+                                      ? AppLocalizations.of(context).noMessages
+                                      : AppLocalizations.of(
+                                          context,
+                                        ).noSearchResults,
+                                  subtitle: _query.isEmpty
+                                      ? AppLocalizations.of(
+                                          context,
+                                        ).createNewChat
+                                      : null,
                                   color: AppStyle.brand,
                                 ),
                               ),
@@ -222,8 +243,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   alignment: Alignment.centerRight,
                                   color: AppStyle.red,
                                   padding: const EdgeInsets.only(right: 24),
-                                  child: const Icon(Icons.delete_outline,
-                                      color: Colors.white),
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 confirmDismiss: (_) => _confirmDelete(conv),
                                 onDismissed: (_) => _deleteConversation(conv),
@@ -233,7 +256,8 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   onTap: () => context
                                       .push('/chat/${conv.id}', extra: conv)
                                       .then(
-                                          (_) => _loadConversations(silent: true)),
+                                        (_) => _loadConversations(silent: true),
+                                      ),
                                 ),
                               );
                             },
@@ -297,9 +321,10 @@ class _ConversationTile extends StatelessWidget {
                       ? Text(
                           name[0].toUpperCase(),
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         )
                       : null,
                 ),
@@ -313,8 +338,11 @@ class _ConversationTile extends StatelessWidget {
                         color: Color(0xFF9575CD),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.group,
-                          size: 11, color: Colors.white),
+                      child: const Icon(
+                        Icons.group,
+                        size: 11,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
               ],
@@ -331,8 +359,9 @@ class _ConversationTile extends StatelessWidget {
                         child: Text(
                           name,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -340,13 +369,16 @@ class _ConversationTile extends StatelessWidget {
                       const SizedBox(width: 6),
                       if (conversation.lastMessageAt != null)
                         Text(
-                          timeago.format(conversation.lastMessageAt!,
-                              locale: LocaleController.instance.timeagoLocale),
+                          timeago.format(
+                            conversation.lastMessageAt!,
+                            locale: LocaleController.instance.timeagoLocale,
+                          ),
                           style: TextStyle(
-                              fontSize: 12,
-                              color: hasUnread
-                                  ? const Color(0xFF9575CD)
-                                  : Colors.grey.shade500),
+                            fontSize: 12,
+                            color: hasUnread
+                                ? const Color(0xFF9575CD)
+                                : Colors.grey.shade500,
+                          ),
                         ),
                     ],
                   ),
@@ -355,24 +387,28 @@ class _ConversationTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          conversation.lastMessagePreview ?? AppLocalizations.of(context).noMessagePreview,
+                          conversation.lastMessagePreview ??
+                              AppLocalizations.of(context).noMessagePreview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              fontSize: 13,
-                              color: hasUnread
-                                  ? Colors.black87
-                                  : Colors.grey.shade500,
-                              fontWeight: hasUnread
-                                  ? FontWeight.w500
-                                  : FontWeight.normal),
+                            fontSize: 13,
+                            color: hasUnread
+                                ? Colors.black87
+                                : Colors.grey.shade500,
+                            fontWeight: hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.normal,
+                          ),
                         ),
                       ),
                       if (hasUnread) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF9575CD),
                             borderRadius: BorderRadius.circular(10),
@@ -382,9 +418,10 @@ class _ConversationTile extends StatelessWidget {
                                 ? '99+'
                                 : '${conversation.unreadCount}',
                             style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -419,6 +456,8 @@ class _NewChatSheetState extends State<_NewChatSheet>
   List<Profile> _searchResults = [];
   final Set<String> _selectedIds = {};
   bool _searching = false;
+  bool _creatingDirect = false;
+  bool _creatingGroup = false;
 
   @override
   void initState() {
@@ -449,23 +488,32 @@ class _NewChatSheetState extends State<_NewChatSheet>
   }
 
   Future<void> _startDirectChat(Profile profile) async {
+    if (_creatingDirect) return;
+    setState(() => _creatingDirect = true);
     try {
-      final conv =
-          await _chatService.createDirectConversation(profile.id);
+      final conv = await _chatService.createDirectConversation(profile.id);
       if (mounted) {
         Navigator.pop(context);
         widget.onCreated(conv);
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).createFailed2(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).createFailed2(e),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _creatingDirect = false);
     }
   }
 
   Future<void> _createGroup() async {
+    if (_creatingGroup) return;
     final name = _groupNameCtrl.text.trim();
     if (name.isEmpty || _selectedIds.isEmpty) return;
+    setState(() => _creatingGroup = true);
     try {
       final conv = await _chatService.createGroupConversation(
         name: name,
@@ -477,8 +525,14 @@ class _NewChatSheetState extends State<_NewChatSheet>
       }
     } catch (e) {
       if (mounted) {
-        showErrorIfNotNetwork(context, e, AppLocalizations.of(context).createFailed2(e));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).createFailed2(e),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _creatingGroup = false);
     }
   }
 
@@ -502,7 +556,10 @@ class _NewChatSheetState extends State<_NewChatSheet>
           ),
           TabBar(
             controller: _tabController,
-            tabs: [Tab(text: AppLocalizations.of(context).privateChat), Tab(text: AppLocalizations.of(context).group)],
+            tabs: [
+              Tab(text: AppLocalizations.of(context).privateChat),
+              Tab(text: AppLocalizations.of(context).group),
+            ],
           ),
           Expanded(
             child: TabBarView(
@@ -534,7 +591,9 @@ class _NewChatSheetState extends State<_NewChatSheet>
                                 return ListTile(
                                   leading: CircleAvatar(
                                     backgroundImage: p.avatarUrl != null
-                                        ? CachedNetworkImageProvider(p.avatarUrl!)
+                                        ? CachedNetworkImageProvider(
+                                            p.avatarUrl!,
+                                          )
                                         : null,
                                     child: p.avatarUrl == null
                                         ? Text(avatarInitial(p.displayName))
@@ -542,7 +601,9 @@ class _NewChatSheetState extends State<_NewChatSheet>
                                   ),
                                   title: Text(p.displayName),
                                   subtitle: Text('@${p.username}'),
-                                  onTap: () => _startDirectChat(p),
+                                  onTap: _creatingDirect
+                                      ? null
+                                      : () => _startDirectChat(p),
                                 );
                               },
                             ),
@@ -559,14 +620,18 @@ class _NewChatSheetState extends State<_NewChatSheet>
                           TextField(
                             controller: _groupNameCtrl,
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context).groupChatName,
+                              hintText: AppLocalizations.of(
+                                context,
+                              ).groupChatName,
                               border: const OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 12),
                           TextField(
                             decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context).searchMembers,
+                              hintText: AppLocalizations.of(
+                                context,
+                              ).searchMembers,
                               prefixIcon: const Icon(Icons.search),
                               border: const OutlineInputBorder(),
                             ),
@@ -609,10 +674,26 @@ class _NewChatSheetState extends State<_NewChatSheet>
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: FilledButton(
-                        onPressed: _selectedIds.isEmpty ? null : _createGroup,
+                        onPressed: _selectedIds.isEmpty || _creatingGroup
+                            ? null
+                            : _createGroup,
                         style: FilledButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 48)),
-                        child: Text(AppLocalizations.of(context).createGroupButton(_selectedIds.length)),
+                          minimumSize: const Size(double.infinity, 48),
+                        ),
+                        child: _creatingGroup
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).createGroupButton(_selectedIds.length),
+                              ),
                       ),
                     ),
                   ],

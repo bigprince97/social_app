@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../utils/auth_error.dart' show avatarInitial;
@@ -30,7 +29,6 @@ class _SearchScreenState extends State<SearchScreen>
   bool _searching = false;
   bool _hasSearched = false;
   String _lastQuery = '';
-  Timer? _debounce;
 
   @override
   void initState() {
@@ -40,7 +38,6 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _searchCtrl.dispose();
     _tabCtrl.dispose();
     super.dispose();
@@ -105,17 +102,18 @@ class _SearchScreenState extends State<SearchScreen>
             border: InputBorder.none,
             contentPadding: EdgeInsets.symmetric(horizontal: 8),
           ),
+          textInputAction: TextInputAction.search,
           onChanged: (v) {
             setState(() {});
-            _debounce?.cancel();
-            _debounce = Timer(
-              const Duration(milliseconds: 400),
-              () => _search(v),
-            );
           },
           onSubmitted: _search,
         ),
         actions: [
+          if (_searchCtrl.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () => _search(_searchCtrl.text),
+            ),
           if (_searchCtrl.text.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear),

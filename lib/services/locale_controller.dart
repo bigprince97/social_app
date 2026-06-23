@@ -8,34 +8,25 @@ class LocaleController {
   static final LocaleController instance = LocaleController._();
   static const _prefsKey = 'app_locale';
 
-  /// null = 跟随系统
+  /// null = 跟随系统；当前只允许中文，系统为英文/日文时会落到简体中文。
   final ValueNotifier<Locale?> locale = ValueNotifier<Locale?>(null);
 
   /// 支持的语言（顺序即设置页展示顺序）
-  static final List<Locale> supported = [
-    const Locale('zh'), // 简体中文
-    const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'), // 繁體中文
-    const Locale('en'), // English
-    const Locale('ja'), // 日本語
+  static const List<Locale> supported = [
+    Locale('zh'), // 简体中文
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'), // 繁體中文
   ];
 
-  static const Map<String, String> labels = {
-    'zh': '简体中文',
-    'zh_Hant': '繁體中文',
-    'en': 'English',
-    'ja': '日本語',
-  };
+  static const Map<String, String> labels = {'zh': '简体中文', 'zh_Hant': '繁體中文'};
 
-  static String keyOf(Locale l) =>
-      l.scriptCode != null ? '${l.languageCode}_${l.scriptCode}' : l.languageCode;
+  static String keyOf(Locale l) => l.scriptCode != null
+      ? '${l.languageCode}_${l.scriptCode}'
+      : l.languageCode;
 
-  /// 当前圣经文本应使用的语言键：zh / zh_Hant / en / ja
-  /// （跟随 app 语言；未设置时跟随系统，默认简体）
+  /// 当前圣经文本应使用的语言键：zh / zh_Hant。
+  /// 英文、日文暂时完全屏蔽；系统是英文/日文时默认简体。
   String get bibleLang {
-    final l = locale.value ??
-        WidgetsBinding.instance.platformDispatcher.locale;
-    if (l.languageCode == 'ja') return 'ja';
-    if (l.languageCode == 'en') return 'en';
+    final l = locale.value ?? WidgetsBinding.instance.platformDispatcher.locale;
     if (l.languageCode == 'zh') {
       return l.scriptCode == 'Hant' ? 'zh_Hant' : 'zh';
     }
@@ -45,8 +36,6 @@ class LocaleController {
   /// timeago 包的 locale
   String get timeagoLocale {
     final b = bibleLang;
-    if (b == 'ja') return 'ja';
-    if (b == 'en') return 'en';
     if (b == 'zh_Hant') return 'zh_Hant';
     return 'zh';
   }
@@ -55,11 +44,21 @@ class LocaleController {
     try {
       final prefs = await SharedPreferences.getInstance();
       final code = prefs.getString(_prefsKey);
-      if (code != null) locale.value = _parse(code);
+      if (code == null) return;
+      final parsed = _parse(code);
+      if (_isSupported(parsed)) {
+        locale.value = parsed;
+      } else {
+        await prefs.remove(_prefsKey);
+        locale.value = null;
+      }
     } catch (_) {}
   }
 
   Future<void> setLocale(Locale? l) async {
+    if (l != null && !_isSupported(l)) {
+      l = const Locale('zh');
+    }
     locale.value = l;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -74,9 +73,11 @@ class LocaleController {
   static Locale _parse(String s) {
     final parts = s.split('_');
     if (parts.length > 1) {
-      return Locale.fromSubtags(
-          languageCode: parts[0], scriptCode: parts[1]);
+      return Locale.fromSubtags(languageCode: parts[0], scriptCode: parts[1]);
     }
     return Locale(parts[0]);
   }
+
+  static bool _isSupported(Locale l) =>
+      supported.any((s) => keyOf(s) == keyOf(l));
 }

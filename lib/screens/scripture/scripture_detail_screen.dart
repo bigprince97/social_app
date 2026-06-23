@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
+import '../../models/bible_version.dart';
 import '../../services/local_cache.dart';
 import '../../models/scripture.dart';
+import '../../services/bible_version_controller.dart';
 import '../../services/locale_controller.dart';
 import '../../services/scripture_service.dart';
 import '../../services/scripture_download_service.dart';
@@ -390,6 +392,13 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
   String? _viewBook; // 当前章 view 对应的书
   bool _otExpanded = true;
   bool _ntExpanded = true;
+  BibleVersion? _bibleVersion;
+
+  String get _lang => LocaleController.instance.bibleLang;
+  bool get _usesRemoteBible => _lang == 'en' || _lang == 'ja';
+  BibleVersion? get _activeBibleVersion =>
+      _bibleVersion ??
+      BibleVersionController.instance.versionForLanguage(_lang);
 
   @override
   void initState() {
@@ -397,6 +406,12 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
     // 从阅读器点书名/章节号进来：定位书卷，可直接进「章」视图
     if (widget.initialBook != null) _viewBook = widget.initialBook;
     if (widget.initialChapterView) _isBookView = false;
+    _bibleVersion = BibleVersionController.instance.versionForLanguage(_lang);
+  }
+
+  Future<void> _changeBibleVersion(BibleVersion version) async {
+    setState(() => _bibleVersion = version);
+    await BibleVersionController.instance.setVersion(version);
   }
 
   static const _otBooks = [
@@ -587,14 +602,11 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
         ),
         centerTitle: true,
         actions: [
+          if (_usesRemoteBible) _buildBibleVersionMenu(),
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Colors.white),
             onPressed: widget.chapters.isEmpty ? null : widget.onSearch,
             tooltip: AppLocalizations.of(context).search,
-          ),
-          ScriptureDownloadButton(
-            scriptureId: widget.scripture.id,
-            color: Colors.white,
           ),
           IconButton(
             icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -622,6 +634,42 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
           ? _buildBookView(bm)
           : _buildChapterView(activeBook, activeChapters),
       bottomNavigationBar: _buildStatusBar(activeBook, activeChapters),
+    );
+  }
+
+  Widget _buildBibleVersionMenu() {
+    final current = _activeBibleVersion;
+    final versions = BibleVersionController.instance.versionsForLanguage(_lang);
+    return PopupMenuButton<BibleVersion>(
+      icon: const Icon(Icons.translate_rounded, color: Colors.white),
+      tooltip: '圣经版本',
+      onSelected: _changeBibleVersion,
+      itemBuilder: (_) => [
+        for (final version in versions)
+          PopupMenuItem(
+            value: version,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    version.label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    version.description,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (current?.id == version.id)
+                  const Icon(Icons.check_rounded, size: 18),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -791,7 +839,10 @@ class _BibleDetailScreenState extends State<_BibleDetailScreen> {
   Widget _buildStatusBar(String bookName, List<ScriptureChapter> chapters) {
     String display;
     if (_isBookView) {
-      display = widget.scripture.displayTitle;
+      final version = _usesRemoteBible ? _activeBibleVersion : null;
+      display = version == null
+          ? widget.scripture.displayTitle
+          : '${widget.scripture.displayTitle} · ${version.label}';
     } else {
       int currentNum = 1;
       if (bookName.isNotEmpty && chapters.isNotEmpty) {

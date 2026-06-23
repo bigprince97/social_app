@@ -59,10 +59,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDSBSYr6Eo-GEV5nD1KV0QHOJB7MTrjyiU',
-    appId: '1:387100034743:ios:4618e551e5133e0074af32',
+    appId: '1:387100034743:ios:c5d70d980acf003574af32',
     messagingSenderId: '387100034743',
     projectId: 'omega-6c05a',
     storageBucket: 'omega-6c05a.firebasestorage.app',
-    iosBundleId: 'com.zoven.socialapp',
+    iosBundleId: 'com.zoven.omega',
   );
 }
