@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,6 +15,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationService {
   static final _messaging = FirebaseMessaging.instance;
   static final _localNotifications = FlutterLocalNotificationsPlugin();
+  static const _badgeChannel = MethodChannel('omega/app_badge');
 
   static const _androidChannel = AndroidNotificationChannel(
     'default',
@@ -258,6 +260,17 @@ class PushNotificationService {
 
   static Future<void> cancelActiveMediaNotification() =>
       _localNotifications.cancel(_activeMediaNotificationId);
+
+  static Future<void> syncAppIconBadge(int count) async {
+    if (!Platform.isIOS) return;
+    try {
+      await _badgeChannel.invokeMethod('setBadgeCount', {
+        'count': count < 0 ? 0 : count,
+      });
+    } catch (e) {
+      debugPrint('Failed to sync app icon badge: $e');
+    }
+  }
 
   static String _buildPayload(Map<String, dynamic> data) =>
       '${data['type'] ?? ''}|${data['post_id'] ?? ''}|${data['actor_id'] ?? ''}|${data['conversation_id'] ?? ''}';

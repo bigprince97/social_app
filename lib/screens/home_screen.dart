@@ -181,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final counts = await _chatService.getUnreadCounts();
       final msgCount = counts.values.where((count) => count > 0).length;
+      await PushNotificationService.syncAppIconBadge(msgCount);
       if (mounted) setState(() => _unreadMessages = msgCount);
     } catch (_) {}
   }
