@@ -624,35 +624,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ? const Color(0xFF1C1C1E).withAlpha(220)
         : Colors.white.withAlpha(230);
 
-    Future<void> takePhoto() async {
-      final picked = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1080,
-        imageQuality: 85,
-      );
-      if (!mounted) return;
-      if (picked == null) return;
-      setState(() => _sending = true);
-      try {
-        final imageUrl = await _storageService.uploadChatImage(picked);
-        final msg = await _chatService.sendImageMessage(
-          conversationId: _conversation.id,
-          imageUrl: imageUrl,
-        );
-        if (mounted) {
-          setState(() => _messages.add(msg));
-          _cacheCurrentMessages();
-          _scrollToBottom();
-        }
-      } catch (e) {
-        if (mounted) {
-          _showSendError(e);
-        }
-      } finally {
-        if (mounted) setState(() => _sending = false);
-      }
-    }
-
     showGeneralDialog(
       context: context,
       barrierLabel: '发送',
@@ -743,7 +714,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       isDark: isDark,
                                       onTap: () {
                                         Navigator.pop(ctx);
-                                        _sendImage();
+                                        _pickAndConfirmImage(
+                                          ImageSource.gallery,
+                                        );
                                       },
                                     ),
                                     _AttachItem(
@@ -777,7 +750,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       isDark: isDark,
                                       onTap: () {
                                         Navigator.pop(ctx);
-                                        takePhoto();
+                                        _pickAndConfirmImage(
+                                          ImageSource.camera,
+                                        );
                                       },
                                     ),
                                   ],
@@ -798,14 +773,53 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _sendImage() async {
+  Future<void> _pickAndConfirmImage(ImageSource source) async {
     final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 1080,
       imageQuality: 85,
     );
     if (!mounted) return;
     if (picked == null) return;
+    final confirmed = await _confirmImageSend(picked);
+    if (!mounted || !confirmed) return;
+    await _uploadAndSendImage(picked);
+  }
+
+  Future<bool> _confirmImageSend(XFile picked) async {
+    final t = AppLocalizations.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(t.imagePlaceholder),
+          contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          content: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              File(picked.path),
+              fit: BoxFit.contain,
+              width: double.maxFinite,
+              height: 320,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(t.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(t.send),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
+  }
+
+  Future<void> _uploadAndSendImage(XFile picked) async {
     setState(() => _sending = true);
     try {
       final imageUrl = await _storageService.uploadChatImage(picked);

@@ -14,7 +14,6 @@ import '../../theme/app_style.dart';
 import '../../widgets/premium_action_sheet.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
-import '../../widgets/scripture_download_button.dart';
 
 class ChapterReaderScreen extends StatefulWidget {
   final ScriptureChapter chapter;
@@ -1115,26 +1114,128 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
 
   // ── 经典阅读器（道德经、金刚经） ────────────────────────────────
 
+  Future<void> _showClassicChapterSelector() async {
+    final s = widget.scripture;
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.35,
+          maxChildSize: 0.92,
+          builder: (context, controller) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          AppLocalizations.of(context).chapters,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Text(
+                        '${_currentIndex + 1}/${widget.allChapters.length}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: s.color),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    controller: controller,
+                    itemCount: widget.allChapters.length,
+                    itemBuilder: (context, index) {
+                      final chapter = widget.allChapters[index];
+                      final selected = index == _currentIndex;
+                      return ListTile(
+                        selected: selected,
+                        selectedColor: s.color,
+                        leading: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: selected
+                              ? s.color
+                              : s.color.withAlpha(24),
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: selected ? Colors.white : s.color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          chapter.localizedTitle(_lang),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: selected
+                            ? Icon(Icons.check_rounded, color: s.color)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(index),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (selected != null && selected != _currentIndex) {
+      _goToChapter(selected);
+    }
+  }
+
   Widget _buildClassicReader() {
     final s = widget.scripture;
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         backgroundColor: s.color.withAlpha(20),
-        title: Column(
-          children: [
-            Text(s.title, style: const TextStyle(fontSize: 14)),
-            Text(
-              _displayTitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: s.color),
-            ),
-          ],
+        title: GestureDetector(
+          onTap: _showClassicChapterSelector,
+          behavior: HitTestBehavior.opaque,
+          child: Column(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      s.title,
+                      style: const TextStyle(fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.arrow_drop_down, size: 18, color: s.color),
+                ],
+              ),
+              Text(
+                _displayTitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: s.color),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
         centerTitle: true,
         actions: [
-          ScriptureDownloadButton(scriptureId: s.id),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             onPressed: _openSearch,
@@ -1323,10 +1424,17 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 tooltip: AppLocalizations.of(context).previousChapter,
               ),
               Expanded(
-                child: Text(
-                  '${_currentIndex + 1} / ${widget.allChapters.length}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: _showClassicChapterSelector,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(
+                      '${_currentIndex + 1} / ${widget.allChapters.length}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 ),
               ),
               IconButton(
