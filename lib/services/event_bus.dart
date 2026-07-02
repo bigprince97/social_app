@@ -24,3 +24,9 @@ final _postDeletedController = StreamController<String>.broadcast();
 Stream<String> get onPostDeleted => _postDeletedController.stream;
 
 void notifyPostDeleted(String postId) => _postDeletedController.add(postId);
+
+final _userBlockedController = StreamController<String>.broadcast();
+
+Stream<String> get onUserBlocked => _userBlockedController.stream;
+
+void notifyUserBlocked(String userId) => _userBlockedController.add(userId);

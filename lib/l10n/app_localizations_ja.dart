@@ -1341,6 +1341,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get report => '通報';
 
   @override
+  String get reportUser => 'ユーザーを通報';
+
+  @override
+  String get blockThisUser => 'このユーザーをブロック';
+
+  @override
+  String get blockedInteraction => 'このユーザーをブロックしているため、これ以上やり取りできません。';
+
+  @override
   String get reportReason => '通報の理由を選択してください';
 
   @override

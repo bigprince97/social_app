@@ -1,10 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/auth_error.dart' show requireUid, UserNotFoundException;
 import '../models/profile.dart';
+import 'block_service.dart';
 import 'local_cache.dart';
 
 class ProfileService {
   final _client = Supabase.instance.client;
+  final _blockService = BlockService();
   String? get _userId => _client.auth.currentUser?.id;
   final _cache = LocalCache.instance;
 
@@ -55,16 +57,23 @@ class ProfileService {
   }
 
   Future<List<Profile>> searchUsers(String query) async {
+    final blockedIds = await _blockService.getBlockedIds();
     final data = await _client
         .from('profiles')
         .select()
         .or('username.ilike.%$query%,display_name.ilike.%$query%')
         .neq('id', requireUid(_client))
         .limit(20);
-    return (data as List).map((e) => Profile.fromJson(e)).toList();
+    return (data as List)
+        .map((e) => Profile.fromJson(e))
+        .where((profile) => !blockedIds.contains(profile.id))
+        .toList();
   }
 
   Future<void> followUser(String targetId) async {
+    if (await _blockService.isEitherBlocked(targetId)) {
+      throw const BlockedUserInteractionException();
+    }
     await _client.from('follows').insert({
       'follower_id': _userId,
       'following_id': targetId,
@@ -108,4 +117,11 @@ class ProfileService {
         .map((e) => Profile.fromJson(e['profiles'] as Map<String, dynamic>))
         .toList();
   }
+}
+
+class BlockedUserInteractionException implements Exception {
+  const BlockedUserInteractionException();
+
+  @override
+  String toString() => 'BlockedUserInteractionException';
 }

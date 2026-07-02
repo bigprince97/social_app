@@ -5,6 +5,18 @@ import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  private func setApplicationBadge(_ count: Int, completion: ((Error?) -> Void)? = nil) {
+    let safeCount = max(0, count)
+    UIApplication.shared.applicationIconBadgeNumber = safeCount
+    if #available(iOS 16.0, *) {
+      UNUserNotificationCenter.current().setBadgeCount(safeCount) { error in
+        completion?(error)
+      }
+    } else {
+      completion?(nil)
+    }
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -25,11 +37,27 @@ import UserNotifications
         }
         let args = call.arguments as? [String: Any]
         let count = max(0, args?["count"] as? Int ?? 0)
-        UIApplication.shared.applicationIconBadgeNumber = count
-        result(nil)
+        self.setApplicationBadge(count) { error in
+          DispatchQueue.main.async {
+            if let error = error {
+              result(FlutterError(
+                code: "BADGE_UPDATE_FAILED",
+                message: error.localizedDescription,
+                details: nil
+              ))
+            } else {
+              result(nil)
+            }
+          }
+        }
       }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    super.applicationDidBecomeActive(application)
+    setApplicationBadge(0)
   }
 }

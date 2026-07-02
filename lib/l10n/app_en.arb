@@ -432,6 +432,9 @@
     }
   },
   "report": "Report",
+  "reportUser": "Report user",
+  "blockThisUser": "Block this user",
+  "blockedInteraction": "This user is blocked. You can't interact anymore.",
   "reportReason": "Select a reason to report",
   "reportReasonSpam": "Spam or advertisement",
   "reportReasonHarassment": "Harassment or hate speech",

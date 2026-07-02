@@ -71,6 +71,7 @@ class _SocialAppState extends State<SocialApp> {
   @override
   void initState() {
     super.initState();
+    if (!kIsWeb) PushNotificationService.syncAppIconBadge(0);
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       // signedIn = 刚登录；initialSession = 冷启动恢复已有登录态。
       // 两者都要初始化推送，否则冷启动后通知点击回调未注册。
@@ -84,7 +85,10 @@ class _SocialAppState extends State<SocialApp> {
         // 登出（含 SDK 自动登出）：清本地缓存，避免下个登录用户看到上个用户内容
         _pushRegistrationUserId = null;
         LocalCache.instance.clear();
-        if (!kIsWeb) PushNotificationService.deleteToken();
+        if (!kIsWeb) {
+          PushNotificationService.syncAppIconBadge(0);
+          PushNotificationService.deleteToken();
+        }
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {

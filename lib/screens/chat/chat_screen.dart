@@ -19,6 +19,7 @@ import '../../models/message.dart';
 import '../../services/block_service.dart';
 import '../../services/call_service.dart';
 import '../../services/chat_service.dart';
+import '../../services/push_notification_service.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_style.dart';
 import '../../utils/content_filter.dart';
@@ -127,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _subscribeToMessageUpdates();
     _subscribeToReadReceipts();
     // 进入聊天立即标记已读一次（清未读 badge），再用定时器跟进后续新消息。
-    _chatService.updateLastRead(_conversation.id);
+    _markReadAndRefreshBadge();
     _scheduleUpdateLastRead();
     _inputCtrl.addListener(_onInputChanged);
     _scrollController.addListener(_onScroll);
@@ -209,8 +210,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _scheduleUpdateLastRead() {
     _readTimer?.cancel();
     _readTimer = Timer(const Duration(seconds: 2), () {
-      _chatService.updateLastRead(_conversation.id);
+      _markReadAndRefreshBadge();
     });
+  }
+
+  Future<void> _markReadAndRefreshBadge() async {
+    await _chatService.updateLastRead(_conversation.id);
+    try {
+      final counts = await _chatService.getUnreadCounts();
+      final unreadConversationCount = counts.entries
+          .where((entry) => entry.key != _conversation.id && entry.value > 0)
+          .length;
+      await PushNotificationService.syncAppIconBadge(unreadConversationCount);
+    } catch (_) {}
   }
 
   void _computeOtherLastRead() {
@@ -261,6 +273,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _removeCh(_msgChannel);
       _removeCh(_updateChannel);
       _removeCh(_readChannel);
+      _markReadAndRefreshBadge();
       _loadMessages();
       _subscribeToMessages();
       _subscribeToMessageUpdates();
@@ -290,7 +303,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _livestreamExpiryTimer?.cancel();
     // 离开聊天时立即落库已读：避免 2s 内快速返回时定时器被取消，
     // 导致 last_read 未更新、会话列表未读 badge 不清除。
-    _chatService.updateLastRead(_conversation.id);
+    unawaited(_markReadAndRefreshBadge());
     super.dispose();
   }
 
@@ -465,7 +478,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // 发送失败提示：被对方拉黑(RLS 42501)→明确提示；网络/离线→静默不弹错
   void _showSendError(Object e) {
     final s = e.toString();
-    if (s.contains('42501') || s.contains('row-level security')) {
+    if (e is BlockedChatException ||
+        s.contains('42501') ||
+        s.contains('row-level security')) {
       showPremiumToast(
         context,
         AppLocalizations.of(context).blockedCannotSend,

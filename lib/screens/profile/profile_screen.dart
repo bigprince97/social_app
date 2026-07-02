@@ -16,12 +16,14 @@ import '../../services/post_service.dart';
 import '../../services/local_cache.dart';
 import '../../services/chat_service.dart';
 import '../../services/profile_service.dart';
+import '../../services/report_service.dart';
 import '../../theme/app_style.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/premium_action_sheet.dart';
 import 'follow_list_screen.dart';
 import 'my_posts_screen.dart';
 import '../settings/blocked_users_screen.dart';
+import '../settings/legal_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -150,11 +152,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (confirm) {
         await _blockService.blockUser(widget.userId);
         if (mounted) {
-          setState(() => _isBlocked = true);
+          notifyUserBlocked(widget.userId);
+          setState(() {
+            _isBlocked = true;
+            _isFollowing = false;
+            _posts = [];
+          });
           showPremiumToast(
             context,
             AppLocalizations.of(context).userBlocked,
-            kind: ToastKind.info,
+            kind: ToastKind.block,
           );
         }
       }
@@ -162,12 +169,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _startDirectMessage() async {
+    if (_isBlocked) {
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).blockedInteraction,
+        kind: ToastKind.block,
+      );
+      return;
+    }
     setState(() => _dmLoading = true);
     try {
       final conv = await _chatService.createDirectConversation(widget.userId);
       if (mounted) context.push('/chat/${conv.id}', extra: conv);
     } catch (e) {
       if (mounted) {
+        if (e is BlockedChatException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedInteraction,
+            kind: ToastKind.block,
+          );
+          return;
+        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -180,6 +203,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _toggleFollow() async {
+    if (_isBlocked) {
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).blockedInteraction,
+        kind: ToastKind.block,
+      );
+      return;
+    }
     setState(() => _followLoading = true);
     try {
       if (_isFollowing) {
@@ -201,6 +232,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
+        if (e is BlockedUserInteractionException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedInteraction,
+            kind: ToastKind.block,
+          );
+          return;
+        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -217,6 +256,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       title: AppLocalizations.of(context).settings,
       actions: [
+        PremiumAction(
+          icon: Icons.policy_outlined,
+          label: AppLocalizations.of(context).userAgreement,
+          color: const Color(0xFF34C759),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const LegalScreen(doc: LegalDoc.eula),
+              ),
+            );
+          },
+        ),
+        PremiumAction(
+          icon: Icons.privacy_tip_outlined,
+          label: AppLocalizations.of(context).privacyPolicy,
+          color: const Color(0xFF5856D6),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const LegalScreen(doc: LegalDoc.privacy),
+              ),
+            );
+          },
+        ),
         PremiumAction(
           icon: Icons.language_rounded,
           label: AppLocalizations.of(context).languageSettings,
@@ -265,10 +332,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       actions: [
         PremiumAction(
+          icon: Icons.report_problem_outlined,
+          label: AppLocalizations.of(context).reportUser,
+          color: const Color(0xFFFF9500),
+          onTap: () {
+            Navigator.pop(context);
+            _showReportUserSheet();
+          },
+        ),
+        PremiumAction(
           icon: _isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
           label: _isBlocked
               ? AppLocalizations.of(context).unblock
-              : AppLocalizations.of(context).block,
+              : AppLocalizations.of(context).blockThisUser,
           destructive: true,
           onTap: () {
             Navigator.pop(context);
@@ -277,6 +353,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  void _showReportUserSheet() {
+    final t = AppLocalizations.of(context);
+    showPremiumActionSheet(
+      context,
+      title: t.reportReason,
+      actions: [
+        PremiumAction(
+          icon: Icons.campaign_outlined,
+          label: t.reportReasonSpam,
+          onTap: () {
+            Navigator.pop(context);
+            _reportUser(t.reportReasonSpam);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.record_voice_over_outlined,
+          label: t.reportReasonHarassment,
+          onTap: () {
+            Navigator.pop(context);
+            _reportUser(t.reportReasonHarassment);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.visibility_off_outlined,
+          label: t.reportReasonObjectionable,
+          onTap: () {
+            Navigator.pop(context);
+            _reportUser(t.reportReasonObjectionable);
+          },
+        ),
+        PremiumAction(
+          icon: Icons.report_problem_outlined,
+          label: t.reportReasonOther,
+          onTap: () {
+            Navigator.pop(context);
+            _reportUser(t.reportReasonOther);
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _reportUser(String reason) async {
+    try {
+      await ReportService().reportContent(
+        targetType: 'user',
+        targetId: widget.userId,
+        reason: reason,
+      );
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportSuccess,
+          kind: ToastKind.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).reportFailed(''),
+          kind: ToastKind.error,
+        );
+      }
+    }
   }
 
   Future<void> _confirmLogout() async {
@@ -379,7 +522,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (_isMe)
               SliverToBoxAdapter(child: _buildMyActions())
             else ...[
-              // 他人主页：直接展示其帖子
+              // 他人主页：已拉黑则不展示其帖子
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) => PostCard(post: _posts[i]),
@@ -391,7 +534,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: Center(
-                      child: Text(AppLocalizations.of(context).noPosts),
+                      child: Text(
+                        _isBlocked
+                            ? AppLocalizations.of(context).blockedInteraction
+                            : AppLocalizations.of(context).noPosts,
+                      ),
                     ),
                   ),
                 ),
@@ -636,13 +783,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ).alreadyFollowing,
                               icon: Icons.check_rounded,
                               filled: false,
-                              onTap: _followLoading ? null : _toggleFollow,
+                              onTap: (_followLoading || _isBlocked)
+                                  ? null
+                                  : _toggleFollow,
                             )
                           : PremiumButton(
                               label: AppLocalizations.of(context).following,
                               icon: Icons.add_rounded,
                               expand: true,
-                              onTap: _followLoading ? null : _toggleFollow,
+                              onTap: (_followLoading || _isBlocked)
+                                  ? null
+                                  : _toggleFollow,
                             ),
                     ),
                     const SizedBox(width: 10),
@@ -652,7 +803,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.chat_bubble_outline_rounded,
                         filled: false,
                         loading: _dmLoading,
-                        onTap: _dmLoading ? null : _startDirectMessage,
+                        onTap: (_dmLoading || _isBlocked)
+                            ? null
+                            : _startDirectMessage,
                       ),
                     ),
                   ],

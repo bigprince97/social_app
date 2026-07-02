@@ -198,6 +198,7 @@ class _PostListState extends State<_PostList>
 
   StreamSubscription<Post>? _interactedSub;
   StreamSubscription<String>? _deletedSub;
+  StreamSubscription<String>? _blockedSub;
 
   @override
   void initState() {
@@ -223,6 +224,13 @@ class _PostListState extends State<_PostList>
         });
       }
     });
+    _blockedSub = onUserBlocked.listen((userId) {
+      if (mounted) {
+        setState(() {
+          _posts.removeWhere((p) => p.userId == userId);
+        });
+      }
+    });
   }
 
   @override
@@ -230,6 +238,7 @@ class _PostListState extends State<_PostList>
     _realtimeChannel?.unsubscribe();
     _interactedSub?.cancel();
     _deletedSub?.cancel();
+    _blockedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

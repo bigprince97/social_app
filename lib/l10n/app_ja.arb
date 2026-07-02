@@ -432,6 +432,9 @@
     }
   },
   "report": "通報",
+  "reportUser": "ユーザーを通報",
+  "blockThisUser": "このユーザーをブロック",
+  "blockedInteraction": "このユーザーをブロックしているため、これ以上やり取りできません。",
   "reportReason": "通報の理由を選択してください",
   "reportReasonSpam": "スパムまたは広告",
   "reportReasonHarassment": "嫌がらせやヘイトスピーチ",

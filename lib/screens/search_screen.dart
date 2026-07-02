@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../models/post.dart';
 import '../models/profile.dart';
+import '../services/block_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_style.dart';
 import '../widgets/post_card.dart';
@@ -20,6 +21,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen>
     with SingleTickerProviderStateMixin {
   final _profileService = ProfileService();
+  final _blockService = BlockService();
   final _client = Supabase.instance.client;
   final _searchCtrl = TextEditingController();
   late final TabController _tabCtrl;
@@ -80,13 +82,17 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Future<List<Post>> _searchPosts(String q) async {
+    final blockedIds = await _blockService.getBlockedIds();
     final data = await _client
         .from('posts')
         .select('*, profiles!posts_user_id_fkey(*)')
         .ilike('content', '%$q%')
         .order('created_at', ascending: false)
         .limit(20);
-    return (data as List).map((e) => Post.fromJson(e)).toList();
+    return (data as List)
+        .map((e) => Post.fromJson(e))
+        .where((post) => !blockedIds.contains(post.userId))
+        .toList();
   }
 
   @override

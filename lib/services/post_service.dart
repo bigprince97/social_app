@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/auth_error.dart' show requireUid;
 import '../models/post.dart';
+import 'block_service.dart';
 import 'local_cache.dart';
 
 class PostNotFoundException implements Exception {
@@ -15,6 +16,7 @@ bool isPostNotFoundError(Object e) =>
 
 class PostService {
   final _client = Supabase.instance.client;
+  final _blockService = BlockService();
   String? get currentUserId => _client.auth.currentUser?.id;
 
   // 缓存优先（SWR）：成功写盘，离线读回，保证冷启动也有内容。
@@ -24,10 +26,38 @@ class PostService {
             .toList()
       : <Post>[];
 
+  Future<List<Post>> _filterBlockedAuthors(List<Post> posts) async {
+    final userId = currentUserId;
+    if (userId == null || posts.isEmpty) return posts;
+    try {
+      final blockedIds = await _blockService.getBlockedIds();
+      if (blockedIds.isEmpty) return posts;
+      return posts.where((post) => !blockedIds.contains(post.userId)).toList();
+    } catch (_) {
+      return posts;
+    }
+  }
+
+  Future<void> _ensureCanInteractWithPost(String postId) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    final post = await _client
+        .from('posts')
+        .select('user_id')
+        .eq('id', postId)
+        .maybeSingle();
+    final authorId = post?['user_id'] as String?;
+    if (authorId == null || authorId == userId) return;
+    if (await _blockService.isEitherBlocked(authorId)) {
+      throw const BlockedInteractionException();
+    }
+  }
+
   /// 只读本地缓存（不碰网络），用于「缓存优先」秒显。
   /// which: 'feed_latest' | 'feed_hot' | 'feed_following'
-  Future<List<Post>> getCachedFeed(String which) async =>
-      _parseCached(await LocalCache.instance.read(which));
+  Future<List<Post>> getCachedFeed(String which) async => _filterBlockedAuthors(
+    _parseCached(await LocalCache.instance.read(which)),
+  );
 
   Future<List<Post>> getFeedPosts({int page = 0, int limit = 20}) async {
     try {
@@ -39,12 +69,15 @@ class PostService {
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
       if (page == 0) await LocalCache.instance.write('feed_latest', data);
-      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      posts = await _filterBlockedAuthors(posts);
       await _hydrateIsLiked(posts);
       return posts;
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
-        return _parseCached(await LocalCache.instance.read('feed_latest'));
+        return _filterBlockedAuthors(
+          _parseCached(await LocalCache.instance.read('feed_latest')),
+        );
       }
       rethrow;
     }
@@ -88,7 +121,8 @@ class PostService {
         .contains('topics', [topic])
         .order('created_at', ascending: false)
         .range(page * limit, (page + 1) * limit - 1);
-    final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+    var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+    posts = await _filterBlockedAuthors(posts);
     await _hydrateIsLiked(posts);
     return posts;
   }
@@ -104,12 +138,15 @@ class PostService {
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
       if (page == 0) await LocalCache.instance.write('feed_hot', data);
-      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      posts = await _filterBlockedAuthors(posts);
       await _hydrateIsLiked(posts);
       return posts;
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
-        return _parseCached(await LocalCache.instance.read('feed_hot'));
+        return _filterBlockedAuthors(
+          _parseCached(await LocalCache.instance.read('feed_hot')),
+        );
       }
       rethrow;
     }
@@ -149,6 +186,7 @@ class PostService {
 
   Future<void> bookmarkPost(String postId) async {
     final userId = requireUid(_client);
+    await _ensureCanInteractWithPost(postId);
     await _client.from('post_bookmarks').insert({
       'post_id': postId,
       'user_id': userId,
@@ -182,7 +220,8 @@ class PostService {
           '*, profiles!posts_user_id_fkey(*), post_comments(count), post_likes(count)',
         )
         .inFilter('id', ids);
-    final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+    var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+    posts = await _filterBlockedAuthors(posts);
     // 保持收藏时间顺序
     final orderMap = {for (var i = 0; i < ids.length; i++) ids[i]: i};
     posts.sort((a, b) => (orderMap[a.id] ?? 0).compareTo(orderMap[b.id] ?? 0));
@@ -227,6 +266,11 @@ class PostService {
     ]);
 
     final post = Post.fromJson(postData);
+    if (userId != null &&
+        post.userId != userId &&
+        await _blockService.isEitherBlocked(post.userId)) {
+      throw const PostNotFoundException();
+    }
     post.isLiked = results[0] != null;
     post.isBookmarked = results[1] != null;
     return post;
@@ -234,6 +278,7 @@ class PostService {
 
   Future<void> likePost(String postId) async {
     final userId = requireUid(_client);
+    await _ensureCanInteractWithPost(postId);
     await _client.from('post_likes').insert({
       'post_id': postId,
       'user_id': userId,
@@ -263,6 +308,7 @@ class PostService {
     required String content,
   }) async {
     final userId = requireUid(_client);
+    await _ensureCanInteractWithPost(postId);
     final data = await _client
         .from('post_comments')
         .insert({'post_id': postId, 'user_id': userId, 'content': content})
@@ -296,12 +342,15 @@ class PostService {
           .order('created_at', ascending: false)
           .range(page * limit, (page + 1) * limit - 1);
       if (page == 0) await LocalCache.instance.write('feed_following', data);
-      final posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+      posts = await _filterBlockedAuthors(posts);
       await _hydrateIsLiked(posts);
       return posts;
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
-        return _parseCached(await LocalCache.instance.read('feed_following'));
+        return _filterBlockedAuthors(
+          _parseCached(await LocalCache.instance.read('feed_following')),
+        );
       }
       rethrow;
     }
@@ -315,6 +364,15 @@ class PostService {
         )
         .eq('user_id', userId)
         .order('created_at', ascending: false);
-    return (data as List).map((e) => Post.fromJson(e)).toList();
+    var posts = (data as List).map((e) => Post.fromJson(e)).toList();
+    posts = await _filterBlockedAuthors(posts);
+    return posts;
   }
+}
+
+class BlockedInteractionException implements Exception {
+  const BlockedInteractionException();
+
+  @override
+  String toString() => 'BlockedInteractionException';
 }

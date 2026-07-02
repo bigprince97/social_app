@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_style.dart';
 import '../../utils/auth_error.dart';
+import '../settings/legal_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -162,6 +164,52 @@ class _LoginScreenState extends State<LoginScreen> {
                               AppLocalizations.of(context).forgotPassword),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF6E6E73),
+                          ),
+                          children: [
+                            TextSpan(
+                              text: AppLocalizations.of(context).userAgreement,
+                              style: const TextStyle(
+                                color: Color(0xFF9575CD),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const LegalScreen(
+                                          doc: LegalDoc.eula,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                            TextSpan(text: AppLocalizations.of(context).and),
+                            TextSpan(
+                              text: AppLocalizations.of(context).privacyPolicy,
+                              style: const TextStyle(
+                                color: Color(0xFF9575CD),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const LegalScreen(
+                                          doc: LegalDoc.privacy,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),

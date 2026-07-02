@@ -165,6 +165,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       if (mounted) FocusScope.of(context).unfocus();
     } catch (e) {
       if (mounted) {
+        if (e is BlockedInteractionException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedInteraction,
+            kind: ToastKind.block,
+          );
+          _commentCtrl.text = content;
+          return;
+        }
         showErrorIfNotNetwork(
           context,
           e,

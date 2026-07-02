@@ -13,6 +13,7 @@ import '../../services/event_bus.dart';
 import '../../services/profile_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/auth_error.dart';
+import '../../utils/content_filter.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -81,6 +82,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       return;
     }
+    final bio = _bioCtrl.text.trim();
+    if (ContentFilter.hasBanned('$displayName $bio')) {
+      showPremiumToast(
+        context,
+        AppLocalizations.of(context).contentBlocked,
+        kind: ToastKind.block,
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       String? avatarUrl = _profile?.avatarUrl;
@@ -92,7 +102,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
       await _profileService.updateProfile(
         displayName: displayName,
-        bio: _bioCtrl.text.trim(),
+        bio: bio,
         avatarUrl: avatarUrl,
       );
       if (mounted) {

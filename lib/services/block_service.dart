@@ -14,11 +14,12 @@ class BlockService {
         .select('blocked_id')
         .eq('blocker_id', me)
         .order('created_at', ascending: false);
-    final ids =
-        (rows as List).map((r) => r['blocked_id'] as String).toList();
+    final ids = (rows as List).map((r) => r['blocked_id'] as String).toList();
     if (ids.isEmpty) return [];
-    final profiles =
-        await _client.from('profiles').select().inFilter('id', ids);
+    final profiles = await _client
+        .from('profiles')
+        .select()
+        .inFilter('id', ids);
     return (profiles as List)
         .map((e) => Profile.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -50,6 +51,24 @@ class BlockService {
         .eq('blocked_id', userId)
         .maybeSingle();
     return data != null;
+  }
+
+  Future<bool> isEitherBlocked(String userId) async {
+    final me = requireUid(_client);
+    final iBlocked = await _client
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', me)
+        .eq('blocked_id', userId)
+        .limit(1);
+    if ((iBlocked as List).isNotEmpty) return true;
+    final blockedMe = await _client
+        .from('blocks')
+        .select('blocker_id')
+        .eq('blocker_id', userId)
+        .eq('blocked_id', me)
+        .limit(1);
+    return (blockedMe as List).isNotEmpty;
   }
 
   Future<Set<String>> getBlockedIds() async {

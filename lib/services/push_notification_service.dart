@@ -97,7 +97,7 @@ class PushNotificationService {
     // (showChatBanner)，其余类型由 onMessage 弹本地通知，避免重复。
     await _messaging.setForegroundNotificationPresentationOptions(
       alert: false,
-      badge: true,
+      badge: false,
       sound: false,
     );
 
@@ -131,7 +131,7 @@ class PushNotificationService {
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
-            presentBadge: true,
+            presentBadge: false,
             presentSound: true,
           ),
         ),
@@ -180,7 +180,7 @@ class PushNotificationService {
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
-          presentBadge: true,
+          presentBadge: false,
           presentSound: false,
         ),
       ),

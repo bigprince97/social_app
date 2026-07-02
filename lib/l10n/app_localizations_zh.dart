@@ -1340,6 +1340,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get report => '举报';
 
   @override
+  String get reportUser => '举报用户';
+
+  @override
+  String get blockThisUser => '拉黑该用户';
+
+  @override
+  String get blockedInteraction => '已拉黑该用户，不能再互动';
+
+  @override
   String get reportReason => '选择举报原因';
 
   @override
@@ -1372,10 +1381,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agreeIntro => '我已阅读并同意';
 
   @override
-  String get userAgreement => '《用户协议》';
+  String get userAgreement => '用户协议';
 
   @override
-  String get privacyPolicy => '《隐私政策》';
+  String get privacyPolicy => '隐私政策';
 
   @override
   String get and => '和';
@@ -2779,6 +2788,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get report => '檢舉';
 
   @override
+  String get reportUser => '檢舉用戶';
+
+  @override
+  String get blockThisUser => '封鎖該用戶';
+
+  @override
+  String get blockedInteraction => '已封鎖該用戶，不能再互動';
+
+  @override
   String get reportReason => '選擇檢舉原因';
 
   @override
@@ -2811,10 +2829,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get agreeIntro => '我已閱讀並同意';
 
   @override
-  String get userAgreement => '《用戶協議》';
+  String get userAgreement => '用戶協議';
 
   @override
-  String get privacyPolicy => '《隱私政策》';
+  String get privacyPolicy => '隱私政策';
 
   @override
   String get and => '和';

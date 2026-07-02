@@ -2,10 +2,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/auth_error.dart' show requireUid;
 import '../models/conversation.dart';
 import '../models/message.dart';
+import 'block_service.dart';
 import 'local_cache.dart';
 
 class ChatService {
   final _client = Supabase.instance.client;
+  final _blockService = BlockService();
   String? get _userId => _client.auth.currentUser?.id;
   String? get currentUserId => _client.auth.currentUser?.id;
 
@@ -40,11 +42,12 @@ class ChatService {
   Future<List<Message>> getCachedMessages(String conversationId) async {
     final cached = await LocalCache.instance.read('messages_$conversationId');
     if (cached is List) {
-      return cached
+      final messages = cached
           .map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList()
           .reversed
           .toList();
+      return _filterBlockedMessages(messages);
     }
     return [];
   }
@@ -113,6 +116,9 @@ class ChatService {
   }
 
   Future<Conversation> createDirectConversation(String otherUserId) async {
+    if (await _blockService.isEitherBlocked(otherUserId)) {
+      throw const BlockedChatException();
+    }
     final result = await _client.rpc(
       'create_direct_conversation',
       params: {'other_user_id': otherUserId},
@@ -246,22 +252,24 @@ class ChatService {
       if (page == 0) {
         await LocalCache.instance.write('messages_$conversationId', data);
       }
-      return (data as List)
+      final messages = (data as List)
           .map((e) => Message.fromJson(e))
           .toList()
           .reversed
           .toList();
+      return _filterBlockedMessages(messages);
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
         final cached = await LocalCache.instance.read(
           'messages_$conversationId',
         );
         if (cached is List) {
-          return cached
+          final messages = cached
               .map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList()
               .reversed
               .toList();
+          return _filterBlockedMessages(messages);
         }
       }
       rethrow;
@@ -276,6 +284,7 @@ class ChatService {
     Map<String, dynamic>? payload,
     List<String>? mentionedUserIds,
   }) async {
+    await _ensureCanSendMessage(conversationId);
     final data = await _client
         .from('messages')
         .insert({
@@ -291,6 +300,39 @@ class ChatService {
         .select('*, profiles(*)')
         .single();
     return Message.fromJson(data);
+  }
+
+  Future<void> _ensureCanSendMessage(String conversationId) async {
+    final userId = _userId;
+    if (userId == null) return;
+    final conversation = await _client
+        .from('conversations')
+        .select('type, conversation_members(user_id)')
+        .eq('id', conversationId)
+        .maybeSingle();
+    if (conversation == null || conversation['type'] != 'direct') return;
+    final members = conversation['conversation_members'] as List? ?? [];
+    final otherIds = members
+        .map((row) => row['user_id'] as String)
+        .where((id) => id != userId)
+        .toList();
+    if (otherIds.isEmpty) return;
+    if (await _blockService.isEitherBlocked(otherIds.first)) {
+      throw const BlockedChatException();
+    }
+  }
+
+  Future<List<Message>> _filterBlockedMessages(List<Message> messages) async {
+    if (messages.isEmpty || _userId == null) return messages;
+    try {
+      final blockedIds = await _blockService.getBlockedIds();
+      if (blockedIds.isEmpty) return messages;
+      return messages
+          .where((message) => !blockedIds.contains(message.senderId))
+          .toList();
+    } catch (_) {
+      return messages;
+    }
   }
 
   Future<Message> sendImageMessage({
@@ -441,6 +483,12 @@ class ChatService {
           callback: (payload) async {
             final newRow = payload.newRecord;
             if (newRow['sender_id'] == _userId) return;
+            final senderId = newRow['sender_id'] as String?;
+            if (senderId != null) {
+              try {
+                if (await _blockService.isBlocked(senderId)) return;
+              } catch (_) {}
+            }
             final full = await _client
                 .from('messages')
                 .select('*, profiles(*)')
@@ -482,4 +530,11 @@ class ChatService {
         )
         .subscribe();
   }
+}
+
+class BlockedChatException implements Exception {
+  const BlockedChatException();
+
+  @override
+  String toString() => 'BlockedChatException';
 }

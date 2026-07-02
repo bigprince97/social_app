@@ -1350,6 +1350,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get report => 'Report';
 
   @override
+  String get reportUser => 'Report user';
+
+  @override
+  String get blockThisUser => 'Block this user';
+
+  @override
+  String get blockedInteraction =>
+      'This user is blocked. You can\'t interact anymore.';
+
+  @override
   String get reportReason => 'Select a reason to report';
 
   @override

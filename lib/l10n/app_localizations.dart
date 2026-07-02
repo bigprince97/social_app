@@ -2529,6 +2529,24 @@ abstract class AppLocalizations {
   /// **'举报'**
   String get report;
 
+  /// No description provided for @reportUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报用户'**
+  String get reportUser;
+
+  /// No description provided for @blockThisUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑该用户'**
+  String get blockThisUser;
+
+  /// No description provided for @blockedInteraction.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拉黑该用户，不能再互动'**
+  String get blockedInteraction;
+
   /// No description provided for @reportReason.
   ///
   /// In zh, this message translates to:
@@ -2592,13 +2610,13 @@ abstract class AppLocalizations {
   /// No description provided for @userAgreement.
   ///
   /// In zh, this message translates to:
-  /// **'《用户协议》'**
+  /// **'用户协议'**
   String get userAgreement;
 
   /// No description provided for @privacyPolicy.
   ///
   /// In zh, this message translates to:
-  /// **'《隐私政策》'**
+  /// **'隐私政策'**
   String get privacyPolicy;
 
   /// No description provided for @and.

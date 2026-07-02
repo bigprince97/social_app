@@ -6,6 +6,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import '../services/locale_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../models/post.dart';
+import '../services/block_service.dart';
 import '../services/event_bus.dart';
 import '../services/post_service.dart';
 import '../services/report_service.dart';
@@ -21,6 +22,7 @@ class PostCard extends StatefulWidget {
   final Post post;
   final VoidCallback? onDeleted;
   final void Function(String topic)? onTopicTap;
+
   /// 是否整卡点击进入详情。详情页里的卡片应设为 false，避免重复跳转。
   final bool tappable;
 
@@ -42,6 +44,7 @@ class _PostCardState extends State<PostCard>
   late int _likesCount;
   late bool _isBookmarked;
   final _postService = PostService();
+  final _blockService = BlockService();
   // 用 getter 实时计算，避免列表复用 State 后归属判断错乱
   bool get _isOwn {
     final myId = _postService.currentUserId;
@@ -101,9 +104,19 @@ class _PostCardState extends State<PostCard>
       } else {
         await _postService.unlikePost(widget.post.id);
       }
-      notifyPostInteracted(widget.post.copyWith(isLiked: _isLiked, likesCount: _likesCount));
-    } catch (_) {
+      notifyPostInteracted(
+        widget.post.copyWith(isLiked: _isLiked, likesCount: _likesCount),
+      );
+    } catch (e) {
       if (mounted) {
+        if (e is BlockedInteractionException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedInteraction,
+            kind: ToastKind.block,
+          );
+          return;
+        }
         setState(() {
           _isLiked = !_isLiked;
           _likesCount += _isLiked ? 1 : -1;
@@ -121,8 +134,17 @@ class _PostCardState extends State<PostCard>
         await _postService.unbookmarkPost(widget.post.id);
       }
       notifyPostInteracted(widget.post.copyWith(isBookmarked: _isBookmarked));
-    } catch (_) {
-      if (mounted) setState(() => _isBookmarked = !_isBookmarked);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isBookmarked = !_isBookmarked);
+        if (e is BlockedInteractionException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedInteraction,
+            kind: ToastKind.block,
+          );
+        }
+      }
     }
   }
 
@@ -218,6 +240,40 @@ class _PostCardState extends State<PostCard>
     }
   }
 
+  Future<void> _blockAuthor() async {
+    final authorName =
+        widget.post.author?.displayName ??
+        AppLocalizations.of(context).thisUser;
+    final ok = await showPremiumConfirm(
+      context,
+      icon: Icons.block_rounded,
+      title: AppLocalizations.of(context).blockUserTitle,
+      message: AppLocalizations.of(context).blockUserConfirm3(authorName),
+      confirmLabel: AppLocalizations.of(context).block,
+      destructive: true,
+    );
+    if (!ok) return;
+    try {
+      await _blockService.blockUser(widget.post.userId);
+      notifyUserBlocked(widget.post.userId);
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).userBlocked,
+          kind: ToastKind.block,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showPremiumToast(
+          context,
+          AppLocalizations.of(context).operationFailed(''),
+          kind: ToastKind.error,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final author = widget.post.author;
@@ -230,201 +286,232 @@ class _PostCardState extends State<PostCard>
           ? () => context.push('/post/${widget.post.id}')
           : null,
       child: Container(
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(AppStyle.rLg),
-        border: Border.all(
-          color: isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(8),
-          width: 0.6,
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(AppStyle.rLg),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withAlpha(12)
+                : Colors.black.withAlpha(8),
+            width: 0.6,
+          ),
+          boxShadow: AppStyle.softShadow(isDark),
         ),
-        boxShadow: AppStyle.softShadow(isDark),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
-            child: Row(
-              children: [
-                // Avatar with gradient ring
-                GestureDetector(
-                  onTap: () => context.push('/profile/${widget.post.userId}'),
-                  child: _GradientAvatar(
-                    url: author?.avatarUrl,
-                    initial: avatarInitial(author?.displayName),
-                    radius: 19,
-                    hasRing: !_isOwn,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+              child: Row(
+                children: [
+                  // Avatar with gradient ring
+                  GestureDetector(
+                    onTap: () => context.push('/profile/${widget.post.userId}'),
+                    child: _GradientAvatar(
+                      url: author?.avatarUrl,
+                      initial: avatarInitial(author?.displayName),
+                      radius: 19,
+                      hasRing: !_isOwn,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () =>
-                        context.push('/profile/${widget.post.userId}'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          author?.displayName ?? AppLocalizations.of(context).unknownUser,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13.5),
-                        ),
-                        if (author?.username != null)
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () =>
+                          context.push('/profile/${widget.post.userId}'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            '@${author!.username}',
-                            style: TextStyle(
+                            author?.displayName ??
+                                AppLocalizations.of(context).unknownUser,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          if (author?.username != null)
+                            Text(
+                              '@${author!.username}',
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 color: isDark
                                     ? Colors.grey.shade500
-                                    : Colors.grey.shade500),
+                                    : Colors.grey.shade500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Text(
+                    timeago.format(
+                      widget.post.createdAt,
+                      locale: LocaleController.instance.timeagoLocale,
+                    ),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz, size: 20),
+                    onPressed: () => showPremiumActionSheet(
+                      context,
+                      actions: [
+                        if (_isOwn)
+                          PremiumAction(
+                            icon: Icons.delete_outline_rounded,
+                            label: AppLocalizations.of(context).delete,
+                            destructive: true,
+                            onTap: () {
+                              Navigator.pop(context);
+                              _delete();
+                            },
+                          )
+                        else ...[
+                          PremiumAction(
+                            icon: Icons.report_problem_outlined,
+                            label: AppLocalizations.of(context).report,
+                            destructive: true,
+                            onTap: () {
+                              Navigator.pop(context);
+                              _showReportMenu();
+                            },
                           ),
+                          PremiumAction(
+                            icon: Icons.block_rounded,
+                            label: AppLocalizations.of(context).blockThisUser,
+                            destructive: true,
+                            onTap: () {
+                              Navigator.pop(context);
+                              _blockAuthor();
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
-                Text(
-                  timeago.format(widget.post.createdAt, locale: LocaleController.instance.timeagoLocale),
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      color: Colors.grey.shade500),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.more_horiz, size: 20),
-                  onPressed: () => showPremiumActionSheet(
-                    context,
-                    actions: [
-                      if (_isOwn)
-                        PremiumAction(
-                          icon: Icons.delete_outline_rounded,
-                          label: AppLocalizations.of(context).delete,
-                          destructive: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _delete();
-                          },
-                        )
-                      else
-                        PremiumAction(
-                          icon: Icons.report_problem_outlined,
-                          label: AppLocalizations.of(context).report,
-                          destructive: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showReportMenu();
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // ── Scripture quote ──────────────────────────────────────────────
-          if (widget.post.scriptureQuote != null)
-            _ScriptureCard(
-                quote: widget.post.scriptureQuote!, isDark: isDark),
+            // ── Scripture quote ──────────────────────────────────────────────
+            if (widget.post.scriptureQuote != null)
+              _ScriptureCard(
+                quote: widget.post.scriptureQuote!,
+                isDark: isDark,
+              ),
 
-          // ── Content text ─────────────────────────────────────────────────
-          if (widget.post.content.isNotEmpty)
-            Padding(
+            // ── Content text ─────────────────────────────────────────────────
+            if (widget.post.content.isNotEmpty)
+              Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
                 child: Text(
                   widget.post.content,
                   style: TextStyle(
-                      fontSize: 14.5,
-                      height: 1.5,
-                      color: isDark ? Colors.white : Colors.black87),
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
                 ),
               ),
 
-          // ── Media ────────────────────────────────────────────────────────
-          if (widget.post.videoUrl != null) ...[
-            VideoThumbnailWidget(url: widget.post.videoUrl!),
-            const SizedBox(height: 2),
-          ] else if (widget.post.imageUrls.isNotEmpty) ...[
-            _buildImageGrid(),
-            const SizedBox(height: 2),
-          ],
+            // ── Media ────────────────────────────────────────────────────────
+            if (widget.post.videoUrl != null) ...[
+              VideoThumbnailWidget(url: widget.post.videoUrl!),
+              const SizedBox(height: 2),
+            ] else if (widget.post.imageUrls.isNotEmpty) ...[
+              _buildImageGrid(),
+              const SizedBox(height: 2),
+            ],
 
-          // ── Topics ───────────────────────────────────────────────────────
-          if (widget.post.topics.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-              child: Wrap(
-                spacing: 4,
-                runSpacing: 2,
-                children: widget.post.topics
-                    .map((t) => GestureDetector(
+            // ── Topics ───────────────────────────────────────────────────────
+            if (widget.post.topics.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: widget.post.topics
+                      .map(
+                        (t) => GestureDetector(
                           onTap: () => widget.onTopicTap?.call(t),
                           child: Text(
                             '#$t',
                             style: TextStyle(
-                                fontSize: 13,
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w500),
+                              fontSize: 13,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ))
-                    .toList(),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+
+            // ── Action bar ───────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
+              child: Row(
+                children: [
+                  // Like
+                  _ActionButton(
+                    icon: ScaleTransition(
+                      scale: _heartScale,
+                      child: Icon(
+                        _isLiked ? Icons.favorite : Icons.favorite_border,
+                        size: 22,
+                        color: _isLiked ? Colors.red : Colors.grey.shade600,
+                      ),
+                    ),
+                    label: _likesCount > 0 ? '$_likesCount' : '',
+                    onTap: _toggleLike,
+                  ),
+                  // Comment
+                  _ActionButton(
+                    icon: Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 21,
+                      color: Colors.grey.shade600,
+                    ),
+                    label: widget.post.commentsCount > 0
+                        ? '${widget.post.commentsCount}'
+                        : '',
+                    onTap: () => context.push('/post/${widget.post.id}'),
+                  ),
+                  const Spacer(),
+                  // Bookmark
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _toggleBookmark,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      child: Icon(
+                        _isBookmarked
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_border_rounded,
+                        size: 22,
+                        color: _isBookmarked
+                            ? AppStyle.brand
+                            : Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
             ),
-
-          // ── Action bar ───────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
-            child: Row(
-              children: [
-                // Like
-                _ActionButton(
-                  icon: ScaleTransition(
-                    scale: _heartScale,
-                    child: Icon(
-                      _isLiked ? Icons.favorite : Icons.favorite_border,
-                      size: 22,
-                      color: _isLiked ? Colors.red : Colors.grey.shade600,
-                    ),
-                  ),
-                  label: _likesCount > 0 ? '$_likesCount' : '',
-                  onTap: _toggleLike,
-                ),
-                // Comment
-                _ActionButton(
-                  icon: Icon(Icons.chat_bubble_outline_rounded,
-                      size: 21, color: Colors.grey.shade600),
-                  label: widget.post.commentsCount > 0
-                      ? '${widget.post.commentsCount}'
-                      : '',
-                  onTap: () => context.push('/post/${widget.post.id}'),
-                ),
-                const Spacer(),
-                // Bookmark
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _toggleBookmark,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 4),
-                    child: Icon(
-                      _isBookmarked
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_border_rounded,
-                      size: 22,
-                      color: _isBookmarked
-                          ? AppStyle.brand
-                          : Colors.grey.shade500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
-            ),
-          ),
-          const SizedBox(height: 2),
-        ],
-      ),
+            const SizedBox(height: 2),
+          ],
+        ),
       ),
     );
   }
@@ -447,8 +534,11 @@ class _PostCardState extends State<PostCard>
         children: images.take(2).toList().asMap().entries.map((e) {
           return Expanded(
             child: GestureDetector(
-              onTap: () => ImageViewer.show(context,
-                  imageUrls: images, initialIndex: e.key),
+              onTap: () => ImageViewer.show(
+                context,
+                imageUrls: images,
+                initialIndex: e.key,
+              ),
               child: Container(
                 margin: EdgeInsets.only(left: e.key == 0 ? 0 : 1),
                 child: CachedNetworkImage(
@@ -488,9 +578,10 @@ class _PostCardState extends State<PostCard>
                   child: Text(
                     '+${images.length - 9}',
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold),
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -521,14 +612,16 @@ class _GradientAvatar extends StatelessWidget {
     final avatar = CircleAvatar(
       radius: radius,
       backgroundColor: const Color(0xFF9575CD),
-      backgroundImage:
-          url != null ? CachedNetworkImageProvider(url!) : null,
+      backgroundImage: url != null ? CachedNetworkImageProvider(url!) : null,
       child: url == null
-          ? Text(initial,
+          ? Text(
+              initial,
               style: TextStyle(
-                  color: Colors.white,
-                  fontSize: radius * 0.7,
-                  fontWeight: FontWeight.bold))
+                color: Colors.white,
+                fontSize: radius * 0.7,
+                fontWeight: FontWeight.bold,
+              ),
+            )
           : null,
     );
 
@@ -590,16 +683,23 @@ class _ScriptureCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_stories_rounded,
-                    size: 13, color: Color(0xFF9575CD)),
+                const Icon(
+                  Icons.auto_stories_rounded,
+                  size: 13,
+                  color: Color(0xFF9575CD),
+                ),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
-                    AppLocalizations.of(context).scriptureQuote(quote['scripture'] ?? '', quote['chapter'] ?? ''),
+                    AppLocalizations.of(context).scriptureQuote(
+                      quote['scripture'] ?? '',
+                      quote['chapter'] ?? '',
+                    ),
                     style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF9575CD),
-                        fontWeight: FontWeight.w600),
+                      fontSize: 11.5,
+                      color: Color(0xFF9575CD),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -608,10 +708,11 @@ class _ScriptureCard extends StatelessWidget {
             Text(
               quote['text'] as String? ?? '',
               style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.65,
-                  fontStyle: FontStyle.italic,
-                  color: isDark ? Colors.white70 : const Color(0xFF3E2060)),
+                fontSize: 13.5,
+                height: 1.65,
+                fontStyle: FontStyle.italic,
+                color: isDark ? Colors.white70 : const Color(0xFF3E2060),
+              ),
             ),
           ],
         ),
@@ -627,8 +728,11 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _ActionButton(
-      {required this.icon, required this.label, required this.onTap});
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -643,11 +747,14 @@ class _ActionButton extends StatelessWidget {
             icon,
             if (label.isNotEmpty) ...[
               const SizedBox(width: 4),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                ),
+              ),
             ],
           ],
         ),
