@@ -492,5 +492,6 @@
   "noFriendsSubtitle": "點右上角搜尋使用者名稱，新增同伴",
   "noFriendRequests": "暫無好友申請",
   "outgoingRequests": "我發出的申請",
-  "searchUsersHint": "搜尋使用者名稱或暱稱"
+  "searchUsersHint": "搜尋使用者名稱或暱稱",
+  "notFriendsCannotDm": "加為好友後才能私訊"
 }

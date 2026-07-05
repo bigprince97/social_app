@@ -2852,6 +2852,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索用户名或昵称'**
   String get searchUsersHint;
+
+  /// No description provided for @notFriendsCannotDm.
+  ///
+  /// In zh, this message translates to:
+  /// **'加为好友后才能私信'**
+  String get notFriendsCannotDm;
 }
 
 class _AppLocalizationsDelegate

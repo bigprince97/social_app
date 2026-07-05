@@ -492,5 +492,6 @@
   "noFriendsSubtitle": "Search a username to add companions",
   "noFriendRequests": "No friend requests",
   "outgoingRequests": "Sent requests",
-  "searchUsersHint": "Search username or name"
+  "searchUsersHint": "Search username or name",
+  "notFriendsCannotDm": "Add as a friend to send messages"
 }

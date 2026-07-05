@@ -161,6 +161,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
           return;
         }
+        if (e is NotFriendsChatException) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).notFriendsCannotDm,
+            kind: ToastKind.block,
+          );
+          return;
+        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -169,6 +177,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       if (mounted) setState(() => _dmLoading = false);
+    }
+  }
+
+  /// 拒绝对方发来的好友申请。
+  Future<void> _declineFriendRequest() async {
+    if (_friendship == null) return;
+    setState(() => _friendLoading = true);
+    try {
+      await _friendService.removeFriendship(_friendship!.id);
+      final friendship = await _friendService.getFriendshipWith(widget.userId);
+      if (mounted) setState(() => _friendship = friendship);
+    } catch (e) {
+      if (mounted) {
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _friendLoading = false);
     }
   }
 
@@ -699,23 +728,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: !_isMe
-              ? Row(
-                  children: [
-                    Expanded(child: _buildFriendButton()),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _PillButton(
-                        label: AppLocalizations.of(context).directMessage,
-                        icon: Icons.chat_bubble_outline_rounded,
-                        filled: false,
-                        loading: _dmLoading,
-                        onTap: (_dmLoading || _isBlocked)
-                            ? null
-                            : _startDirectMessage,
-                      ),
-                    ),
-                  ],
-                )
+              ? _buildOtherUserActions()
               : _PillButton(
                   label: AppLocalizations.of(context).editProfile,
                   icon: Icons.edit_outlined,
@@ -732,7 +745,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildFriendButton() {
+  /// 他人主页动作区：按好友状态给出不同按钮组合。
+  /// - 无关系：加好友（私信隐藏——非好友不能私信）
+  /// - 我发出待处理：已发送申请（点按取消）
+  /// - 对方发来待处理：接受 / 拒绝 双按钮
+  /// - 已是好友：已是好友（点按解除）+ 私信
+  Widget _buildOtherUserActions() {
     final t = AppLocalizations.of(context);
     final disabled = _friendLoading || _isBlocked;
     switch (_friendStatus) {
@@ -752,19 +770,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: disabled ? null : _handleFriendAction,
         );
       case FriendshipStatus.incomingPending:
-        return PremiumButton(
-          label: t.acceptRequest,
-          icon: Icons.check_rounded,
-          expand: true,
-          onTap: disabled ? null : _handleFriendAction,
+        return Row(
+          children: [
+            Expanded(
+              child: PremiumButton(
+                label: t.accept,
+                icon: Icons.check_rounded,
+                expand: true,
+                onTap: disabled ? null : _handleFriendAction,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PillButton(
+                label: t.decline,
+                icon: Icons.close_rounded,
+                filled: false,
+                loading: _friendLoading,
+                onTap: disabled ? null : _declineFriendRequest,
+              ),
+            ),
+          ],
         );
       case FriendshipStatus.accepted:
-        return _PillButton(
-          label: t.alreadyFriends,
-          icon: Icons.check_rounded,
-          filled: false,
-          loading: _friendLoading,
-          onTap: disabled ? null : _handleFriendAction,
+        return Row(
+          children: [
+            Expanded(
+              child: _PillButton(
+                label: t.alreadyFriends,
+                icon: Icons.check_rounded,
+                filled: false,
+                loading: _friendLoading,
+                onTap: disabled ? null : _handleFriendAction,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PillButton(
+                label: t.directMessage,
+                icon: Icons.chat_bubble_outline_rounded,
+                filled: false,
+                loading: _dmLoading,
+                onTap: (_dmLoading || _isBlocked) ? null : _startDirectMessage,
+              ),
+            ),
+          ],
         );
     }
   }

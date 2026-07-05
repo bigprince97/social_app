@@ -895,5 +895,6 @@
   "noFriendsSubtitle": "点右上角搜索用户名，添加同伴",
   "noFriendRequests": "暂无好友申请",
   "outgoingRequests": "我发出的申请",
-  "searchUsersHint": "搜索用户名或昵称"
+  "searchUsersHint": "搜索用户名或昵称",
+  "notFriendsCannotDm": "加为好友后才能私信"
 }

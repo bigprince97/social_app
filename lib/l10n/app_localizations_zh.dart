@@ -1506,6 +1506,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchUsersHint => '搜索用户名或昵称';
+
+  @override
+  String get notFriendsCannotDm => '加为好友后才能私信';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3010,4 +3013,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchUsersHint => '搜尋使用者名稱或暱稱';
+
+  @override
+  String get notFriendsCannotDm => '加為好友後才能私訊';
 }

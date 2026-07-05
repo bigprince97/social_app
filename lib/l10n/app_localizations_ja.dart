@@ -1507,4 +1507,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get searchUsersHint => 'ユーザー名で検索';
+
+  @override
+  String get notFriendsCannotDm => '友だちになるとメッセージを送れます';
 }

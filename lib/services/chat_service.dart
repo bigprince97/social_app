@@ -119,11 +119,19 @@ class ChatService {
     if (await _blockService.isEitherBlocked(otherUserId)) {
       throw const BlockedChatException();
     }
-    final result = await _client.rpc(
-      'create_direct_conversation',
-      params: {'other_user_id': otherUserId},
-    );
-    return Conversation.fromJson(result as Map<String, dynamic>);
+    try {
+      final result = await _client.rpc(
+        'create_direct_conversation',
+        params: {'other_user_id': otherUserId},
+      );
+      return Conversation.fromJson(result as Map<String, dynamic>);
+    } on PostgrestException catch (e) {
+      // 服务端好友校验：非好友不能私信
+      if (e.message.contains('NOT_FRIENDS')) {
+        throw const NotFriendsChatException();
+      }
+      rethrow;
+    }
   }
 
   Future<Conversation> createGroupConversation({
@@ -537,4 +545,12 @@ class BlockedChatException implements Exception {
 
   @override
   String toString() => 'BlockedChatException';
+}
+
+/// 非好友之间发起私信被服务端拒绝。
+class NotFriendsChatException implements Exception {
+  const NotFriendsChatException();
+
+  @override
+  String toString() => 'NotFriendsChatException';
 }
