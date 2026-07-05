@@ -1,16 +1,17 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../utils/auth_error.dart' show avatarInitial;
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/auth_error.dart' show avatarInitial;
 import '../l10n/app_localizations.dart';
-import '../models/post.dart';
 import '../models/profile.dart';
-import '../services/block_service.dart';
+import '../services/friend_service.dart';
+import '../services/local_cache.dart';
 import '../services/profile_service.dart';
 import '../theme/app_style.dart';
-import '../widgets/post_card.dart';
+import '../widgets/premium_toast.dart';
 
+/// 搜索用户 → 添加好友。
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -18,30 +19,20 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen>
-    with SingleTickerProviderStateMixin {
+class _SearchScreenState extends State<SearchScreen> {
   final _profileService = ProfileService();
-  final _blockService = BlockService();
-  final _client = Supabase.instance.client;
+  final _friendService = FriendService();
   final _searchCtrl = TextEditingController();
-  late final TabController _tabCtrl;
 
   List<Profile> _userResults = [];
-  List<Post> _postResults = [];
+  final Map<String, Friendship?> _relations = {};
   bool _searching = false;
   bool _hasSearched = false;
   String _lastQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-  }
-
-  @override
   void dispose() {
     _searchCtrl.dispose();
-    _tabCtrl.dispose();
     super.dispose();
   }
 
@@ -50,7 +41,6 @@ class _SearchScreenState extends State<SearchScreen>
     if (trimmed.isEmpty) {
       setState(() {
         _userResults = [];
-        _postResults = [];
         _hasSearched = false;
         _lastQuery = '';
       });
@@ -60,19 +50,15 @@ class _SearchScreenState extends State<SearchScreen>
     _lastQuery = trimmed;
     setState(() => _searching = true);
     try {
-      final results = await Future.wait([
-        _profileService.searchUsers(trimmed),
-        _searchPosts(trimmed),
-      ]);
+      final results = await _profileService.searchUsers(trimmed);
       if (mounted && trimmed == _lastQuery) {
         setState(() {
-          _userResults = results[0] as List<Profile>;
-          _postResults = results[1] as List<Post>;
+          _userResults = results;
           _hasSearched = true;
         });
+        _loadRelations(results);
       }
     } catch (_) {
-      // 离线/网络错误：静默，展示空结果，不抛未捕获异常
       if (mounted && trimmed == _lastQuery) {
         setState(() => _hasSearched = true);
       }
@@ -81,22 +67,42 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
-  Future<List<Post>> _searchPosts(String q) async {
-    final blockedIds = await _blockService.getBlockedIds();
-    final data = await _client
-        .from('posts')
-        .select('*, profiles!posts_user_id_fkey(*)')
-        .ilike('content', '%$q%')
-        .order('created_at', ascending: false)
-        .limit(20);
-    return (data as List)
-        .map((e) => Post.fromJson(e))
-        .where((post) => !blockedIds.contains(post.userId))
-        .toList();
+  Future<void> _loadRelations(List<Profile> profiles) async {
+    for (final p in profiles) {
+      if (_relations.containsKey(p.id)) continue;
+      try {
+        final f = await _friendService.getFriendshipWith(p.id);
+        if (mounted) setState(() => _relations[p.id] = f);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _sendRequest(Profile p) async {
+    final t = AppLocalizations.of(context);
+    try {
+      await _friendService.sendRequest(p.id);
+      _relations.remove(p.id);
+      final f = await _friendService.getFriendshipWith(p.id);
+      if (mounted) {
+        setState(() => _relations[p.id] = f);
+        showPremiumToast(context, t.friendRequestSentToast,
+            kind: ToastKind.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        if (e is BlockedUserInteractionException) {
+          showPremiumToast(context, t.blockedInteraction,
+              kind: ToastKind.block);
+          return;
+        }
+        showErrorIfNotNetwork(context, e, t.operationFailed(e.toString()));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -104,14 +110,12 @@ class _SearchScreenState extends State<SearchScreen>
           controller: _searchCtrl,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: _globalSearchHint(context),
+            hintText: t.searchUsersHint,
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
           textInputAction: TextInputAction.search,
-          onChanged: (v) {
-            setState(() {});
-          },
+          onChanged: (v) => setState(() {}),
           onSubmitted: _search,
         ),
         actions: [
@@ -129,83 +133,81 @@ class _SearchScreenState extends State<SearchScreen>
               },
             ),
         ],
-        bottom: _hasSearched || _searching
-            ? TabBar(
-                controller: _tabCtrl,
-                tabs: [
-                  Tab(
-                    text:
-                        '${AppLocalizations.of(context).users} (${_userResults.length})',
-                  ),
-                  Tab(
-                    text:
-                        '${AppLocalizations.of(context).posts2} (${_postResults.length})',
-                  ),
-                ],
-              )
-            : null,
       ),
       body: _searching
           ? const Center(child: CircularProgressIndicator())
           : !_hasSearched
-          ? _buildEmptyState()
-          : TabBarView(
-              controller: _tabCtrl,
-              children: [_buildUserResults(), _buildPostResults()],
-            ),
-    );
-  }
-
-  String _globalSearchHint(BuildContext context) {
-    final lang = Localizations.localeOf(context).toLanguageTag();
-    if (lang.startsWith('zh-Hant')) return '搜尋使用者、動態';
-    if (lang.startsWith('zh')) return '搜索用户、动态';
-    if (lang.startsWith('ja')) return 'ユーザー、投稿を検索';
-    return 'Search users and posts';
-  }
-
-  Widget _buildEmptyState() {
-    return PremiumEmptyState(
-      icon: Icons.search_rounded,
-      title: AppLocalizations.of(context).search,
-      subtitle: AppLocalizations.of(context).searchEmptySubtitle,
-    );
-  }
-
-  Widget _buildUserResults() {
-    if (_userResults.isEmpty) {
-      return PremiumEmptyState(
-        icon: Icons.person_search_rounded,
-        title: AppLocalizations.of(context).emptyUsers,
-      );
-    }
-    return ListView.builder(
-      itemCount: _userResults.length,
-      itemBuilder: (context, i) => _UserTile(profile: _userResults[i]),
-    );
-  }
-
-  Widget _buildPostResults() {
-    if (_postResults.isEmpty) {
-      return PremiumEmptyState(
-        icon: Icons.dynamic_feed_rounded,
-        title: AppLocalizations.of(context).emptyPosts,
-      );
-    }
-    return ListView.builder(
-      itemCount: _postResults.length,
-      itemBuilder: (context, i) => PostCard(post: _postResults[i]),
+              ? PremiumEmptyState(
+                  icon: Icons.person_search_rounded,
+                  title: t.addFriend,
+                  subtitle: t.searchUsersHint,
+                )
+              : _userResults.isEmpty
+                  ? PremiumEmptyState(
+                      icon: Icons.person_search_rounded,
+                      title: t.emptyUsers,
+                    )
+                  : ListView.builder(
+                      itemCount: _userResults.length,
+                      itemBuilder: (context, i) => _UserTile(
+                        profile: _userResults[i],
+                        friendship: _relations[_userResults[i].id],
+                        onAdd: () => _sendRequest(_userResults[i]),
+                        onChanged: () async {
+                          _relations.remove(_userResults[i].id);
+                          _loadRelations([_userResults[i]]);
+                        },
+                      ),
+                    ),
     );
   }
 }
 
 class _UserTile extends StatelessWidget {
   final Profile profile;
+  final Friendship? friendship;
+  final VoidCallback onAdd;
+  final VoidCallback onChanged;
 
-  const _UserTile({required this.profile});
+  const _UserTile({
+    required this.profile,
+    required this.friendship,
+    required this.onAdd,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final myId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    Widget trailing;
+    final f = friendship;
+    if (f == null) {
+      trailing = TextButton.icon(
+        onPressed: onAdd,
+        style: TextButton.styleFrom(
+          backgroundColor: AppStyle.brand,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        icon: const Icon(Icons.person_add_alt_1, size: 16),
+        label: Text(t.addFriend),
+      );
+    } else if (f.status == 'accepted') {
+      trailing = Text(
+        t.alreadyFriends,
+        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+      );
+    } else {
+      // pending：我发出的显示"已发送申请"，对方发来的显示"待你处理"
+      trailing = Text(
+        f.requesterId == myId ? t.friendRequestSent : t.friendRequestPending,
+        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+      );
+    }
     return ListTile(
       leading: CircleAvatar(
         backgroundImage: profile.avatarUrl != null
@@ -219,11 +221,12 @@ class _UserTile extends StatelessWidget {
         profile.displayName,
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
-      trailing: Text(
-        AppLocalizations.of(context).followerCount(profile.followersCount),
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-      onTap: () => context.push('/profile/${profile.id}'),
+      subtitle: Text('@${profile.username}'),
+      trailing: trailing,
+      onTap: () async {
+        await context.push('/profile/${profile.id}');
+        onChanged();
+      },
     );
   }
 }

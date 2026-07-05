@@ -105,6 +105,8 @@ Deno.serve(async (req: Request) => {
       like: `${actorName} 点赞了你的帖子`,
       comment: `${actorName} 评论了你的帖子`,
       follow: `${actorName} 关注了你`,
+      friend_request: `${actorName} 请求加你为好友`,
+      friend_accept: `${actorName} 通过了你的好友申请`,
     }
     const body = notifMessages[notif.type] ?? '你有一条新通知'
 

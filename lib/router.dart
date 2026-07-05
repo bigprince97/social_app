@@ -9,8 +9,8 @@ import 'screens/auth/register_screen.dart';
 import 'screens/auth/forgot_password_screen.dart';
 import 'screens/auth/verify_email_screen.dart';
 import 'screens/chat/chat_screen.dart';
-import 'screens/feed/post_detail_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/profile/edit_profile_screen.dart';
 import 'screens/settings/language_screen.dart';
 import 'screens/profile/profile_screen.dart';
@@ -53,9 +53,8 @@ final router = GoRouter(
     ),
     GoRoute(path: '/', builder: (ctx, s) => const HomeScreen()),
     GoRoute(
-      path: '/post/:id',
-      builder: (_, state) =>
-          PostDetailScreen(postId: state.pathParameters['id']!),
+      path: '/notifications',
+      builder: (ctx, s) => const NotificationsScreen(),
     ),
     GoRoute(
       path: '/profile/:id',

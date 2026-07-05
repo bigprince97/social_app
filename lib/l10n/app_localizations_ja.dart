@@ -1451,4 +1451,60 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get verifyEmailFailed => '認証に失敗しました。コードを確認するか後でもう一度お試しください';
+
+  @override
+  String get friends => '友だち';
+
+  @override
+  String get friendRequests => 'リクエスト';
+
+  @override
+  String get addFriend => '友だち追加';
+
+  @override
+  String get friendRequestSent => '申請済み';
+
+  @override
+  String get friendRequestPending => '承認待ち';
+
+  @override
+  String get friendRequestSentToast => '友だち申請を送信しました';
+
+  @override
+  String get friendRequestAccepted => '友だちになりました';
+
+  @override
+  String get acceptRequest => '申請を承認';
+
+  @override
+  String get cancelRequest => '申請を取消';
+
+  @override
+  String get cancelRequestConfirm => 'この友だち申請を取り消しますか？';
+
+  @override
+  String get alreadyFriends => '友だち';
+
+  @override
+  String get removeFriend => '友だち解除';
+
+  @override
+  String removeFriendConfirm(String name) {
+    return '$nameさんを友だちから解除しますか？';
+  }
+
+  @override
+  String get noFriends => 'まだ友だちがいません';
+
+  @override
+  String get noFriendsSubtitle => '右上からユーザー名を検索して追加';
+
+  @override
+  String get noFriendRequests => '友だち申請はありません';
+
+  @override
+  String get outgoingRequests => '送信した申請';
+
+  @override
+  String get searchUsersHint => 'ユーザー名で検索';
 }

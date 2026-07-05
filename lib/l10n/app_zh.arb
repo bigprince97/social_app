@@ -870,5 +870,30 @@
   },
   "verifyEmailButton": "完成注册",
   "verifyEmailSuccess": "邮箱验证成功，欢迎加入",
-  "verifyEmailFailed": "验证失败，请检查验证码或稍后重试"
+  "verifyEmailFailed": "验证失败，请检查验证码或稍后重试",
+  "friends": "好友",
+  "friendRequests": "好友申请",
+  "addFriend": "加好友",
+  "friendRequestSent": "已发送申请",
+  "friendRequestPending": "待你处理",
+  "friendRequestSentToast": "好友申请已发送",
+  "friendRequestAccepted": "已成为好友",
+  "acceptRequest": "接受申请",
+  "cancelRequest": "取消申请",
+  "cancelRequestConfirm": "确定取消这条好友申请吗？",
+  "alreadyFriends": "已是好友",
+  "removeFriend": "解除好友",
+  "removeFriendConfirm": "确定要解除与「{name}」的好友关系吗？",
+  "@removeFriendConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noFriends": "还没有好友",
+  "noFriendsSubtitle": "点右上角搜索用户名，添加同伴",
+  "noFriendRequests": "暂无好友申请",
+  "outgoingRequests": "我发出的申请",
+  "searchUsersHint": "搜索用户名或昵称"
 }

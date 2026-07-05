@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:social_app/models/post.dart';
 import 'package:social_app/models/profile.dart';
 import 'package:social_app/models/conversation.dart';
 import 'package:social_app/models/notification.dart';
+import 'package:social_app/services/friend_service.dart';
 
 void main() {
   // ─── Profile ──────────────────────────────────────────────────────────────
@@ -27,9 +27,6 @@ void main() {
       expect(p.id, 'u1');
       expect(p.username, 'alice');
       expect(p.displayName, 'Alice');
-      expect(p.followersCount, 10);
-      expect(p.followingCount, 5);
-      expect(p.postsCount, 3);
       expect(p.region, 'SG');
       expect(p.language, 'zh');
     });
@@ -47,120 +44,65 @@ void main() {
 
     test('copyWith updates only specified fields', () {
       final p = Profile.fromJson(base);
-      final updated = p.copyWith(followersCount: 99, bio: 'hello');
-      expect(updated.followersCount, 99);
+      final updated = p.copyWith(bio: 'hello');
       expect(updated.bio, 'hello');
       // unchanged fields preserved
       expect(updated.id, p.id);
       expect(updated.username, p.username);
-      expect(updated.followingCount, p.followingCount);
     });
 
     test('copyWith with no args returns identical values', () {
       final p = Profile.fromJson(base);
       final copy = p.copyWith();
       expect(copy.id, p.id);
-      expect(copy.followersCount, p.followersCount);
+      expect(copy.displayName, p.displayName);
     });
   });
 
-  // ─── Post ─────────────────────────────────────────────────────────────────
+  // ─── Friendship ───────────────────────────────────────────────────────────
 
-  group('Post.fromJson', () {
-    final basePost = {
-      'id': 'p1',
-      'user_id': 'u1',
-      'content': 'Hello world',
-      'image_urls': ['https://example.com/a.jpg'],
-      'video_url': null,
-      'audio_url': null,
-      'topics': ['信仰', '分享'],
-      'scripture_quote': null,
-      'likes_count': 42,
-      'comments_count': 7,
-      'created_at': '2024-06-01T12:00:00.000Z',
-      'profiles': null,
+  group('Friendship', () {
+    final profileJson = {
+      'id': 'u2',
+      'username': 'bob',
+      'display_name': 'Bob',
+      'avatar_url': null,
+      'bio': null,
+      'created_at': '2024-01-01T00:00:00.000Z',
+      'region': null,
+      'language': null,
     };
 
-    test('parses required fields', () {
-      final post = Post.fromJson(basePost);
-      expect(post.id, 'p1');
-      expect(post.content, 'Hello world');
-      expect(post.imageUrls, ['https://example.com/a.jpg']);
-      expect(post.topics, ['信仰', '分享']);
-      expect(post.likesCount, 42);
-      expect(post.commentsCount, 7);
-    });
-
-    test('defaults to isLiked=false', () {
-      expect(Post.fromJson(basePost).isLiked, false);
-    });
-
-    test('handles null image_urls (defaults to empty list)', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..['image_urls'] = null;
-      expect(Post.fromJson(json).imageUrls, isEmpty);
-    });
-
-    test('handles null topics (defaults to empty list)', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..['topics'] = null;
-      expect(Post.fromJson(json).topics, isEmpty);
-    });
-
-    test('handles missing likes_count and comments_count', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..remove('likes_count')
-        ..remove('comments_count');
-      final post = Post.fromJson(json);
-      expect(post.likesCount, 0);
-      expect(post.commentsCount, 0);
-    });
-
-    test('parses dynamic relationship counts from post_likes and post_comments', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..remove('likes_count')
-        ..remove('comments_count')
-        ..['post_likes'] = [{'count': 5}]
-        ..['post_comments'] = [{'count': 12}];
-      final post = Post.fromJson(json);
-      expect(post.likesCount, 5);
-      expect(post.commentsCount, 12);
-    });
-
-    test('parses nested profile author', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..['profiles'] = {
-          'id': 'u1',
-          'username': 'alice',
-          'display_name': 'Alice',
-          'avatar_url': null,
-          'bio': null,
-          'followers_count': 0,
-          'following_count': 0,
-          'posts_count': 0,
-          'created_at': '2024-01-01T00:00:00.000Z',
-          'region': null,
-          'language': null,
+    Map<String, dynamic> baseRow({String status = 'pending'}) => {
+          'id': 'f1',
+          'requester_id': 'u1',
+          'addressee_id': 'u2',
+          'status': status,
+          'created_at': '2024-06-01T00:00:00.000Z',
+          'requester': null,
+          'addressee': Map<String, dynamic>.from(profileJson),
         };
-      final post = Post.fromJson(json);
-      expect(post.author?.username, 'alice');
-    });
-  });
 
-  group('PostComment.fromJson', () {
-    test('parses basic comment', () {
-      final c = PostComment.fromJson({
-        'id': 'c1',
-        'post_id': 'p1',
-        'user_id': 'u1',
-        'content': '好文章',
-        'created_at': '2024-06-01T13:00:00.000Z',
-        'profiles': null,
-      });
-      expect(c.id, 'c1');
-      expect(c.content, '好文章');
-      expect(c.author, isNull);
+    test('fromJson picks the other side profile for requester', () {
+      final f = Friendship.fromJson(baseRow(), 'u1');
+      expect(f.other?.id, 'u2');
+      expect(f.other?.username, 'bob');
+    });
+
+    test('statusFor: requester sees outgoingPending', () {
+      final f = Friendship.fromJson(baseRow(), 'u1');
+      expect(f.statusFor('u1'), FriendshipStatus.outgoingPending);
+    });
+
+    test('statusFor: addressee sees incomingPending', () {
+      final f = Friendship.fromJson(baseRow(), 'u2');
+      expect(f.statusFor('u2'), FriendshipStatus.incomingPending);
+    });
+
+    test('statusFor: accepted for both sides', () {
+      final f = Friendship.fromJson(baseRow(status: 'accepted'), 'u1');
+      expect(f.statusFor('u1'), FriendshipStatus.accepted);
+      expect(f.statusFor('u2'), FriendshipStatus.accepted);
     });
   });
 
@@ -215,8 +157,8 @@ void main() {
       'id': 'n1',
       'user_id': 'u1',
       'actor_id': 'u2',
-      'type': 'like',
-      'post_id': 'p1',
+      'type': 'friend_request',
+      'post_id': null,
       'comment_id': null,
       'is_read': false,
       'created_at': '2024-06-01T10:00:00.000Z',
@@ -226,8 +168,7 @@ void main() {
     test('parses all fields', () {
       final n = AppNotification.fromJson(baseNotif);
       expect(n.id, 'n1');
-      expect(n.type, 'like');
-      expect(n.postId, 'p1');
+      expect(n.type, 'friend_request');
       expect(n.isRead, false);
     });
 
@@ -236,63 +177,15 @@ void main() {
       expect(AppNotification.fromJson(json).isRead, true);
     });
 
-    test('handles null post_id', () {
-      final json = Map<String, dynamic>.from(baseNotif)..['post_id'] = null;
-      expect(AppNotification.fromJson(json).postId, isNull);
-    });
-  });
-
-  // ─── Topic aggregation logic ───────────────────────────────────────────────
-
-  group('Topic frequency aggregation', () {
-    // Mirrors the logic in _TopicsTab._loadHotTopics
-    List<String> aggregateTopics(List<Map<String, dynamic>> rows, {int take = 30}) {
-      final Map<String, int> freq = {};
-      for (final row in rows) {
-        final tags = (row['topics'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [];
-        for (final tag in tags) {
-          freq[tag] = (freq[tag] ?? 0) + 1;
-        }
-      }
-      final sorted = freq.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      return sorted.take(take).map((e) => e.key).toList();
-    }
-
-    test('returns topics sorted by frequency', () {
-      final rows = [
-        {'topics': ['信仰', '祷告']},
-        {'topics': ['信仰', '圣经']},
-        {'topics': ['信仰']},
-        {'topics': ['祷告']},
-      ];
-      final result = aggregateTopics(rows);
-      expect(result.first, '信仰'); // appears 3 times
-      expect(result[1], '祷告');   // appears 2 times
-      expect(result[2], '圣经');   // appears 1 time
+    test('friend_request body mentions request', () {
+      final n = AppNotification.fromJson(baseNotif);
+      expect(n.body, contains('好友'));
     });
 
-    test('handles null topics', () {
-      final rows = [
-        {'topics': null},
-        {'topics': ['福音']},
-      ];
-      expect(aggregateTopics(rows), ['福音']);
-    });
-
-    test('respects take limit', () {
-      final rows = List.generate(
-        50,
-        (i) => {'topics': ['topic_$i']},
-      );
-      expect(aggregateTopics(rows, take: 10).length, 10);
-    });
-
-    test('empty input returns empty list', () {
-      expect(aggregateTopics([]), isEmpty);
+    test('friend_accept body mentions acceptance', () {
+      final json = Map<String, dynamic>.from(baseNotif)
+        ..['type'] = 'friend_accept';
+      expect(AppNotification.fromJson(json).body, contains('通过'));
     });
   });
 }
