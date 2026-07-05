@@ -493,5 +493,6 @@
   "noFriendRequests": "暫無好友申請",
   "outgoingRequests": "我發出的申請",
   "searchUsersHint": "搜尋使用者名稱或暱稱",
-  "notFriendsCannotDm": "加為好友後才能私訊"
+  "notFriendsCannotDm": "加為好友後才能私訊",
+  "acceptFriend": "接受"
 }

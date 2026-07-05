@@ -1510,4 +1510,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notFriendsCannotDm => '友だちになるとメッセージを送れます';
+
+  @override
+  String get acceptFriend => '承認';
 }

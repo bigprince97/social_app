@@ -2858,6 +2858,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'加为好友后才能私信'**
   String get notFriendsCannotDm;
+
+  /// No description provided for @acceptFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'接受'**
+  String get acceptFriend;
 }
 
 class _AppLocalizationsDelegate

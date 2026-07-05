@@ -1509,6 +1509,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notFriendsCannotDm => '加为好友后才能私信';
+
+  @override
+  String get acceptFriend => '接受';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3016,4 +3019,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get notFriendsCannotDm => '加為好友後才能私訊';
+
+  @override
+  String get acceptFriend => '接受';
 }

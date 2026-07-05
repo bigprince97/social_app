@@ -774,7 +774,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Expanded(
               child: PremiumButton(
-                label: t.accept,
+                label: t.acceptFriend,
                 icon: Icons.check_rounded,
                 expand: true,
                 onTap: disabled ? null : _handleFriendAction,

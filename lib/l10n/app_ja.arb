@@ -493,5 +493,6 @@
   "noFriendRequests": "友だち申請はありません",
   "outgoingRequests": "送信した申請",
   "searchUsersHint": "ユーザー名で検索",
-  "notFriendsCannotDm": "友だちになるとメッセージを送れます"
+  "notFriendsCannotDm": "友だちになるとメッセージを送れます",
+  "acceptFriend": "承認"
 }

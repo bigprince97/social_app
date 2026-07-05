@@ -493,5 +493,6 @@
   "noFriendRequests": "No friend requests",
   "outgoingRequests": "Sent requests",
   "searchUsersHint": "Search username or name",
-  "notFriendsCannotDm": "Add as a friend to send messages"
+  "notFriendsCannotDm": "Add as a friend to send messages",
+  "acceptFriend": "Accept"
 }

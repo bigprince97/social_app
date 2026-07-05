@@ -896,5 +896,6 @@
   "noFriendRequests": "暂无好友申请",
   "outgoingRequests": "我发出的申请",
   "searchUsersHint": "搜索用户名或昵称",
-  "notFriendsCannotDm": "加为好友后才能私信"
+  "notFriendsCannotDm": "加为好友后才能私信",
+  "acceptFriend": "接受"
 }

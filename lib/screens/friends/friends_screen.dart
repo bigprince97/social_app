@@ -330,7 +330,7 @@ class _FriendsScreenState extends State<FriendsScreen>
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          child: Text(t.accept),
+                          child: Text(t.acceptFriend),
                         ),
                         const SizedBox(width: 6),
                         TextButton(

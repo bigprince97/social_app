@@ -1526,4 +1526,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notFriendsCannotDm => 'Add as a friend to send messages';
+
+  @override
+  String get acceptFriend => 'Accept';
 }
