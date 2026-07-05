@@ -1,0 +1,4 @@
+-- 记录：202607060003_friends_only_direct_messaging 已于 2026-07-06 应用后【还原】
+-- 原因：旧 build 1.0.2(8) 仍挂在 App Review，服务端强制会让旧版陌生人私信报错。
+-- 客户端(v1.1.0)的"仅好友可私信"界面逻辑保留；服务端强制改为随新版提审时再启用，
+-- 已并入 202607060002_DEFERRED_drop_plaza_and_follows.sql 一起执行。

@@ -36,3 +36,39 @@ alter table public.profiles drop column if exists followers_count;
 alter table public.profiles drop column if exists following_count;
 
 -- 7) Storage：media 桶中 posts/ 前缀的历史对象可在控制台手动清理（可选）
+
+-- ═══════════════════════════════════════════════════════════════
+-- 8) 重新启用「非好友不能私信」的服务端强制（2026-07-06 曾应用后临时还原）
+--    执行时机与上面相同：新版提审、旧 build 取消之后。
+--    a. 给 create_direct_conversation 函数开头加回好友校验块：
+--       if not exists (
+--         select 1 from friendships f
+--         where f.status = 'accepted'
+--           and ((f.requester_id = current_user_id and f.addressee_id = other_user_id)
+--             or (f.requester_id = other_user_id and f.addressee_id = current_user_id))
+--       ) then
+--         raise exception 'NOT_FRIENDS';
+--       end if;
+--    （完整函数体见 202607060003_friends_only_direct_messaging.sql）
+--    b. 恢复 messages 兜底 RLS：
+create policy messages_direct_friends_only_insert_guard on public.messages
+  as restrictive for insert to authenticated
+  with check (
+    coalesce(message_type, 'text') = 'call'
+    or not exists (
+      select 1 from public.conversations c
+      where c.id = messages.conversation_id and c.type = 'direct'
+    )
+    or exists (
+      select 1
+      from public.conversation_members cm
+      where cm.conversation_id = messages.conversation_id
+        and cm.user_id <> auth.uid()
+        and exists (
+          select 1 from public.friendships f
+          where f.status = 'accepted'
+            and ((f.requester_id = auth.uid() and f.addressee_id = cm.user_id)
+              or (f.requester_id = cm.user_id and f.addressee_id = auth.uid()))
+        )
+    )
+  );
