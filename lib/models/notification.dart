@@ -4,7 +4,7 @@ class AppNotification {
   final String id;
   final String userId;
   final String actorId;
-  final String type; // friend_request | friend_accept（历史遗留：like | comment | follow）
+  final String type; // like | comment | follow | mention
   final String? postId;
   final String? commentId;
   final bool isRead;
@@ -40,10 +40,12 @@ class AppNotification {
 
   String get body {
     switch (type) {
-      case 'friend_request':
-        return '${actor?.displayName ?? '有人'} 请求加你为好友';
-      case 'friend_accept':
-        return '${actor?.displayName ?? '有人'} 通过了你的好友申请';
+      case 'like':
+        return '${actor?.displayName ?? '有人'} 点赞了你的帖子';
+      case 'comment':
+        return '${actor?.displayName ?? '有人'} 评论了你的帖子';
+      case 'follow':
+        return '${actor?.displayName ?? '有人'} 关注了你';
       default:
         return '你有一条新通知';
     }

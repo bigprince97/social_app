@@ -61,6 +61,37 @@ class StorageService {
     return _client.storage.from('media').getPublicUrl(path);
   }
 
+  Future<String> uploadPostImage(XFile file) async {
+    final userId = requireUid(_client);
+    final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
+    final path = 'posts/$userId/${_uuid.v4()}.$ext';
+    final bytes = await file.readAsBytes();
+    await _client.storage.from('media').uploadBinary(path, bytes);
+    return _client.storage.from('media').getPublicUrl(path);
+  }
+
+  Future<List<String>> uploadPostImages(List<XFile> files) async {
+    final urls = await Future.wait(files.map(uploadPostImage));
+    return urls;
+  }
+
+  Future<String> uploadPostVideo(XFile file) async {
+    final userId = requireUid(_client);
+    final ext = file.name.contains('.')
+        ? file.name.split('.').last.toLowerCase()
+        : 'mp4';
+    final path = 'posts/$userId/videos/${_uuid.v4()}.$ext';
+    final bytes = await file.readAsBytes();
+    await _client.storage
+        .from('media')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: _videoMime(ext), upsert: false),
+        );
+    return _client.storage.from('media').getPublicUrl(path);
+  }
+
   Future<({String url, int size})> uploadChatFile(
     Uint8List bytes,
     String fileName,

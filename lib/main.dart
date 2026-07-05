@@ -107,9 +107,11 @@ class _SocialAppState extends State<SocialApp> {
           if (ctx == null) return;
           if (type == 'chat' && conversationId != null) {
             ctx.push('/chat/$conversationId');
-          } else if (type == 'friend_request' || type == 'friend_accept') {
-            ctx.push('/notifications');
-          } else if (actorId != null && actorId.isNotEmpty) {
+          } else if (postId != null && postId.isNotEmpty) {
+            ctx.push('/post/$postId');
+          } else if (type == 'follow' &&
+              actorId != null &&
+              actorId.isNotEmpty) {
             ctx.push('/profile/$actorId');
           }
         },

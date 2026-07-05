@@ -82,7 +82,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           notification: n,
                           onTap: () {
                             _service.markRead(n.id);
-                            context.push('/profile/${n.actorId}');
+                            if (n.postId != null) {
+                              context.push('/post/${n.postId}');
+                            } else if (n.type == 'follow') {
+                              context.push('/profile/${n.actorId}');
+                            }
                           },
                         );
                       },
@@ -103,10 +107,12 @@ class _NotificationTile extends StatelessWidget {
 
   IconData get _icon {
     switch (notification.type) {
-      case 'friend_request':
+      case 'like':
+        return Icons.favorite;
+      case 'comment':
+        return Icons.comment;
+      case 'follow':
         return Icons.person_add;
-      case 'friend_accept':
-        return Icons.check_circle;
       default:
         return Icons.notifications;
     }
@@ -114,9 +120,11 @@ class _NotificationTile extends StatelessWidget {
 
   Color _iconColor(BuildContext context) {
     switch (notification.type) {
-      case 'friend_request':
+      case 'like':
+        return Colors.red;
+      case 'comment':
         return Colors.blue;
-      case 'friend_accept':
+      case 'follow':
         return Colors.green;
       default:
         return Theme.of(context).colorScheme.primary;

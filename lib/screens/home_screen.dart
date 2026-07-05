@@ -13,7 +13,7 @@ import 'call/call_screen.dart';
 import 'call/incoming_call_screen.dart';
 import 'call/livestream_screen.dart';
 import 'chat/conversations_screen.dart';
-import 'friends/friends_screen.dart';
+import 'feed/feed_screen.dart';
 import 'profile/profile_screen.dart';
 import 'scripture/scripture_home_screen.dart';
 
@@ -248,8 +248,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final userId = Supabase.instance.client.auth.currentUser!.id;
     final screens = [
+      const FeedScreen(),
       const ScriptureHomeScreen(),
-      const FriendsScreen(),
       ConversationsScreen(onUnreadChanged: _loadBadges),
       ProfileScreen(userId: userId),
     ];
@@ -316,8 +316,8 @@ class _GlassNavBar extends StatelessWidget {
   });
 
   static const _icons = [
+    (Icons.home_outlined, Icons.home_rounded),
     (Icons.menu_book_outlined, Icons.menu_book_rounded),
-    (Icons.group_outlined, Icons.group_rounded),
     (Icons.chat_bubble_outline, Icons.chat_bubble_rounded),
     (Icons.person_outline, Icons.person_rounded),
   ];
@@ -326,7 +326,7 @@ class _GlassNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final t = AppLocalizations.of(context);
-    final labels = [t.scripture, t.friends, t.messages, t.tabProfile];
+    final labels = [t.square, t.scripture, t.messages, t.tabProfile];
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
       child: BackdropFilter(

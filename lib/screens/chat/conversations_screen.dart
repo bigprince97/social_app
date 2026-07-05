@@ -8,7 +8,6 @@ import '../../services/locale_controller.dart';
 import '../../models/conversation.dart';
 import '../../models/profile.dart';
 import '../../services/chat_service.dart';
-import '../../services/friend_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_style.dart';
 import '../../l10n/app_localizations.dart';
@@ -460,11 +459,9 @@ class _NewChatSheetState extends State<_NewChatSheet>
   final _groupNameCtrl = TextEditingController();
   final _profileService = ProfileService();
   final _chatService = ChatService();
-  final _friendService = FriendService();
   List<Profile> _searchResults = [];
-  List<Profile> _friends = [];
-  bool _friendsLoading = true;
   final Set<String> _selectedIds = {};
+  bool _searching = false;
   bool _creatingDirect = false;
   bool _creatingGroup = false;
 
@@ -472,35 +469,6 @@ class _NewChatSheetState extends State<_NewChatSheet>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadFriends();
-  }
-
-  /// 私聊仅限好友：载入好友列表供选择（搜索框做本地过滤）。
-  Future<void> _loadFriends() async {
-    try {
-      final friends = await _friendService.getFriends();
-      if (mounted) {
-        setState(() {
-          _friends = friends.map((f) => f.other).whereType<Profile>().toList();
-        });
-      }
-    } catch (_) {
-      // 离线静默
-    } finally {
-      if (mounted) setState(() => _friendsLoading = false);
-    }
-  }
-
-  List<Profile> get _filteredFriends {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    if (q.isEmpty) return _friends;
-    return _friends
-        .where(
-          (p) =>
-              p.displayName.toLowerCase().contains(q) ||
-              p.username.toLowerCase().contains(q),
-        )
-        .toList();
   }
 
   @override
@@ -516,10 +484,13 @@ class _NewChatSheetState extends State<_NewChatSheet>
       setState(() => _searchResults = []);
       return;
     }
+    setState(() => _searching = true);
     try {
       final results = await _profileService.searchUsers(q);
-      if (mounted) setState(() => _searchResults = results);
-    } catch (_) {}
+      setState(() => _searchResults = results);
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
   }
 
   Future<void> _startDirectChat(Profile profile) async {
@@ -533,14 +504,6 @@ class _NewChatSheetState extends State<_NewChatSheet>
       }
     } catch (e) {
       if (mounted) {
-        if (e is NotFriendsChatException) {
-          showPremiumToast(
-            context,
-            AppLocalizations.of(context).notFriendsCannotDm,
-            kind: ToastKind.block,
-          );
-          return;
-        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -608,7 +571,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
             child: TabBarView(
               controller: _tabController,
               children: [
-                // 私聊 tab：仅好友可私信，列好友、搜索框本地过滤
+                // 私聊 tab
                 Column(
                   children: [
                     Padding(
@@ -620,25 +583,17 @@ class _NewChatSheetState extends State<_NewChatSheet>
                           prefixIcon: const Icon(Icons.search),
                           border: const OutlineInputBorder(),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: _search,
                       ),
                     ),
                     Expanded(
-                      child: _friendsLoading
+                      child: _searching
                           ? const Center(child: CircularProgressIndicator())
-                          : _friends.isEmpty
-                          ? PremiumEmptyState(
-                              icon: Icons.group_outlined,
-                              title: AppLocalizations.of(context).noFriends,
-                              subtitle: AppLocalizations.of(
-                                context,
-                              ).noFriendsSubtitle,
-                            )
                           : ListView.builder(
                               controller: scrollController,
-                              itemCount: _filteredFriends.length,
+                              itemCount: _searchResults.length,
                               itemBuilder: (context, i) {
-                                final p = _filteredFriends[i];
+                                final p = _searchResults[i];
                                 return ListTile(
                                   leading: CircleAvatar(
                                     backgroundImage: p.avatarUrl != null

@@ -6,18 +6,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/premium_toast.dart';
 import '../../utils/bible_books.dart';
+import '../../models/post.dart';
 import '../../models/profile.dart';
 import 'dart:async';
 import '../../services/auth_service.dart';
 import '../../services/block_service.dart';
 import '../../services/event_bus.dart';
-import '../../services/friend_service.dart';
+import '../../services/post_service.dart';
 import '../../services/local_cache.dart';
 import '../../services/chat_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/report_service.dart';
 import '../../theme/app_style.dart';
+import '../../widgets/post_card.dart';
 import '../../widgets/premium_action_sheet.dart';
+import 'follow_list_screen.dart';
+import 'my_posts_screen.dart';
 import '../settings/blocked_users_screen.dart';
 import '../settings/legal_screen.dart';
 
@@ -32,19 +36,22 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _profileService = ProfileService();
-  final _friendService = FriendService();
+  final _postService = PostService();
   final _authService = AuthService();
   final _chatService = ChatService();
   final _blockService = BlockService();
   final _scrollController = ScrollController();
   Profile? _profile;
+  List<Post> _posts = [];
   bool _loading = true;
-  Friendship? _friendship;
-  int _friendCount = 0;
+  bool _isFollowing = false;
   bool _isBlocked = false;
-  bool _friendLoading = false;
+  bool _followLoading = false;
   bool _dmLoading = false;
+  StreamSubscription<void>? _postCreatedSub;
   StreamSubscription<void>? _profileUpdatedSub;
+  StreamSubscription<Post>? _postInteractedSub;
+  StreamSubscription<String>? _postDeletedSub;
 
   late final bool _isMe;
 
@@ -54,16 +61,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentId = Supabase.instance.client.auth.currentUser?.id ?? '';
     _isMe = widget.userId == currentId;
     _loadData();
+    _postCreatedSub = onPostCreated.listen((_) {
+      if (mounted) _loadData();
+    });
     if (_isMe) {
       _profileUpdatedSub = onProfileUpdated.listen((_) {
         if (mounted) _loadData();
       });
     }
+    _postInteractedSub = onPostInteracted.listen((updatedPost) {
+      if (mounted) {
+        setState(() {
+          final index = _posts.indexWhere((p) => p.id == updatedPost.id);
+          if (index != -1) {
+            _posts[index] = updatedPost;
+          }
+        });
+      }
+    });
+    _postDeletedSub = onPostDeleted.listen((postId) {
+      if (mounted) {
+        setState(() {
+          _posts.removeWhere((p) => p.id == postId);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _postCreatedSub?.cancel();
     _profileUpdatedSub?.cancel();
+    _postInteractedSub?.cancel();
+    _postDeletedSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -72,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _loading = true);
     try {
       // 资料单独加载：getProfile 自带离线缓存回退，
-      // 不让好友关系等其它请求的失败连累资料展示（离线时避免"用户不存在"）。
+      // 不让帖子/关注等其它请求的失败连累资料展示（离线时避免“用户不存在”）。
       try {
         final profile = await _profileService.getProfile(widget.userId);
         if (mounted) setState(() => _profile = profile);
@@ -80,20 +110,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         /* 无缓存且离线时保持 null，由下方网络态兜底 */
       }
 
-      if (_isMe) {
+      // 帖子无缓存：离线失败不影响资料展示
+      try {
+        final posts = await _postService.getUserPosts(widget.userId);
+        if (mounted) setState(() => _posts = posts);
+      } catch (_) {}
+
+      if (!_isMe) {
         try {
-          final count = await _friendService.getFriendCount();
-          if (mounted) setState(() => _friendCount = count);
-        } catch (_) {}
-      } else {
-        try {
-          final friendship = await _friendService.getFriendshipWith(
-            widget.userId,
-          );
+          final isFollowing = await _profileService.isFollowing(widget.userId);
           final isBlocked = await _blockService.isBlocked(widget.userId);
           if (mounted) {
             setState(() {
-              _friendship = friendship;
+              _isFollowing = isFollowing;
               _isBlocked = isBlocked;
             });
           }
@@ -126,7 +155,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           notifyUserBlocked(widget.userId);
           setState(() {
             _isBlocked = true;
-            _friendship = null;
+            _isFollowing = false;
+            _posts = [];
           });
           showPremiumToast(
             context,
@@ -161,14 +191,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
           return;
         }
-        if (e is NotFriendsChatException) {
-          showPremiumToast(
-            context,
-            AppLocalizations.of(context).notFriendsCannotDm,
-            kind: ToastKind.block,
-          );
-          return;
-        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -180,35 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// 拒绝对方发来的好友申请。
-  Future<void> _declineFriendRequest() async {
-    if (_friendship == null) return;
-    setState(() => _friendLoading = true);
-    try {
-      await _friendService.removeFriendship(_friendship!.id);
-      final friendship = await _friendService.getFriendshipWith(widget.userId);
-      if (mounted) setState(() => _friendship = friendship);
-    } catch (e) {
-      if (mounted) {
-        showErrorIfNotNetwork(
-          context,
-          e,
-          AppLocalizations.of(context).operationFailed(e.toString()),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _friendLoading = false);
-    }
-  }
-
-  FriendshipStatus get _friendStatus {
-    final f = _friendship;
-    if (f == null) return FriendshipStatus.none;
-    final myId = Supabase.instance.client.auth.currentUser?.id ?? '';
-    return f.statusFor(myId);
-  }
-
-  Future<void> _handleFriendAction() async {
+  Future<void> _toggleFollow() async {
     if (_isBlocked) {
       showPremiumToast(
         context,
@@ -217,67 +211,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
-    final t = AppLocalizations.of(context);
-    setState(() => _friendLoading = true);
+    setState(() => _followLoading = true);
     try {
-      switch (_friendStatus) {
-        case FriendshipStatus.none:
-          await _friendService.sendRequest(widget.userId);
-          if (mounted) {
-            showPremiumToast(
-              context,
-              t.friendRequestSentToast,
-              kind: ToastKind.success,
-            );
-          }
-        case FriendshipStatus.outgoingPending:
-          // 取消我发出的申请
-          final confirm = await showPremiumConfirm(
-            context,
-            icon: Icons.person_remove_outlined,
-            title: t.cancelRequest,
-            message: t.cancelRequestConfirm,
-            confirmLabel: t.cancelRequest,
-            destructive: true,
+      if (_isFollowing) {
+        await _profileService.unfollowUser(widget.userId);
+        setState(() {
+          _isFollowing = false;
+          _profile = _profile?.copyWith(
+            followersCount: (_profile!.followersCount - 1).clamp(0, 999999),
           );
-          if (confirm) await _friendService.removeFriendship(_friendship!.id);
-        case FriendshipStatus.incomingPending:
-          await _friendService.acceptRequest(_friendship!.id);
-          if (mounted) {
-            showPremiumToast(
-              context,
-              t.friendRequestAccepted,
-              kind: ToastKind.success,
-            );
-          }
-        case FriendshipStatus.accepted:
-          final confirm = await showPremiumConfirm(
-            context,
-            icon: Icons.person_remove_rounded,
-            title: t.removeFriend,
-            message: t.removeFriendConfirm(_profile?.displayName ?? ''),
-            confirmLabel: t.removeFriend,
-            destructive: true,
+        });
+      } else {
+        await _profileService.followUser(widget.userId);
+        setState(() {
+          _isFollowing = true;
+          _profile = _profile?.copyWith(
+            followersCount: _profile!.followersCount + 1,
           );
-          if (confirm) await _friendService.removeFriendship(_friendship!.id);
+        });
       }
-      // 重新拉取关系状态
-      final friendship = await _friendService.getFriendshipWith(widget.userId);
-      if (mounted) setState(() => _friendship = friendship);
     } catch (e) {
       if (mounted) {
         if (e is BlockedUserInteractionException) {
           showPremiumToast(
             context,
-            t.blockedInteraction,
+            AppLocalizations.of(context).blockedInteraction,
             kind: ToastKind.block,
           );
           return;
         }
-        showErrorIfNotNetwork(context, e, t.operationFailed(e.toString()));
+        showErrorIfNotNetwork(
+          context,
+          e,
+          AppLocalizations.of(context).operationFailed(e.toString()),
+        );
       }
     } finally {
-      if (mounted) setState(() => _friendLoading = false);
+      if (mounted) setState(() => _followLoading = false);
     }
   }
 
@@ -549,7 +519,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
-            if (_isMe) SliverToBoxAdapter(child: _buildMyActions()),
+            if (_isMe)
+              SliverToBoxAdapter(child: _buildMyActions())
+            else ...[
+              // 他人主页：已拉黑则不展示其帖子
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => PostCard(post: _posts[i]),
+                  childCount: _posts.length,
+                ),
+              ),
+              if (_posts.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        _isBlocked
+                            ? AppLocalizations.of(context).blockedInteraction
+                            : AppLocalizations.of(context).noPosts,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -561,13 +554,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 我的发帖（左） / 我的书签（右）入口
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-          child: _ProfileEntry(
-            icon: Icons.bookmark_outline_rounded,
-            color: const Color(0xFFFF9F0A),
-            label: l10n.myBookmarks,
-            onTap: () => context.push('/scripture/bookmarks'),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ProfileEntry(
+                  icon: Icons.article_outlined,
+                  color: const Color(0xFF9575CD),
+                  label: l10n.myPosts,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MyPostsScreen(userId: widget.userId),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ProfileEntry(
+                  icon: Icons.bookmark_outline_rounded,
+                  color: const Color(0xFFFF9F0A),
+                  label: l10n.myBookmarks,
+                  onTap: () => context.push('/scripture/bookmarks'),
+                ),
+              ),
+            ],
           ),
         ),
         const Divider(height: 1),
@@ -578,7 +592,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = const Color(0xFF9575CD);
-    final isFriend = _friendStatus == FriendshipStatus.accepted;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -594,7 +607,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: isFriend || _isMe
+                  gradient: _isFollowing || _isMe
                       ? const LinearGradient(
                           colors: [
                             Color(0xFF9575CD),
@@ -633,34 +646,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              if (_isMe) ...[
-                const SizedBox(width: 16),
-                // 好友数
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withAlpha(10)
-                          : const Color(0xFF9575CD).withAlpha(14),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStat(
-                          AppLocalizations.of(context).friends,
-                          _friendCount,
+              const SizedBox(width: 16),
+              // Stats row
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withAlpha(10)
+                        : const Color(0xFF9575CD).withAlpha(14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStat(
+                        AppLocalizations.of(context).posts,
+                        _profile!.postsCount,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MyPostsScreen(userId: widget.userId),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      _buildStat(
+                        AppLocalizations.of(context).followers,
+                        _profile!.followersCount,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FollowListScreen(
+                              userId: widget.userId,
+                              displayName: _profile!.displayName,
+                              type: FollowListType.followers,
+                            ),
+                          ),
+                        ),
+                      ),
+                      _buildStat(
+                        AppLocalizations.of(context).following,
+                        _profile!.followingCount,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FollowListScreen(
+                              userId: widget.userId,
+                              displayName: _profile!.displayName,
+                              type: FollowListType.following,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ] else
-                const Spacer(),
+              ),
             ],
           ),
         ),
@@ -728,7 +773,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: !_isMe
-              ? _buildOtherUserActions()
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: _isFollowing
+                          ? _PillButton(
+                              label: AppLocalizations.of(
+                                context,
+                              ).alreadyFollowing,
+                              icon: Icons.check_rounded,
+                              filled: false,
+                              onTap: (_followLoading || _isBlocked)
+                                  ? null
+                                  : _toggleFollow,
+                            )
+                          : PremiumButton(
+                              label: AppLocalizations.of(context).following,
+                              icon: Icons.add_rounded,
+                              expand: true,
+                              onTap: (_followLoading || _isBlocked)
+                                  ? null
+                                  : _toggleFollow,
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _PillButton(
+                        label: AppLocalizations.of(context).directMessage,
+                        icon: Icons.chat_bubble_outline_rounded,
+                        filled: false,
+                        loading: _dmLoading,
+                        onTap: (_dmLoading || _isBlocked)
+                            ? null
+                            : _startDirectMessage,
+                      ),
+                    ),
+                  ],
+                )
               : _PillButton(
                   label: AppLocalizations.of(context).editProfile,
                   icon: Icons.edit_outlined,
@@ -743,80 +824,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const Divider(height: 8, thickness: 0.5),
       ],
     );
-  }
-
-  /// 他人主页动作区：按好友状态给出不同按钮组合。
-  /// - 无关系：加好友（私信隐藏——非好友不能私信）
-  /// - 我发出待处理：已发送申请（点按取消）
-  /// - 对方发来待处理：接受 / 拒绝 双按钮
-  /// - 已是好友：已是好友（点按解除）+ 私信
-  Widget _buildOtherUserActions() {
-    final t = AppLocalizations.of(context);
-    final disabled = _friendLoading || _isBlocked;
-    switch (_friendStatus) {
-      case FriendshipStatus.none:
-        return PremiumButton(
-          label: t.addFriend,
-          icon: Icons.person_add_alt_1,
-          expand: true,
-          onTap: disabled ? null : _handleFriendAction,
-        );
-      case FriendshipStatus.outgoingPending:
-        return _PillButton(
-          label: t.friendRequestSent,
-          icon: Icons.hourglass_top_rounded,
-          filled: false,
-          loading: _friendLoading,
-          onTap: disabled ? null : _handleFriendAction,
-        );
-      case FriendshipStatus.incomingPending:
-        return Row(
-          children: [
-            Expanded(
-              child: PremiumButton(
-                label: t.acceptFriend,
-                icon: Icons.check_rounded,
-                expand: true,
-                onTap: disabled ? null : _handleFriendAction,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _PillButton(
-                label: t.decline,
-                icon: Icons.close_rounded,
-                filled: false,
-                loading: _friendLoading,
-                onTap: disabled ? null : _declineFriendRequest,
-              ),
-            ),
-          ],
-        );
-      case FriendshipStatus.accepted:
-        return Row(
-          children: [
-            Expanded(
-              child: _PillButton(
-                label: t.alreadyFriends,
-                icon: Icons.check_rounded,
-                filled: false,
-                loading: _friendLoading,
-                onTap: disabled ? null : _handleFriendAction,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _PillButton(
-                label: t.directMessage,
-                icon: Icons.chat_bubble_outline_rounded,
-                filled: false,
-                loading: _dmLoading,
-                onTap: (_dmLoading || _isBlocked) ? null : _startDirectMessage,
-              ),
-            ),
-          ],
-        );
-    }
   }
 
   Widget _buildStat(String label, int count, {VoidCallback? onTap}) {
@@ -841,7 +848,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-/// 「我的」页入口卡片（我的书签等）。
+/// 「我的」页入口卡片（编辑资料 / 我的书签）。
 class _ProfileEntry extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -891,7 +898,7 @@ class _ProfileEntry extends StatelessWidget {
   }
 }
 
-/// 描边胶囊按钮（次要操作：已是好友/私信/编辑资料）。
+/// 描边胶囊按钮（次要操作：已关注/私信/编辑资料）。
 class _PillButton extends StatefulWidget {
   final String label;
   final IconData? icon;

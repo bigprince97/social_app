@@ -1,24 +1,48 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/local_cache.dart';
 import '../../models/scripture.dart';
+import '../../models/post.dart';
 import '../../services/scripture_service.dart';
+import '../../services/post_service.dart';
+import '../../services/event_bus.dart';
+import '../../widgets/post_card.dart';
 import '../../theme/app_style.dart';
 
 // cache chapters per scripture to avoid re-fetching
 final _chaptersCache = <String, List<ScriptureChapter>>{};
 
-/// 「我的书签」：经书书签。
+/// 「我的书签」：经书书签 + 帖子收藏 两个 tab。
 class BookmarksScreen extends StatelessWidget {
   const BookmarksScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(l.myBookmarks)),
-      body: const _ScriptureBookmarksTab(),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l.myBookmarks),
+          bottom: TabBar(
+            labelColor: AppStyle.brand,
+            unselectedLabelColor: Colors.grey.shade500,
+            indicatorColor: AppStyle.brand,
+            tabs: [
+              Tab(text: l.bookmarkTabScripture),
+              Tab(text: l.bookmarkTabPosts),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _ScriptureBookmarksTab(),
+            _PostBookmarksTab(),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -155,3 +179,85 @@ class _ScriptureBookmarksTabState extends State<_ScriptureBookmarksTab>
   }
 }
 
+// ── 帖子收藏 tab ────────────────────────────────────────────────
+class _PostBookmarksTab extends StatefulWidget {
+  const _PostBookmarksTab();
+
+  @override
+  State<_PostBookmarksTab> createState() => _PostBookmarksTabState();
+}
+
+class _PostBookmarksTabState extends State<_PostBookmarksTab>
+    with AutomaticKeepAliveClientMixin {
+  final _postService = PostService();
+  List<Post> _posts = [];
+  bool _loading = true;
+  StreamSubscription<Post>? _interactedSub;
+  StreamSubscription<String>? _deletedSub;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _interactedSub = onPostInteracted.listen((updatedPost) {
+      if (!mounted) return;
+      setState(() {
+        if (!updatedPost.isBookmarked) {
+          _posts.removeWhere((p) => p.id == updatedPost.id);
+        } else {
+          final i = _posts.indexWhere((p) => p.id == updatedPost.id);
+          if (i != -1) _posts[i] = updatedPost;
+        }
+      });
+    });
+    _deletedSub = onPostDeleted.listen((postId) {
+      if (mounted) setState(() => _posts.removeWhere((p) => p.id == postId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _interactedSub?.cancel();
+    _deletedSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final posts = await _postService.getBookmarkedPosts();
+      if (mounted) setState(() => _posts = posts);
+    } catch (e) {
+      if (mounted) showErrorIfNotNetwork(context, e, '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final l = AppLocalizations.of(context);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: _posts.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: Center(child: Text(l.noSavedPosts)),
+                ),
+              ],
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: _posts.length,
+              itemBuilder: (context, i) => PostCard(post: _posts[i]),
+            ),
+    );
+  }
+}
