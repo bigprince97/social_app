@@ -118,9 +118,42 @@ Deno.serve(async (req: Request) => {
     if (recipientIds.length === 0) return new Response("ok", { status: 200 });
     const { data: tokens } = await supabase
       .from("push_tokens")
-      .select("token")
+      .select("token, user_id")
       .in("user_id", recipientIds);
     if (!tokens || tokens.length === 0) return new Response("ok", { status: 200 });
+
+    // 各接收者的未读数:折叠通知带「[N条]」前缀,微信风格,
+    // 弥补同会话通知互相覆盖后看不出积压数量的问题
+    const { data: memberRows } = await supabase
+      .from("conversation_members")
+      .select("user_id, last_read_at")
+      .eq("conversation_id", record.conversation_id)
+      .in("user_id", recipientIds);
+    const lastReadMap = new Map(
+      (memberRows ?? []).map((r: { user_id: string; last_read_at: string | null }) => [
+        r.user_id,
+        r.last_read_at,
+      ]),
+    );
+    const unreadCounts = new Map<string, number>();
+    await Promise.all(
+      recipientIds.map(async (uid: string) => {
+        try {
+          let q = supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", record.conversation_id)
+            .neq("sender_id", uid)
+            .or("is_deleted.is.null,is_deleted.eq.false");
+          const lr = lastReadMap.get(uid);
+          if (lr) q = q.gt("created_at", lr);
+          const { count } = await q;
+          unreadCounts.set(uid, count ?? 1);
+        } catch (_) {
+          unreadCounts.set(uid, 1);
+        }
+      }),
+    );
 
     if (!firebaseServiceAccount.client_email) {
       console.warn("FIREBASE_SERVICE_ACCOUNT_KEY not set");
@@ -130,8 +163,10 @@ Deno.serve(async (req: Request) => {
     const accessToken = await getAccessToken();
 
     const results = await Promise.allSettled(
-      tokens.map(({ token }: { token: string }) =>
-        fetch(
+      tokens.map(({ token, user_id }: { token: string; user_id: string }) => {
+        const n = unreadCounts.get(user_id) ?? 1;
+        const finalBody = n > 1 ? `[${n}条] ${body}` : body;
+        return fetch(
           `https://fcm.googleapis.com/v1/projects/${firebaseProjectId}/messages:send`,
           {
             method: "POST",
@@ -142,7 +177,7 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               message: {
                 token,
-                notification: { title, body },
+                notification: { title, body: finalBody },
                 data: {
                   type: "chat",
                   conversation_id: String(record.conversation_id),
@@ -177,8 +212,8 @@ Deno.serve(async (req: Request) => {
         ).then(async (r) => {
           if (!r.ok) console.error("fcm fail", r.status, await r.text());
           return r;
-        })
-      ),
+        });
+      }),
     );
     const sent = results.filter((r) => r.status === "fulfilled").length;
     return new Response(JSON.stringify({ sent, total: tokens.length }), {
