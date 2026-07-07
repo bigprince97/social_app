@@ -149,10 +149,27 @@ Deno.serve(async (req: Request) => {
                   sender_id: String(record.sender_id),
                   conversation_type: String(conv?.type ?? "direct"),
                 },
-                apns: { payload: { aps: { sound: "default" } } },
+                apns: {
+                  headers: {
+                    // 同一会话的推送互相覆盖:通知栏每个会话只占一条
+                    "apns-collapse-id": String(record.conversation_id),
+                  },
+                  payload: {
+                    aps: {
+                      sound: "default",
+                      // iOS 按会话分组显示,便于后续按会话清除
+                      "thread-id": String(record.conversation_id),
+                    },
+                  },
+                },
                 android: {
                   priority: "high",
-                  notification: { sound: "default", channel_id: "default" },
+                  notification: {
+                    sound: "default",
+                    channel_id: "default",
+                    // 同一会话的通知同 tag 互相覆盖,只保留最新一条
+                    tag: String(record.conversation_id),
+                  },
                 },
               },
             }),
