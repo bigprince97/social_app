@@ -46,8 +46,7 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
       final res = await _profileService.searchUsers(q.trim());
       if (!mounted) return;
       setState(() {
-        _results =
-            res.where((p) => !widget.excludeIds.contains(p.id)).toList();
+        _results = res.where((p) => !widget.excludeIds.contains(p.id)).toList();
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -67,87 +66,97 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.addMembers),
-        actions: [
-          TextButton(
-            onPressed: _selected.isEmpty
-                ? null
-                : () => Navigator.pop(context, _selected.keys.toList()),
-            child: Text(
-              _selected.isEmpty ? t.confirm : '${t.confirm}(${_selected.length})',
+    return GestureDetector(
+      // 点击空白处收回搜索键盘
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(t.addMembers),
+          actions: [
+            TextButton(
+              onPressed: _selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(context, _selected.keys.toList()),
+              child: Text(
+                _selected.isEmpty
+                    ? t.confirm
+                    : '${t.confirm}(${_selected.length})',
+              ),
             ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchCtrl,
-              autofocus: true,
-              onChanged: _onQueryChanged,
-              decoration: InputDecoration(
-                hintText: t.searchUserHint,
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onChanged: _onQueryChanged,
+                decoration: InputDecoration(
+                  hintText: t.searchUserHint,
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  isDense: true,
                 ),
-                isDense: true,
               ),
             ),
-          ),
-          // 已选 chips
-          if (_selected.isNotEmpty)
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: _selected.values
-                    .map(
-                      (p) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Chip(
-                          label: Text(p.displayName),
-                          onDeleted: () => _toggle(p),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: _results.length,
-                    itemBuilder: (_, i) {
-                      final p = _results[i];
-                      final checked = _selected.containsKey(p.id);
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppStyle.brand.withAlpha(40),
-                          child: Text(
-                            p.displayName.isNotEmpty
-                                ? avatarInitial(p.displayName)
-                                : '?',
-                            style: const TextStyle(color: AppStyle.brand),
+            // 已选 chips
+            if (_selected.isNotEmpty)
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: _selected.values
+                      .map(
+                        (p) => Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Chip(
+                            label: Text(p.displayName),
+                            onDeleted: () => _toggle(p),
                           ),
                         ),
-                        title: Text(p.displayName),
-                        trailing: Checkbox(
-                          value: checked,
-                          onChanged: (_) => _toggle(p),
-                        ),
-                        onTap: () => _toggle(p),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      )
+                      .toList(),
+                ),
+              ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: _results.length,
+                      itemBuilder: (_, i) {
+                        final p = _results[i];
+                        final checked = _selected.containsKey(p.id);
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppStyle.brand.withAlpha(40),
+                            child: Text(
+                              p.displayName.isNotEmpty
+                                  ? avatarInitial(p.displayName)
+                                  : '?',
+                              style: const TextStyle(color: AppStyle.brand),
+                            ),
+                          ),
+                          title: Text(p.displayName),
+                          trailing: Checkbox(
+                            value: checked,
+                            onChanged: (_) => _toggle(p),
+                          ),
+                          onTap: () => _toggle(p),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

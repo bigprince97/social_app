@@ -137,158 +137,167 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).editProfile),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(AppLocalizations.of(context).save),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: _pickAvatar,
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 52,
-                          backgroundImage: _newAvatarFile != null
-                              ? (kIsWeb
-                                    ? NetworkImage(_newAvatarFile!.path)
-                                    : FileImage(
-                                            // ignore: avoid_dynamic_calls
-                                            File(_newAvatarFile!.path),
-                                          )
-                                          as ImageProvider)
-                              : _profile?.avatarUrl != null
-                              ? CachedNetworkImageProvider(_profile!.avatarUrl!)
-                                    as ImageProvider
-                              : null,
-                          child:
-                              _newAvatarFile == null &&
-                                  _profile?.avatarUrl == null
-                              ? Text(
-                                  avatarInitial(_profile?.displayName),
-                                  style: const TextStyle(fontSize: 36),
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.white,
-                              size: 18,
+    return GestureDetector(
+      // 点击空白处收回键盘(bio 多行输入没有 done 键,必须靠这个)
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(AppLocalizations.of(context).editProfile),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(AppLocalizations.of(context).save),
+            ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: _pickAvatar,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 52,
+                            backgroundImage: _newAvatarFile != null
+                                ? (kIsWeb
+                                      ? NetworkImage(_newAvatarFile!.path)
+                                      : FileImage(
+                                              // ignore: avoid_dynamic_calls
+                                              File(_newAvatarFile!.path),
+                                            )
+                                            as ImageProvider)
+                                : _profile?.avatarUrl != null
+                                ? CachedNetworkImageProvider(
+                                        _profile!.avatarUrl!,
+                                      )
+                                      as ImageProvider
+                                : null,
+                            child:
+                                _newAvatarFile == null &&
+                                    _profile?.avatarUrl == null
+                                ? Text(
+                                    avatarInitial(_profile?.displayName),
+                                    style: const TextStyle(fontSize: 36),
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppLocalizations.of(context).clickToChangeAvatar,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: _displayNameCtrl,
-                    style: const TextStyle(
-                      color: Color(0xFF1C1C1E),
-                      fontSize: 16,
+                    const SizedBox(height: 8),
+                    Text(
+                      AppLocalizations.of(context).clickToChangeAvatar,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    decoration: InputDecoration(
-                      labelText: AppLocalizations.of(context).displayName,
-                      labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
-                      floatingLabelStyle: const TextStyle(
-                        color: Color(0xFF9575CD),
+                    const SizedBox(height: 32),
+                    TextFormField(
+                      controller: _displayNameCtrl,
+                      style: const TextStyle(
+                        color: Color(0xFF1C1C1E),
+                        fontSize: 16,
                       ),
-                      filled: true,
-                      fillColor: const Color(0xFFF5F5F8),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context).displayName,
+                        labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
+                        floatingLabelStyle: const TextStyle(
                           color: Color(0xFF9575CD),
-                          width: 1.5,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F5F8),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF9575CD),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _bioCtrl,
-                    maxLines: 4,
-                    maxLength: 150,
-                    style: const TextStyle(
-                      color: Color(0xFF1C1C1E),
-                      fontSize: 16,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: AppLocalizations.of(context).bio,
-                      labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
-                      floatingLabelStyle: const TextStyle(
-                        color: Color(0xFF9575CD),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _bioCtrl,
+                      maxLines: 4,
+                      maxLength: 150,
+                      style: const TextStyle(
+                        color: Color(0xFF1C1C1E),
+                        fontSize: 16,
                       ),
-                      alignLabelWithHint: true,
-                      filled: true,
-                      fillColor: const Color(0xFFF5F5F8),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context).bio,
+                        labelStyle: const TextStyle(color: Color(0xFF6E6E73)),
+                        floatingLabelStyle: const TextStyle(
                           color: Color(0xFF9575CD),
-                          width: 1.5,
+                        ),
+                        alignLabelWithHint: true,
+                        filled: true,
+                        fillColor: const Color(0xFFF5F5F8),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF9575CD),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }
