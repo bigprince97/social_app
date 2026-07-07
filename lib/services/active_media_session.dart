@@ -214,6 +214,10 @@ class ActiveMediaSession extends ChangeNotifier {
     if (cameraEnabled) {
       await room.localParticipant?.setCameraEnabled(true);
     }
+    // 连接后把音频路由和 UI 状态对齐（speakerOn 默认 true=扬声器）
+    try {
+      await Hardware.instance.setSpeakerphoneOn(speakerOn);
+    } catch (_) {}
     _syncRemoteSnapshot();
     connected = true;
     if (remoteParticipants.isNotEmpty) connectedAt ??= DateTime.now();
@@ -351,6 +355,12 @@ class ActiveMediaSession extends ChangeNotifier {
 
   Future<void> setSpeaker(bool enabled) async {
     speakerOn = enabled;
+    // 真正切换音频路由（扬声器/听筒）；旧实现只翻标志位不生效
+    try {
+      await Hardware.instance.setSpeakerphoneOn(enabled);
+    } catch (_) {
+      // 个别机型/模拟器不支持路由切换，忽略即可
+    }
     _changed();
   }
 

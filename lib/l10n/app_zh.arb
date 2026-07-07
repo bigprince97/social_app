@@ -315,6 +315,7 @@
     }
   },
   "copy": "复制",
+  "reply": "回复",
   "quoteToChat": "引用到聊天",
   "fontSizeSmall": "小字",
   "fontSizeNormal": "标准",

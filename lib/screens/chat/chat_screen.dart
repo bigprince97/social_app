@@ -70,6 +70,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // 避免每条消息各触发一次整页重建导致掉帧。
   final List<Message> _pendingIncoming = [];
   Timer? _incomingFlushTimer;
+  // 长按消息→回复：待引用的消息（输入栏上方显示引用条）
+  Message? _replyTo;
 
   // read receipts
   DateTime? _otherLastReadAt;
@@ -474,10 +476,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ─── Send text ──────────────────────────────────────────────────────────
 
+  void _startReply(Message msg) {
+    setState(() => _replyTo = msg);
+    _inputFocusNode.requestFocus();
+  }
+
   Future<void> _sendMessage() async {
     final content = _inputCtrl.text.trim();
     if (content.isEmpty || _sending) return;
     final mentionIds = List<String>.from(_mentionedUserIds);
+    final replyTo = _replyTo;
     _inputCtrl.clear();
     _mentionedUserIds.clear();
     setState(() => _sending = true);
@@ -486,8 +494,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         conversationId: _conversation.id,
         content: content,
         mentionedUserIds: mentionIds.isEmpty ? null : mentionIds,
+        // 引用回复走 payload，无需数据库改动；失败重试时引用条保留
+        payload: replyTo == null
+            ? null
+            : {
+                'reply_to': {
+                  'id': replyTo.id,
+                  'sender': replyTo.sender?.displayName ?? '',
+                  'preview': replyTo.displayContent,
+                },
+              },
       );
-      setState(() => _messages.add(msg));
+      setState(() {
+        _messages.add(msg);
+        _replyTo = null;
+      });
       _cacheCurrentMessages();
       _scrollToBottom();
     } catch (e) {
@@ -1663,6 +1684,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           onEdit: isMe
                               ? () => _showEditMessageDialog(msg)
                               : null,
+                          onReply: () => _startReply(msg),
                         );
                       },
                     ),
@@ -1671,7 +1693,63 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           // @mention suggestion strip
           if (_showMentionPicker && _mentionableMembers.isNotEmpty)
             _buildMentionStrip(),
+          if (_replyTo != null) _buildReplyStrip(),
           _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  // ─── Reply strip（输入栏上方的引用条）──────────────────────────────────
+
+  Widget _buildReplyStrip() {
+    final msg = _replyTo!;
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF9575CD),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  msg.sender?.displayName ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF9575CD),
+                  ),
+                ),
+                Text(
+                  msg.displayContent,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: 20,
+              color: Colors.grey.shade500,
+            ),
+            onPressed: () => setState(() => _replyTo = null),
+          ),
         ],
       ),
     );

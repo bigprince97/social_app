@@ -527,6 +527,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copy => '复制';
 
   @override
+  String get reply => '回复';
+
+  @override
   String get quoteToChat => '引用到聊天';
 
   @override
@@ -1973,6 +1976,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get copy => '複製';
+
+  @override
+  String get reply => '回覆';
 
   @override
   String get quoteToChat => '引用到聊天';

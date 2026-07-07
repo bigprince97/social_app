@@ -1049,6 +1049,12 @@ abstract class AppLocalizations {
   /// **'复制'**
   String get copy;
 
+  /// No description provided for @reply.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复'**
+  String get reply;
+
   /// No description provided for @quoteToChat.
   ///
   /// In zh, this message translates to:

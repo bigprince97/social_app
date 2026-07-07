@@ -530,6 +530,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copy => 'Copy';
 
   @override
+  String get reply => 'Reply';
+
+  @override
   String get quoteToChat => 'Quote in Chat';
 
   @override

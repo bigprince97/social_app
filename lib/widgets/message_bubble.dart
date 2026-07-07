@@ -98,6 +98,7 @@ class MessageBubble extends StatelessWidget {
   final bool isRead;
   final VoidCallback? onDelete;
   final VoidCallback? onEdit;
+  final VoidCallback? onReply;
   final List<String> groupMemberNames; // username list for @mention highlight
   /// True for group chats — reserves avatar slot space so bubbles align
   final bool isGroupChat;
@@ -112,6 +113,7 @@ class MessageBubble extends StatelessWidget {
     this.isRead = false,
     this.onDelete,
     this.onEdit,
+    this.onReply,
     this.groupMemberNames = const [],
     this.isGroupChat = false,
   });
@@ -131,6 +133,7 @@ class MessageBubble extends StatelessWidget {
   void _showMenu(BuildContext context) {
     final isText = message.messageType == 'text' && !message.isDeleted;
     final canEdit = isMe && isText && onEdit != null;
+    final canReply = !message.isDeleted && onReply != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final previewBg = isDark
@@ -194,7 +197,7 @@ class MessageBubble extends StatelessWidget {
                     ),
 
                   // ── Action buttons ───────────────────────────────────
-                  if (isText || _canRecall || !isMe)
+                  if (canReply || isText || _canRecall || !isMe)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: ClipRRect(
@@ -202,6 +205,20 @@ class MessageBubble extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (canReply)
+                              _MenuActionBtn(
+                                icon: Icons.reply_rounded,
+                                label: AppLocalizations.of(context).reply,
+                                color: const Color(0xFF9575CD),
+                                isDark: isDark,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  onReply?.call();
+                                },
+                              ),
+                            if (canReply &&
+                                (isText || _canRecall || !isMe))
+                              _ActionDivider(isDark: isDark),
                             if (isText)
                               _MenuActionBtn(
                                 icon: Icons.copy_all_rounded,
@@ -720,6 +737,49 @@ class _TextBubble extends StatelessWidget {
             ),
             const SizedBox(height: 3),
           ],
+          // ── 引用回复块（长按→回复）────────────────────────────────
+          if (message.replyToPreview != null)
+            Container(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: isMe ? Colors.white.withAlpha(25) : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(6),
+                border: Border(
+                  left: BorderSide(
+                    color: isMe
+                        ? Colors.white.withAlpha(100)
+                        : const Color(0xFF9575CD),
+                    width: 3,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (message.replyToSender?.isNotEmpty ?? false)
+                    Text(
+                      message.replyToSender!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isMe ? _kTimeOwn : const Color(0xFF9575CD),
+                      ),
+                    ),
+                  Text(
+                    message.replyToPreview!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: isMe ? Colors.white70 : Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (isScripture && quote != null) ...[
             Container(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),

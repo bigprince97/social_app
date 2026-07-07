@@ -29,6 +29,7 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   late final ActiveMediaSession _session;
   bool _closing = false;
+  CameraPosition _cameraPosition = CameraPosition.front;
 
   @override
   void initState() {
@@ -90,6 +91,14 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> _toggleMic() => _session.toggleMic();
 
   Future<void> _toggleCamera() => _session.toggleCamera();
+
+  Future<void> _flipCamera() async {
+    final newPos = _cameraPosition == CameraPosition.front
+        ? CameraPosition.back
+        : CameraPosition.front;
+    await _session.flipCamera(newPos);
+    if (mounted) setState(() => _cameraPosition = newPos);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +228,7 @@ class _CallScreenState extends State<CallScreen> {
               child: const Icon(Icons.call_end, color: Colors.white, size: 30),
             ),
           ),
-          if (isVideo)
+          if (isVideo) ...[
             _ControlButton(
               icon: _session.cameraEnabled
                   ? Icons.videocam
@@ -229,8 +238,14 @@ class _CallScreenState extends State<CallScreen> {
                   : AppLocalizations.of(context).cameraOn,
               onTap: _toggleCamera,
               active: !_session.cameraEnabled,
-            )
-          else
+            ),
+            if (_session.cameraEnabled)
+              _ControlButton(
+                icon: Icons.cameraswitch_rounded,
+                label: AppLocalizations.of(context).flipCamera,
+                onTap: _flipCamera,
+              ),
+          ] else
             _ControlButton(
               icon: _session.speakerOn ? Icons.volume_up : Icons.volume_off,
               label: _session.speakerOn

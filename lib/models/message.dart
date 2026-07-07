@@ -31,6 +31,13 @@ class Message {
   String? get fileMime => payload?['mime'] as String?;
   bool get isEdited => payload?['edited_at'] != null;
 
+  // 引用回复（长按消息→回复）：信息存 payload['reply_to']，无需数据库改动
+  Map<String, dynamic>? get _replyTo =>
+      payload?['reply_to'] is Map ? Map.from(payload!['reply_to'] as Map) : null;
+  String? get replyToId => _replyTo?['id'] as String?;
+  String? get replyToSender => _replyTo?['sender'] as String?;
+  String? get replyToPreview => _replyTo?['preview'] as String?;
+
   factory Message.fromJson(Map<String, dynamic> json) => Message(
     id: json['id'] as String,
     conversationId: json['conversation_id'] as String,

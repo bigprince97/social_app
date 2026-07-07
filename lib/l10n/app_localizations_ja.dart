@@ -528,6 +528,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get copy => 'コピー';
 
   @override
+  String get reply => '返信';
+
+  @override
   String get quoteToChat => 'チャットに引用';
 
   @override
