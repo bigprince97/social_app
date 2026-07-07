@@ -165,10 +165,24 @@ class ActiveMediaSession extends ChangeNotifier {
   Future<void> connect() async {
     if (_connecting || connected || ended) return;
     _connecting = true;
-    if (isCall) {
-      await _connectCall();
-    } else {
-      await _connectLivestream();
+    try {
+      if (isCall) {
+        await _connectCall();
+      } else {
+        await _connectLivestream();
+      }
+    } catch (_) {
+      // 失败时清理本次创建的半初始化监听:保证重试从干净状态开始,
+      // 避免重连时旧 listener/status channel 被覆盖泄漏、事件双份触发。
+      unawaited(_listener?.dispose());
+      _listener = null;
+      _statusChannel?.unsubscribe();
+      _statusChannel = null;
+      rethrow;
+    } finally {
+      // 无论成功失败都复位「连接中」标记:成功后由 connected 拦截重入,
+      // 失败后允许重新 connect,避免会话永远卡在连接中导致重试静默无效。
+      _connecting = false;
     }
   }
 

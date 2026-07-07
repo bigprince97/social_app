@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -111,68 +112,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 被叫自己接听会先置 accepted=true，避免误关已替换的通话页。
     bool accepted = false;
     bool closedByStatus = false;
+    // 保留来电路由引用：pop/跳转前校验它仍在栈顶，避免竞态下误操作下层路由
+    late final MaterialPageRoute<void> incomingRoute;
     final statusCh = _callService.subscribeToCallStatus(call.id, (status) {
       if (status == 'ringing' || accepted) return;
-      if (!closedByStatus && navigator.canPop()) {
+      // 终态事件只来一次:来电页即使被其他路由遮挡(如点了通话中通知)
+      // 也要移除,否则用户返回后会看到已取消通话的僵尸来电页
+      if (!closedByStatus && incomingRoute.isActive) {
         closedByStatus = true;
-        navigator.pop(); // 关闭来电界面
+        if (incomingRoute.isCurrent) {
+          navigator.pop(); // 栈顶:正常带动画关闭
+        } else {
+          navigator.removeRoute(incomingRoute); // 被遮挡:无动画移除
+        }
       }
     });
-    await navigator.push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => IncomingCallScreen(
-          call: call,
-          onAccept: () async {
-            accepted = true;
+    incomingRoute = MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => IncomingCallScreen(
+        call: call,
+        onAccept: () async {
+          // 竞态兜底：来电页已被状态回调关闭（主叫已取消/超时），不再接听
+          if (closedByStatus) return;
+          accepted = true;
+          try {
+            await _callService.acceptCall(call.id);
+            final tokenData = await _callService.getLiveKitToken(
+              room: call.livekitRoom!,
+              canPublish: true,
+            );
+            // 取主叫昵称作为通话页显示名（之前误传了"通话中"字样）
+            String callerName = '';
             try {
-              await _callService.acceptCall(call.id);
-              final tokenData = await _callService.getLiveKitToken(
-                room: call.livekitRoom!,
-                canPublish: true,
-              );
-              // 取主叫昵称作为通话页显示名（之前误传了"通话中"字样）
-              String callerName = '';
-              try {
-                final p = await Supabase.instance.client
-                    .from('profiles')
-                    .select('display_name')
-                    .eq('id', call.callerId)
-                    .maybeSingle();
-                callerName = (p?['display_name'] as String?) ?? '';
-              } catch (_) {}
-              if (!navigator.mounted) return;
-              navigator.pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => CallScreen(
-                    call: call,
-                    livekitUrl: tokenData.url,
-                    livekitToken: tokenData.token,
-                    displayName: callerName,
-                  ),
-                ),
-              );
-            } catch (e) {
-              if (navigator.canPop()) navigator.pop();
-              if (mounted) {
-                showErrorIfNotNetwork(
-                  context,
-                  e,
-                  AppLocalizations.of(context).acceptCallFailed(e.toString()),
-                );
-              }
-            }
-          },
-          onDecline: () async {
-            accepted = true; // 阻止状态回调重复 pop
-            try {
-              await _callService.declineCall(call.id);
+              final p = await Supabase.instance.client
+                  .from('profiles')
+                  .select('display_name')
+                  .eq('id', call.callerId)
+                  .maybeSingle();
+              callerName = (p?['display_name'] as String?) ?? '';
             } catch (_) {}
-            if (navigator.canPop()) navigator.pop();
-          },
-        ),
+            if (!navigator.mounted) return;
+            // 来电页已不在栈顶（如接听期间被系统返回键关闭）：放弃跳转,
+            // 避免 pushReplacement 误替换下层路由导致返回栈损坏。
+            // 此时 DB 已是 accepted,必须通知服务端挂断,否则主叫会
+            // 一直留在空房间等人(振铃超时只对 ringing 状态生效)
+            if (!incomingRoute.isCurrent) {
+              unawaited(_callService.endCall(call.id).catchError((_) {}));
+              return;
+            }
+            navigator.pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => CallScreen(
+                  call: call,
+                  livekitUrl: tokenData.url,
+                  livekitToken: tokenData.token,
+                  displayName: callerName,
+                ),
+              ),
+            );
+          } catch (e) {
+            // 仅当来电页仍在栈顶时才 pop，防止误关下层路由
+            if (incomingRoute.isCurrent) navigator.pop();
+            if (mounted) {
+              showErrorIfNotNetwork(
+                context,
+                e,
+                AppLocalizations.of(context).acceptCallFailed(e.toString()),
+              );
+            }
+          }
+        },
+        onDecline: () {
+          accepted = true; // 阻止状态回调重复 pop
+          // 先同步关闭来电界面：拒接请求挂起/失败也不会卡死在本页
+          if (incomingRoute.isCurrent) navigator.pop();
+          // 拒接改为后台发送，失败由主叫侧振铃超时兜底
+          unawaited(_callService.declineCall(call.id).catchError((_) {}));
+        },
       ),
     );
+    await navigator.push(incomingRoute);
     statusCh.unsubscribe();
     _handlingCall = false;
   }

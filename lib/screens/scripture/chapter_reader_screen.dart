@@ -8,6 +8,7 @@ import '../../models/scripture.dart';
 import '../../services/bible_content_service.dart';
 import '../../services/bible_version_controller.dart';
 import '../../services/chat_service.dart';
+import '../../services/local_cache.dart';
 import '../../services/locale_controller.dart';
 import '../../services/scripture_service.dart';
 import '../../theme/app_style.dart';
@@ -57,6 +58,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   String? _remoteBibleCopyright;
   String? _remoteBibleError;
   bool _remoteBibleLoading = false;
+  // 非远端分支正文加载失败的提示文案（null 表示无错误）
+  String? _contentError;
+  // 正文请求序号:只允许最新一次请求落地(防快速翻章竞态)
+  int _contentReq = 0;
 
   bool get _isBible => widget.scripture.category == '基督';
 
@@ -208,10 +213,35 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       return;
     }
     if (_chapter.originalText != null) return;
-    final full = await _service.getChapterContent(_chapter.id);
-    if (mounted) {
-      setState(() => _chapter = full);
+    final chapterId = _chapter.id;
+    // 请求序号守卫:A→B→A 快速翻章时同章可能有新旧两个请求在飞,
+    // 仅让最新一次落地,避免旧请求的错误/内容覆盖新请求
+    final req = ++_contentReq;
+    try {
+      final full = await _service.getChapterContent(chapterId);
+      if (!mounted || req != _contentReq || _chapter.id != chapterId) return;
+      if (full.originalText == null) {
+        // 服务端正文为空也按失败处理，避免 loading 永不结束
+        setState(
+          () => _contentError = AppLocalizations.of(context).noChapterContent,
+        );
+        return;
+      }
+      setState(() {
+        _chapter = full;
+        _contentError = null;
+      });
       _scheduleVerseScroll();
+    } catch (e) {
+      if (!mounted || req != _contentReq || _chapter.id != chapterId) return;
+      final l10n = AppLocalizations.of(context);
+      setState(
+        () => _contentError = isNetworkError(e)
+            ? l10n.networkError
+            : l10n.loadFailed(e),
+      );
+      // 网络类错误静默（页面内已有错误视图+重试），其余走统一提示
+      showErrorIfNotNetwork(context, e, l10n.loadFailed(e));
     }
   }
 
@@ -444,6 +474,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       _remoteBibleCopyright = null;
       _remoteBibleError = null;
       _remoteBibleLoading = false;
+      _contentError = null;
     });
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -625,7 +656,7 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   Widget _buildBibleReader() {
     final loading = _usesRemoteBible
         ? _remoteBibleLoading
-        : _chapter.originalText == null;
+        : _chapter.originalText == null && _contentError == null;
     return Scaffold(
       backgroundColor: _bibleBg,
       appBar: _buildBibleAppBar(),
@@ -639,6 +670,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 : _usesRemoteBible &&
                       (_remoteBibleError != null || _displayText.isEmpty)
                 ? _buildBibleUnavailable()
+                : !_usesRemoteBible &&
+                      _chapter.originalText == null &&
+                      _contentError != null
+                ? _buildContentError()
                 : _buildBibleContent(),
           ),
           if (_selectedVerses.isNotEmpty) _buildVerseSelectionBar(),
@@ -1044,6 +1079,38 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     );
   }
 
+  /// 非远端分支正文加载失败视图（离线/弱网/空数据），带重试按钮。
+  Widget _buildContentError() {
+    final accent = _isBible ? _bibleAccent : widget.scripture.color;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, color: accent, size: 42),
+            const SizedBox(height: 14),
+            Text(
+              _contentError ?? AppLocalizations.of(context).networkError,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, height: 1.45),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                // 复位错误态回到 loading，再重新拉取正文
+                setState(() => _contentError = null);
+                _ensureContent();
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBibleBottomBar() {
     final canPrev = _currentIndex > 0;
     final canNext = _currentIndex < widget.allChapters.length - 1;
@@ -1276,7 +1343,9 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         children: [
           Expanded(
             child: _chapter.originalText == null
-                ? const Center(child: CircularProgressIndicator())
+                ? (_contentError != null
+                      ? _buildContentError()
+                      : const Center(child: CircularProgressIndicator()))
                 : SelectionArea(
                     child: SingleChildScrollView(
                       controller: _scrollController,

@@ -36,6 +36,8 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
   List<ScriptureChapter> _chapters = [];
   bool _loading = true;
   Scripture? _scripture;
+  // 加载失败时记录异常（含网络错误），供 build 的错误态展示提示与重试入口
+  Object? _loadError;
 
   @override
   void initState() {
@@ -60,7 +62,9 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
         }
       }
     } catch (e) {
-      if (mounted && !isNetworkError(e)) {
+      if (mounted) {
+        // 网络错误也要记录，否则深链只带 scriptureId 进入时会永远转圈且无重试入口
+        setState(() => _loadError = e);
         showErrorIfNotNetwork(
           context,
           e,
@@ -111,7 +115,50 @@ class _ScriptureDetailScreenState extends State<ScriptureDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_scripture == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // 深链/推送只带 scriptureId 进入时的兜底：加载中转圈，失败给提示 + 重试。
+      // 两种状态都带 AppBar（自动返回按钮），保证返回路径永远可用。
+      final error = _loadError;
+      final t = AppLocalizations.of(context);
+      return Scaffold(
+        appBar: AppBar(),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        size: 42,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        error != null && !isNetworkError(error)
+                            ? t.loadFailed('$error')
+                            : t.networkError,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 15, height: 1.45),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _loading = true;
+                            _loadError = null;
+                          });
+                          _loadData();
+                        },
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('重试'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+      );
     }
     final s = _scripture!;
 

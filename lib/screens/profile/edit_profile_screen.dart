@@ -12,7 +12,8 @@ import '../../models/profile.dart';
 import '../../services/event_bus.dart';
 import '../../services/profile_service.dart';
 import '../../services/storage_service.dart';
-import '../../utils/auth_error.dart';
+import '../../utils/auth_error.dart'
+    show avatarInitial, isAuthExpiredError, requireUid, UserNotFoundException;
 import '../../utils/content_filter.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -29,6 +30,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _bioCtrl = TextEditingController();
   Profile? _profile;
   bool _loading = true;
+  // 加载失败标记 + 文案:异常时展示页内错误视图与重试按钮,避免永久转圈
+  bool _loadError = false;
+  String _loadErrorText = '';
   bool _saving = false;
   XFile? _newAvatarFile;
 
@@ -46,15 +50,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final userId = Supabase.instance.client.auth.currentUser!.id;
-    final profile = await _profileService.getProfile(userId);
-    if (mounted) {
-      setState(() {
-        _profile = profile;
-        _displayNameCtrl.text = profile.displayName;
-        _bioCtrl.text = profile.bio ?? '';
-        _loading = false;
-      });
+    setState(() {
+      _loading = true;
+      _loadError = false;
+    });
+    try {
+      // 会话失效时抛 SessionExpiredException,而非 currentUser! 空断言直接崩溃
+      final userId = requireUid(Supabase.instance.client);
+      final profile = await _profileService.getProfile(userId);
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _displayNameCtrl.text = profile.displayName;
+          _bioCtrl.text = profile.bio ?? '';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final t = AppLocalizations.of(context);
+        // 区分错误类型给出对应文案;网络错误 toast 静默,靠页内错误视图提示
+        final message = isAuthExpiredError(e)
+            ? t.sessionExpired
+            : e is UserNotFoundException
+            ? t.userNotFound
+            : isNetworkError(e)
+            ? t.networkError
+            : t.loadFailed('$e');
+        setState(() {
+          _loadError = true;
+          _loadErrorText = message;
+        });
+        showErrorIfNotNetwork(context, e, message);
+      }
+    } finally {
+      // 无论成败都结束 loading,保证页面不会永久转圈
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -146,7 +176,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           title: Text(AppLocalizations.of(context).editProfile),
           actions: [
             TextButton(
-              onPressed: _saving ? null : _save,
+              // 资料未加载成功前禁用保存,避免用空数据覆盖线上资料
+              onPressed: (_saving || _profile == null) ? null : _save,
               child: _saving
                   ? const SizedBox(
                       width: 18,
@@ -159,6 +190,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadError
+            ? Center(
+                // 加载失败视图:提示 + 重试入口(AppBar 返回始终可用)
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _loadErrorText,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: Color(0xFF777777),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _loadProfile,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('重试'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             : SingleChildScrollView(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,

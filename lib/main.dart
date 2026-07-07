@@ -14,6 +14,7 @@ import 'services/locale_controller.dart';
 import 'services/local_cache.dart';
 import 'services/bible_version_controller.dart';
 import 'services/push_notification_service.dart';
+import 'utils/timeout_http_client.dart';
 
 const _kPrimary = Color(0xFF9575CD); // app purple
 const _kPrimaryDark = Color(0xFFB39DDB);
@@ -39,6 +40,9 @@ void main() async {
     await Supabase.initialize(
       url: supabaseUrl,
       publishableKey: supabasePublishableKey,
+      // 所有请求 25s 兜底超时:弱网悬挂 → 异常 → 页面正常走错误路径,
+      // 避免 loading 永不结束(见 utils/timeout_http_client.dart)
+      httpClient: TimeoutHttpClient(),
     ).timeout(const Duration(seconds: 8));
   } catch (_) {}
 

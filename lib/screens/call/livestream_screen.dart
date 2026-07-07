@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../../l10n/app_localizations.dart';
@@ -50,6 +52,9 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
     _session.restore();
     _session.addListener(_onSessionChanged);
     _session.connect().catchError((e) {
+      // 连接失败:结束并清理这个坏 session,避免它以「未结束」状态
+      // 留在 controller 里,导致下次重新加入时被复用而永远连不上。
+      unawaited(_session.end());
       if (mounted) {
         showPremiumToast(
           context,

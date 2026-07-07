@@ -128,7 +128,8 @@ class ScriptureService {
   Future<ScriptureChapter> getChapterContent(String chapterId) async {
     final cacheKey = 'chapter2_$chapterId';
     final cached = await _cache.read(cacheKey);
-    if (cached is Map) {
+    // 缓存中正文为空视为脏数据，忽略并重新联网取
+    if (cached is Map && cached['original_text'] != null) {
       return ScriptureChapter.fromJson(Map<String, dynamic>.from(cached));
     }
     final data = await _client
@@ -136,7 +137,10 @@ class ScriptureService {
         .select()
         .eq('id', chapterId)
         .single();
-    await _cache.write(cacheKey, data);
+    // 空正文不写缓存，避免之后每次进该章都读到空内容
+    if (data['original_text'] != null) {
+      await _cache.write(cacheKey, data);
+    }
     return ScriptureChapter.fromJson(data);
   }
 
