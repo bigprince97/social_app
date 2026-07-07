@@ -126,7 +126,8 @@ class ScriptureService {
   /// 缓存优先：经文是静态内容，已缓存/已下载则直接秒出，不等网络往返；
   /// 无缓存才联网取并写入。
   Future<ScriptureChapter> getChapterContent(String chapterId) async {
-    final cacheKey = 'chapter2_$chapterId';
+    // v3:缓存需包含 headings(段落标题)列,升键使旧缓存自然失效
+    final cacheKey = 'chapter3_$chapterId';
     final cached = await _cache.read(cacheKey);
     // 缓存中正文为空视为脏数据，忽略并重新联网取
     if (cached is Map && cached['original_text'] != null) {
@@ -157,7 +158,7 @@ class ScriptureService {
         .from('scripture_chapters')
         .select(
           'id, scripture_id, chapter_number, title, original_text, annotation, '
-          'translation, text_i18n, title_i18n, created_at',
+          'translation, text_i18n, title_i18n, headings, created_at',
         )
         .ilike('original_text', '%$q%');
     if (scriptureId != null) {

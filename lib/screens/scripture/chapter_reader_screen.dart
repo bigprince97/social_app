@@ -963,7 +963,13 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 : EdgeInsets.zero,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: verses.map(_buildVerseRow).toList(),
+              children: [
+                for (final v in verses) ...[
+                  // 段落标题(如「预言圣殿被毁」)插在对应经节前
+                  ...?_headingsBefore(v.number)?.map(_buildSectionHeading),
+                  _buildVerseRow(v),
+                ],
+              ],
             ),
           ),
 
@@ -1683,6 +1689,31 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   // ── 圣经逐节解析 ─────────────────────────────────────────────
+
+  /// 该节前要显示的段落标题(仅中文本地圣经有数据;无则 null)
+  List<ChapterHeading>? _headingsBefore(int verseNumber) {
+    if (_usesRemoteBible) return null;
+    final all = _chapter.headings;
+    if (all == null || all.isEmpty) return null;
+    final hits = all.where((h) => h.before == verseNumber).toList();
+    return hits.isEmpty ? null : hits;
+  }
+
+  /// 段落标题样式:加粗、比正文略大,随用户字号缩放
+  Widget _buildSectionHeading(ChapterHeading h) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 18, 0, 6),
+      child: Text(
+        h.title,
+        style: TextStyle(
+          fontSize: _fontSize * 1.05,
+          fontWeight: FontWeight.bold,
+          color: const Color(0xFF1A1A1A),
+          height: 1.3,
+        ),
+      ),
+    );
+  }
 
   List<_BibleVerse> _parseBibleVerses(String text) {
     final lines = text.split('\n');

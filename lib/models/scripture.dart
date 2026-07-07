@@ -76,6 +76,19 @@ class Scripture {
   ];
 }
 
+/// 圣经章内段落标题（如「预言圣殿被毁」），渲染在第 before 节之前
+class ChapterHeading {
+  final int before;
+  final String title;
+
+  const ChapterHeading({required this.before, required this.title});
+
+  factory ChapterHeading.fromJson(Map<String, dynamic> json) => ChapterHeading(
+    before: (json['before'] as num).toInt(),
+    title: json['title'] as String,
+  );
+}
+
 class ScriptureChapter {
   final String id;
   final String scriptureId;
@@ -88,6 +101,8 @@ class ScriptureChapter {
   // 多语言文本/标题（圣经）：{'en':..,'zh_Hant':..,'ja':..}，zh 用 originalText/title
   final Map<String, dynamic>? textI18n;
   final Map<String, dynamic>? titleI18n;
+  // 段落标题（中文圣经，按节号插入），无数据时为 null
+  final List<ChapterHeading>? headings;
   bool isBookmarked;
   bool isHighlighted;
   String? userNote;
@@ -102,6 +117,7 @@ class ScriptureChapter {
     this.translation,
     this.textI18n,
     this.titleI18n,
+    this.headings,
     required this.createdAt,
     this.isBookmarked = false,
     this.isHighlighted = false,
@@ -133,6 +149,11 @@ class ScriptureChapter {
         translation: json['translation'] as String?,
         textI18n: json['text_i18n'] as Map<String, dynamic>?,
         titleI18n: json['title_i18n'] as Map<String, dynamic>?,
+        headings: (json['headings'] as List?)
+            ?.map(
+              (e) => ChapterHeading.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
+            .toList(),
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }
