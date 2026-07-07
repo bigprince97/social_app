@@ -66,6 +66,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   late Conversation _conversation;
   Timer? _readTimer;
   Timer? _livestreamExpiryTimer;
+  // 新消息攒批：刷屏时 100ms 内涌入的消息合并为一次 setState，
+  // 避免每条消息各触发一次整页重建导致掉帧。
+  final List<Message> _pendingIncoming = [];
+  Timer? _incomingFlushTimer;
 
   // read receipts
   DateTime? _otherLastReadAt;
@@ -300,6 +304,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _recorder.dispose();
     _recordTimer?.cancel();
     _readTimer?.cancel();
+    _incomingFlushTimer?.cancel();
     _livestreamExpiryTimer?.cancel();
     // 离开聊天时立即落库已读：避免 2s 内快速返回时定时器被取消，
     // 导致 last_read 未更新、会话列表未读 badge 不清除。
@@ -380,14 +385,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // 仅进群文件、不在聊天显示的文件跳过
       if (msg.payload?['files_only'] == true) return;
       // Deduplicate: ignore if we already have this message (REST/local race)
-      if (_messages.any((m) => m.id == msg.id)) return;
-      // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
-      final wasNearBottom = _isNearBottom;
-      setState(() => _messages.add(msg));
-      _cacheCurrentMessages();
-      if (wasNearBottom) _scrollToBottom();
-      _scheduleUpdateLastRead();
+      if (_messages.any((m) => m.id == msg.id) ||
+          _pendingIncoming.any((m) => m.id == msg.id)) {
+        return;
+      }
+      _pendingIncoming.add(msg);
+      // 攒批而非逐条 setState：刷屏时几十次整页重建 → 合并为 1 次
+      _incomingFlushTimer ??= Timer(
+        const Duration(milliseconds: 100),
+        _flushIncomingMessages,
+      );
     });
+  }
+
+  void _flushIncomingMessages() {
+    _incomingFlushTimer = null;
+    if (!mounted || _pendingIncoming.isEmpty) return;
+    // flush 时再去重一次：攒批期间 _loadMessages 可能已经拉到同批消息
+    final batch = _pendingIncoming
+        .where((p) => !_messages.any((m) => m.id == p.id))
+        .toList();
+    _pendingIncoming.clear();
+    if (batch.isEmpty) return;
+    // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
+    final wasNearBottom = _isNearBottom;
+    setState(() => _messages.addAll(batch));
+    _cacheCurrentMessages();
+    if (wasNearBottom) _scrollToBottom();
+    _scheduleUpdateLastRead();
   }
 
   void _subscribeToMessageUpdates() {

@@ -39,11 +39,48 @@ const _kSenderPalette = [
 Color _colorForSender(String id) =>
     _kSenderPalette[id.hashCode.abs() % _kSenderPalette.length];
 
-BorderRadius _radius(bool isMe) => BorderRadius.only(
-  topLeft: const Radius.circular(18),
-  topRight: const Radius.circular(18),
-  bottomLeft: Radius.circular(isMe ? 18 : 4),
-  bottomRight: Radius.circular(isMe ? 4 : 18),
+// 圆角/阴影/正文样式提为 const：这些原本每条消息每次 build 都重新构造，
+// 消息多时白白增加对象分配与 GPU 合成压力。
+const _kRadiusMe = BorderRadius.only(
+  topLeft: Radius.circular(18),
+  topRight: Radius.circular(18),
+  bottomLeft: Radius.circular(18),
+  bottomRight: Radius.circular(4),
+);
+const _kRadiusOther = BorderRadius.only(
+  topLeft: Radius.circular(18),
+  topRight: Radius.circular(18),
+  bottomLeft: Radius.circular(4),
+  bottomRight: Radius.circular(18),
+);
+BorderRadius _radius(bool isMe) => isMe ? _kRadiusMe : _kRadiusOther;
+
+// 气泡阴影（0x23=35、0x14=20，对应旧 withAlpha 值）
+const _kShadowMe = [
+  BoxShadow(color: Color(0x23000000), blurRadius: 6, offset: Offset(0, 2)),
+];
+const _kShadowOther = [
+  BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 2)),
+];
+
+// 消息正文/@提及文字样式
+const _kMsgTextMe = TextStyle(fontSize: 15, color: Colors.white, height: 1.4);
+const _kMsgTextOther = TextStyle(
+  fontSize: 15,
+  color: Colors.black87,
+  height: 1.4,
+);
+const _kMentionMe = TextStyle(
+  fontSize: 15,
+  color: Colors.white,
+  fontWeight: FontWeight.bold,
+  height: 1.4,
+);
+const _kMentionOther = TextStyle(
+  fontSize: 15,
+  color: Color(0xFF9575CD),
+  fontWeight: FontWeight.bold,
+  height: 1.4,
 );
 
 // 2-minute recall window
@@ -602,54 +639,31 @@ class _TextBubble extends StatelessWidget {
 
   // Highlight @mentions in the text
   Widget _buildText(String text, Color textColor) {
+    // 样式提为 const：旧实现每个 TextSpan 都 new 一个 TextStyle
+    final baseStyle = isMe ? _kMsgTextMe : _kMsgTextOther;
     if (groupMemberNames.isEmpty || !text.contains('@')) {
-      return Text(
-        text,
-        style: TextStyle(fontSize: 15, color: textColor, height: 1.4),
-      );
+      return Text(text, style: baseStyle);
     }
-    // Split on @Name patterns
+    // 单次正则扫描替代「每段剩余文本 × 全体成员名 indexOf」的嵌套循环。
+    // 成员名按长度降序拼接，保证前缀撞名时（@王 vs @王明）优先匹配最长者。
+    final names = [...groupMemberNames]
+      ..sort((a, b) => b.length.compareTo(a.length));
+    final mentionRe = RegExp(
+      '@(?:${names.map(RegExp.escape).join('|')})',
+    );
+    final mentionStyle = isMe ? _kMentionMe : _kMentionOther;
     final spans = <InlineSpan>[];
-    var remaining = text;
-    while (remaining.isNotEmpty) {
-      var foundAt = -1;
-      String? foundName;
-      for (final name in groupMemberNames) {
-        final idx = remaining.indexOf('@$name');
-        if (idx != -1 && (foundAt == -1 || idx < foundAt)) {
-          foundAt = idx;
-          foundName = name;
-        }
+    var last = 0;
+    for (final m in mentionRe.allMatches(text)) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start), style: baseStyle));
       }
-      if (foundAt == -1 || foundName == null) {
-        spans.add(
-          TextSpan(
-            text: remaining,
-            style: TextStyle(fontSize: 15, color: textColor, height: 1.4),
-          ),
-        );
-        break;
-      }
-      if (foundAt > 0) {
-        spans.add(
-          TextSpan(
-            text: remaining.substring(0, foundAt),
-            style: TextStyle(fontSize: 15, color: textColor, height: 1.4),
-          ),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: '@$foundName',
-          style: TextStyle(
-            fontSize: 15,
-            color: isMe ? Colors.white : const Color(0xFF9575CD),
-            fontWeight: FontWeight.bold,
-            height: 1.4,
-          ),
-        ),
-      );
-      remaining = remaining.substring(foundAt + foundName.length + 1);
+      spans.add(TextSpan(text: m.group(0), style: mentionStyle));
+      last = m.end;
+    }
+    if (spans.isEmpty) return Text(text, style: baseStyle);
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: baseStyle));
     }
     return RichText(text: TextSpan(children: spans));
   }
@@ -679,13 +693,7 @@ class _TextBubble extends StatelessWidget {
             : null,
         color: isMe ? null : _kRecvBg,
         borderRadius: _radius(isMe),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(isMe ? 35 : 20),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: isMe ? _kShadowMe : _kShadowOther,
       ),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
       child: Column(
@@ -921,13 +929,7 @@ class _AudioBubbleState extends State<_AudioBubble>
             : null,
         color: widget.isMe ? null : bg,
         borderRadius: _radius(widget.isMe),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(widget.isMe ? 35 : 20),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: widget.isMe ? _kShadowMe : _kShadowOther,
       ),
       padding: const EdgeInsets.fromLTRB(10, 8, 12, 7),
       child: Column(
@@ -1215,13 +1217,7 @@ class _FileBubble extends StatelessWidget {
               : null,
           color: isMe ? null : bg,
           borderRadius: _radius(isMe),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(isMe ? 35 : 20),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: isMe ? _kShadowMe : _kShadowOther,
         ),
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 7),
         child: Column(
