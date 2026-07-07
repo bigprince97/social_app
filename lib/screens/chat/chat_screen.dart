@@ -583,7 +583,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Request permission first; if denied, bail out
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
-      if (mounted) {
+      if (!mounted) return;
+      // iOS 的系统权限弹窗一生只弹一次,之后请求会被静默拒绝
+      // (permanentlyDenied):必须引导用户去系统设置手动开启
+      if (status.isPermanentlyDenied) {
+        final go = await showPremiumConfirm(
+          context,
+          title: AppLocalizations.of(context).microphonePermissionRequired,
+          message: '请在系统设置中允许 Omega 使用麦克风,才能发送语音消息。',
+          confirmLabel: '去设置',
+          icon: Icons.mic_off_rounded,
+        );
+        if (go) await openAppSettings();
+      } else {
         showPremiumToast(
           context,
           AppLocalizations.of(context).microphonePermissionRequired,
