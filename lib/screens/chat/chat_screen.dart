@@ -127,6 +127,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _currentUserId = Supabase.instance.client.auth.currentUser!.id;
     _conversation = widget.conversation;
     ActiveConversation.enter(_conversation.id);
+    // 进入会话:清除通知栏里属于本会话的所有通知
+    PushNotificationService.clearConversationNotifications(_conversation.id);
     _computeOtherLastRead();
     _loadBlockState();
     _loadMessages();
@@ -276,6 +278,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // 回前台：补拉后台期间漏掉的消息并重建订阅
     if (state == AppLifecycleState.resumed) {
+      // 后台期间该会话可能积了新通知,回前台仍在本页则一并清除
+      PushNotificationService.clearConversationNotifications(_conversation.id);
       _removeCh(_msgChannel);
       _removeCh(_updateChannel);
       _removeCh(_readChannel);

@@ -51,6 +51,31 @@ import UserNotifications
           }
         }
       }
+
+      // 按会话清除通知中心里的已达通知(进入会话页时由 Dart 调用),
+      // 匹配推送里设置的 thread-id = conversation_id
+      let notifChannel = FlutterMethodChannel(
+        name: "omega/notifications",
+        binaryMessenger: controller.binaryMessenger
+      )
+      notifChannel.setMethodCallHandler { call, result in
+        guard call.method == "clearThread",
+              let args = call.arguments as? [String: Any],
+              let threadId = args["threadId"] as? String else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notifs in
+          let ids = notifs
+            .filter { $0.request.content.threadIdentifier == threadId }
+            .map { $0.request.identifier }
+          if !ids.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: ids)
+          }
+          DispatchQueue.main.async { result(nil) }
+        }
+      }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

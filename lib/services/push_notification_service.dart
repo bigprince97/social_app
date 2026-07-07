@@ -272,6 +272,37 @@ class PushNotificationService {
     }
   }
 
+  static const _notifChannel = MethodChannel('omega/notifications');
+
+  /// 清除通知栏里属于该会话的所有已达通知(进入会话页时调用)。
+  /// iOS 按推送的 thread-id 匹配;Android 按通知 tag 的会话前缀匹配。
+  static Future<void> clearConversationNotifications(
+    String conversationId,
+  ) async {
+    try {
+      if (Platform.isIOS) {
+        await _notifChannel.invokeMethod('clearThread', {
+          'threadId': conversationId,
+        });
+      } else if (Platform.isAndroid) {
+        final android = _localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+        final actives = await android?.getActiveNotifications() ?? const [];
+        for (final n in actives) {
+          final tag = n.tag;
+          final id = n.id;
+          if (id != null && tag != null && tag.startsWith('$conversationId:')) {
+            await _localNotifications.cancel(id, tag: tag);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to clear conversation notifications: $e');
+    }
+  }
+
   static String _buildPayload(Map<String, dynamic> data) =>
       '${data['type'] ?? ''}|${data['post_id'] ?? ''}|${data['actor_id'] ?? ''}|${data['conversation_id'] ?? ''}';
 

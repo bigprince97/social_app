@@ -161,8 +161,13 @@ Deno.serve(async (req: Request) => {
                 },
                 android: {
                   priority: "high",
-                  // 与 iOS 一致:逐条通知不覆盖,全部展示
-                  notification: { sound: "default", channel_id: "default" },
+                  notification: {
+                    sound: "default",
+                    channel_id: "default",
+                    // 唯一 tag(会话:消息):逐条不覆盖,
+                    // 且客户端可按 conversation_id 前缀清除该会话全部通知
+                    tag: `${record.conversation_id}:${record.id}`,
+                  },
                 },
               },
             }),
