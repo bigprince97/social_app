@@ -185,14 +185,11 @@ Deno.serve(async (req: Request) => {
                   conversation_type: String(conv?.type ?? "direct"),
                 },
                 apns: {
-                  headers: {
-                    // 同一会话的推送互相覆盖:通知栏每个会话只占一条
-                    "apns-collapse-id": String(record.conversation_id),
-                  },
+                  // iOS 主流 IM 做法(微信/WhatsApp):逐条通知不覆盖,
+                  // 用 thread-id 让系统按会话自动堆叠成一组,既不轰炸也不丢提示
                   payload: {
                     aps: {
                       sound: "default",
-                      // iOS 按会话分组显示,便于后续按会话清除
                       "thread-id": String(record.conversation_id),
                     },
                   },
