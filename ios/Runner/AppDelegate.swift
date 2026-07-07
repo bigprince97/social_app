@@ -25,10 +25,13 @@ import UserNotifications
     UNUserNotificationCenter.current().delegate = self
     GeneratedPluginRegistrant.register(with: self)
 
-    if let controller = window?.rootViewController as? FlutterViewController {
+    // Scene 模式下启动时 window 为 nil,用插件注册表拿 messenger
+    // (旧写法 window?.rootViewController 导致 channel 从未注册)
+    if let registrar = self.registrar(forPlugin: "OmegaChannels") {
+      let messenger = registrar.messenger()
       let badgeChannel = FlutterMethodChannel(
         name: "omega/app_badge",
-        binaryMessenger: controller.binaryMessenger
+        binaryMessenger: messenger
       )
       badgeChannel.setMethodCallHandler { call, result in
         guard call.method == "setBadgeCount" else {
@@ -56,7 +59,7 @@ import UserNotifications
       // 匹配推送里设置的 thread-id = conversation_id
       let notifChannel = FlutterMethodChannel(
         name: "omega/notifications",
-        binaryMessenger: controller.binaryMessenger
+        binaryMessenger: messenger
       )
       notifChannel.setMethodCallHandler { call, result in
         guard call.method == "clearThread",
