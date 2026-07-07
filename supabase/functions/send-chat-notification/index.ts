@@ -118,42 +118,9 @@ Deno.serve(async (req: Request) => {
     if (recipientIds.length === 0) return new Response("ok", { status: 200 });
     const { data: tokens } = await supabase
       .from("push_tokens")
-      .select("token, user_id")
+      .select("token")
       .in("user_id", recipientIds);
     if (!tokens || tokens.length === 0) return new Response("ok", { status: 200 });
-
-    // 各接收者的未读数:折叠通知带「[N条]」前缀,微信风格,
-    // 弥补同会话通知互相覆盖后看不出积压数量的问题
-    const { data: memberRows } = await supabase
-      .from("conversation_members")
-      .select("user_id, last_read_at")
-      .eq("conversation_id", record.conversation_id)
-      .in("user_id", recipientIds);
-    const lastReadMap = new Map(
-      (memberRows ?? []).map((r: { user_id: string; last_read_at: string | null }) => [
-        r.user_id,
-        r.last_read_at,
-      ]),
-    );
-    const unreadCounts = new Map<string, number>();
-    await Promise.all(
-      recipientIds.map(async (uid: string) => {
-        try {
-          let q = supabase
-            .from("messages")
-            .select("id", { count: "exact", head: true })
-            .eq("conversation_id", record.conversation_id)
-            .neq("sender_id", uid)
-            .or("is_deleted.is.null,is_deleted.eq.false");
-          const lr = lastReadMap.get(uid);
-          if (lr) q = q.gt("created_at", lr);
-          const { count } = await q;
-          unreadCounts.set(uid, count ?? 1);
-        } catch (_) {
-          unreadCounts.set(uid, 1);
-        }
-      }),
-    );
 
     if (!firebaseServiceAccount.client_email) {
       console.warn("FIREBASE_SERVICE_ACCOUNT_KEY not set");
@@ -163,9 +130,7 @@ Deno.serve(async (req: Request) => {
     const accessToken = await getAccessToken();
 
     const results = await Promise.allSettled(
-      tokens.map(({ token, user_id }: { token: string; user_id: string }) => {
-        const n = unreadCounts.get(user_id) ?? 1;
-        const finalBody = n > 1 ? `[${n}条] ${body}` : body;
+      tokens.map(({ token }: { token: string }) => {
         return fetch(
           `https://fcm.googleapis.com/v1/projects/${firebaseProjectId}/messages:send`,
           {
@@ -177,7 +142,7 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               message: {
                 token,
-                notification: { title, body: finalBody },
+                notification: { title, body },
                 data: {
                   type: "chat",
                   conversation_id: String(record.conversation_id),
@@ -196,12 +161,8 @@ Deno.serve(async (req: Request) => {
                 },
                 android: {
                   priority: "high",
-                  notification: {
-                    sound: "default",
-                    channel_id: "default",
-                    // 同一会话的通知同 tag 互相覆盖,只保留最新一条
-                    tag: String(record.conversation_id),
-                  },
+                  // 与 iOS 一致:逐条通知不覆盖,全部展示
+                  notification: { sound: "default", channel_id: "default" },
                 },
               },
             }),
