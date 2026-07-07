@@ -169,108 +169,120 @@ class _ConversationsScreenState extends State<ConversationsScreen>
   Widget build(BuildContext context) {
     final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
     final filtered = _filtered;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).messages),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_square),
-            onPressed: () => _showNewChatDialog(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: AppLocalizations.of(context).searchConversations,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF9575CD),
-                    width: 1.5,
-                  ),
-                ),
-                filled: true,
-              ),
-              onChanged: (v) => setState(() => _query = v),
+    return GestureDetector(
+      // 点击列表空白处收回搜索键盘(translucent 不拦截子组件点击)
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(AppLocalizations.of(context).messages),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_square),
+              onPressed: () => _showNewChatDialog(context),
             ),
-          ),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: _loadConversations,
-                    child: filtered.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              SizedBox(
-                                height:
-                                    MediaQuery.of(context).size.height * 0.6,
-                                child: PremiumEmptyState(
-                                  icon: _query.isEmpty
-                                      ? Icons.forum_outlined
-                                      : Icons.search_off_rounded,
-                                  title: _query.isEmpty
-                                      ? AppLocalizations.of(context).noMessages
-                                      : AppLocalizations.of(
-                                          context,
-                                        ).noSearchResults,
-                                  subtitle: _query.isEmpty
-                                      ? AppLocalizations.of(
-                                          context,
-                                        ).createNewChat
-                                      : null,
-                                  color: AppStyle.brand,
-                                ),
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, i) {
-                              final conv = filtered[i];
-                              return Dismissible(
-                                key: ValueKey(conv.id),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  alignment: Alignment.centerRight,
-                                  color: AppStyle.red,
-                                  padding: const EdgeInsets.only(right: 24),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.white,
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: AppLocalizations.of(context).searchConversations,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF9575CD),
+                      width: 1.5,
+                    ),
+                  ),
+                  filled: true,
+                ),
+                textInputAction: TextInputAction.search,
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _loadConversations,
+                      child: filtered.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              children: [
+                                SizedBox(
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.6,
+                                  child: PremiumEmptyState(
+                                    icon: _query.isEmpty
+                                        ? Icons.forum_outlined
+                                        : Icons.search_off_rounded,
+                                    title: _query.isEmpty
+                                        ? AppLocalizations.of(
+                                            context,
+                                          ).noMessages
+                                        : AppLocalizations.of(
+                                            context,
+                                          ).noSearchResults,
+                                    subtitle: _query.isEmpty
+                                        ? AppLocalizations.of(
+                                            context,
+                                          ).createNewChat
+                                        : null,
+                                    color: AppStyle.brand,
                                   ),
                                 ),
-                                confirmDismiss: (_) => _confirmDelete(conv),
-                                onDismissed: (_) => _deleteConversation(conv),
-                                child: _ConversationTile(
-                                  conversation: conv,
-                                  currentUserId: userId,
-                                  onTap: () => context
-                                      .push('/chat/${conv.id}', extra: conv)
-                                      .then((_) {
-                                        _loadConversations(silent: true);
-                                        widget.onUnreadChanged?.call();
-                                      }),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-          ),
-        ],
+                              ],
+                            )
+                          : ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              itemCount: filtered.length,
+                              itemBuilder: (context, i) {
+                                final conv = filtered[i];
+                                return Dismissible(
+                                  key: ValueKey(conv.id),
+                                  direction: DismissDirection.endToStart,
+                                  background: Container(
+                                    alignment: Alignment.centerRight,
+                                    color: AppStyle.red,
+                                    padding: const EdgeInsets.only(right: 24),
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  confirmDismiss: (_) => _confirmDelete(conv),
+                                  onDismissed: (_) => _deleteConversation(conv),
+                                  child: _ConversationTile(
+                                    conversation: conv,
+                                    currentUserId: userId,
+                                    onTap: () => context
+                                        .push('/chat/${conv.id}', extra: conv)
+                                        .then((_) {
+                                          _loadConversations(silent: true);
+                                          widget.onUnreadChanged?.call();
+                                        }),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -583,6 +595,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
                           prefixIcon: const Icon(Icons.search),
                           border: const OutlineInputBorder(),
                         ),
+                        textInputAction: TextInputAction.search,
                         onChanged: _search,
                       ),
                     ),
@@ -591,6 +604,8 @@ class _NewChatSheetState extends State<_NewChatSheet>
                           ? const Center(child: CircularProgressIndicator())
                           : ListView.builder(
                               controller: scrollController,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
                               itemCount: _searchResults.length,
                               itemBuilder: (context, i) {
                                 final p = _searchResults[i];
@@ -641,6 +656,7 @@ class _NewChatSheetState extends State<_NewChatSheet>
                               prefixIcon: const Icon(Icons.search),
                               border: const OutlineInputBorder(),
                             ),
+                            textInputAction: TextInputAction.search,
                             onChanged: _search,
                           ),
                         ],
@@ -648,6 +664,8 @@ class _NewChatSheetState extends State<_NewChatSheet>
                     ),
                     Expanded(
                       child: ListView.builder(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         itemCount: _searchResults.length,
                         itemBuilder: (context, i) {
                           final p = _searchResults[i];
