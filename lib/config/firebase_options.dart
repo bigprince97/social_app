@@ -51,7 +51,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyARr5AnLiG0fx9mgTO0XT6Njdi3sFs410I',
-    appId: '1:387100034743:android:da06e9fdf1b8e74a74af32',
+    // 注意：必须用 com.zoven.omega 对应的 appId（见 google-services.json），
+    // 之前误用了 com.socialapp.social_app 的 appId，导致 Android FCM 注册错位。
+    appId: '1:387100034743:android:347f03e39d71cccb74af32',
     messagingSenderId: '387100034743',
     projectId: 'omega-6c05a',
     storageBucket: 'omega-6c05a.firebasestorage.app',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/conversation.dart';
@@ -663,18 +664,27 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           })().map((m) {
             final isMe = m.userId == _myId;
             final isOwnerMember = m.userId == widget.conversation.createdBy;
+            final avatarUrl = m.profile?.avatarUrl;
             return ListTile(
-              onTap: () => _showMemberActions(m),
+              // 点整行进入该成员个人主页；群管理操作移到右侧 more_vert 按钮
+              onTap: () => context.push('/profile/${m.userId}'),
               leading: CircleAvatar(
                 backgroundColor: Theme.of(
                   context,
                 ).colorScheme.secondaryContainer,
-                child: Text(
-                  (m.profile?.displayName ?? '?')[0].toUpperCase(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  ),
-                ),
+                backgroundImage: (avatarUrl?.isNotEmpty == true)
+                    ? NetworkImage(avatarUrl!)
+                    : null,
+                child: (avatarUrl?.isNotEmpty == true)
+                    ? null
+                    : Text(
+                        (m.profile?.displayName ?? '?')[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSecondaryContainer,
+                        ),
+                      ),
               ),
               title: Text(
                 m.profile?.displayName ?? m.userId,
@@ -713,7 +723,15 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                       ),
                     ),
                   if (_isAdmin && !isMe)
-                    const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.more_vert,
+                        size: 18,
+                        color: Colors.grey,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _showMemberActions(m),
+                    ),
                 ],
               ),
             );
