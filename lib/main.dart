@@ -10,6 +10,7 @@ import 'config/firebase_options.dart';
 import 'config/supabase_config.dart' show supabaseUrl, supabasePublishableKey;
 import 'l10n/app_localizations.dart';
 import 'router.dart';
+import 'services/active_conversation.dart';
 import 'services/locale_controller.dart';
 import 'services/local_cache.dart';
 import 'services/bible_version_controller.dart';
@@ -110,7 +111,11 @@ class _SocialAppState extends State<SocialApp> {
           final ctx = router.routerDelegate.navigatorKey.currentContext;
           if (ctx == null) return;
           if (type == 'chat' && conversationId != null) {
-            ctx.push('/chat/$conversationId');
+            // 已在该会话页则不再入栈:防止连点同会话的多条通知
+            // 堆叠出多层相同页面(返回时像“刷新”,要点多次才退出)
+            if (ActiveConversation.current != conversationId) {
+              ctx.push('/chat/$conversationId');
+            }
           } else if (postId != null && postId.isNotEmpty) {
             ctx.push('/post/$postId');
           } else if (type == 'follow' &&
