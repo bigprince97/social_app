@@ -156,6 +156,17 @@ class _SocialAppState extends State<SocialApp> {
           // 去掉暗色模式：始终用浅色主题，不跟随系统
           themeMode: ThemeMode.light,
           routerConfig: router,
+          // 全局键盘兜底：点击任何非交互区域收回键盘。
+          // 交互控件（按钮/输入框/列表项）自己消费手势不受影响；
+          // 一次性覆盖所有现有与将来的页面，避免逐页遗漏。
+          builder: (context, child) => GestureDetector(
+            behavior: HitTestBehavior.deferToChild,
+            onTap: () {
+              final focus = FocusManager.instance.primaryFocus;
+              if (focus != null && focus.context != null) focus.unfocus();
+            },
+            child: child,
+          ),
         );
       },
     );

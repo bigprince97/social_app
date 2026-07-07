@@ -115,6 +115,8 @@ class _NotificationTile extends StatelessWidget {
         return Icons.person_add;
       case 'new_post':
         return Icons.article;
+      case 'bookmark':
+        return Icons.bookmark;
       default:
         return Icons.notifications;
     }
@@ -130,6 +132,8 @@ class _NotificationTile extends StatelessWidget {
         return Colors.green;
       case 'new_post':
         return const Color(0xFF9575CD);
+      case 'bookmark':
+        return Colors.amber;
       default:
         return Theme.of(context).colorScheme.primary;
     }

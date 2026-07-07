@@ -48,6 +48,8 @@ class AppNotification {
         return '${actor?.displayName ?? '有人'} 关注了你';
       case 'new_post':
         return '${actor?.displayName ?? '有人'} 发布了新帖子';
+      case 'bookmark':
+        return '${actor?.displayName ?? '有人'} 收藏了你的帖子';
       default:
         return '你有一条新通知';
     }
