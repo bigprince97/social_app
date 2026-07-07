@@ -63,12 +63,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const ct = record.call_type ?? "voice";
-    if (ct === "livestream") {
-      return new Response(JSON.stringify({ skipped: "livestream" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const isLivestream = ct === "livestream";
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -92,7 +87,18 @@ Deno.serve(async (req: Request) => {
       .single();
     const callerName = caller?.display_name ?? "有人";
 
-    const body = ct === "video" ? "邀请你视频通话" : "邀请你语音通话";
+    // 直播:标题=群名,正文=谁发起了直播;通话:标题=来电人
+    let title = callerName;
+    let body = ct === "video" ? "邀请你视频通话" : "邀请你语音通话";
+    if (isLivestream) {
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("name")
+        .eq("id", record.conversation_id)
+        .single();
+      title = conv?.name ?? "群直播";
+      body = `📺 ${callerName} 发起了直播，点击进入观看`;
+    }
 
     const { data: tokens } = await supabase
       .from("push_tokens")
@@ -106,14 +112,23 @@ Deno.serve(async (req: Request) => {
 
     const accessToken = await getAccessToken();
 
-    const dataPayload = {
-      type: "call",
-      call_id: String(record.id),
-      conversation_id: String(record.conversation_id),
-      caller_id: String(record.caller_id),
-      call_type: String(ct),
-      livekit_room: String(record.livekit_room ?? ""),
-    };
+    // 直播用 type=chat:点击通知直达群聊页(群内有直播横幅入口),
+    // 无需客户端改动;通话保持 type=call 触发全屏来电页
+    const dataPayload = isLivestream
+      ? {
+          type: "chat",
+          conversation_id: String(record.conversation_id),
+          sender_id: String(record.caller_id),
+          conversation_type: "group",
+        }
+      : {
+          type: "call",
+          call_id: String(record.id),
+          conversation_id: String(record.conversation_id),
+          caller_id: String(record.caller_id),
+          call_type: String(ct),
+          livekit_room: String(record.livekit_room ?? ""),
+        };
 
     const results = await Promise.allSettled(
       tokens.map(({ token }: { token: string }) =>
@@ -128,12 +143,15 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               message: {
                 token,
-                notification: { title: callerName, body },
+                notification: { title, body },
                 data: dataPayload,
                 apns: { payload: { aps: { sound: "default" } } },
                 android: {
                   priority: "high",
-                  notification: { sound: "default", channel_id: "calls" },
+                  notification: {
+                    sound: "default",
+                    channel_id: isLivestream ? "default" : "calls",
+                  },
                 },
               },
             }),
