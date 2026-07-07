@@ -113,6 +113,8 @@ class _NotificationTile extends StatelessWidget {
         return Icons.comment;
       case 'follow':
         return Icons.person_add;
+      case 'new_post':
+        return Icons.article;
       default:
         return Icons.notifications;
     }
@@ -126,6 +128,8 @@ class _NotificationTile extends StatelessWidget {
         return Colors.blue;
       case 'follow':
         return Colors.green;
+      case 'new_post':
+        return const Color(0xFF9575CD);
       default:
         return Theme.of(context).colorScheme.primary;
     }

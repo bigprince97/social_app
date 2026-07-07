@@ -104,6 +104,16 @@ Deno.serve(async (req: Request) => {
     else if (record.message_type === "scripture") body = "[经文引用]";
     if (!body) body = "发来一条消息";
 
+    // 区分私聊/群聊：群聊标题显示群名，正文带上发送者名
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("type, name")
+      .eq("id", record.conversation_id)
+      .single();
+    const isGroup = conv?.type === "group";
+    const title = isGroup ? (conv?.name ?? "群聊") : senderName;
+    if (isGroup) body = `${senderName}：${body}`;
+
     const recipientIds = memberIds.filter((id) => !blockedRecipientIds.has(id));
     if (recipientIds.length === 0) return new Response("ok", { status: 200 });
     const { data: tokens } = await supabase
@@ -132,11 +142,12 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               message: {
                 token,
-                notification: { title: senderName, body },
+                notification: { title, body },
                 data: {
                   type: "chat",
                   conversation_id: String(record.conversation_id),
                   sender_id: String(record.sender_id),
+                  conversation_type: String(conv?.type ?? "direct"),
                 },
                 apns: { payload: { aps: { sound: "default" } } },
                 android: {

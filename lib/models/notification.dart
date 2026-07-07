@@ -4,7 +4,7 @@ class AppNotification {
   final String id;
   final String userId;
   final String actorId;
-  final String type; // like | comment | follow | mention
+  final String type; // like | comment | follow | mention | new_post
   final String? postId;
   final String? commentId;
   final bool isRead;
@@ -46,6 +46,8 @@ class AppNotification {
         return '${actor?.displayName ?? '有人'} 评论了你的帖子';
       case 'follow':
         return '${actor?.displayName ?? '有人'} 关注了你';
+      case 'new_post':
+        return '${actor?.displayName ?? '有人'} 发布了新帖子';
       default:
         return '你有一条新通知';
     }

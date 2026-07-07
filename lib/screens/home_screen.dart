@@ -212,15 +212,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (ActiveConversation.current == conversationId) return;
     if (record['is_deleted'] == true) return;
     try {
-      final sender = await Supabase.instance.client
+      final client = Supabase.instance.client;
+      final sender = await client
           .from('profiles')
           .select('display_name')
           .eq('id', record['sender_id'] as String)
           .maybeSingle();
+      // 群聊横幅：标题显示群名，正文带发送者名，与后台推送格式一致
+      final conv = await client
+          .from('conversations')
+          .select('type, name')
+          .eq('id', conversationId)
+          .maybeSingle();
       if (!mounted) return;
       final t = AppLocalizations.of(context);
       final type = record['message_type'] as String? ?? 'text';
-      final body = switch (type) {
+      var body = switch (type) {
         'image' => t.imagePlaceholder,
         'video' => t.videoPlaceholder,
         'audio' => t.audioPlaceholder,
@@ -229,8 +236,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _ => (record['content'] as String?) ?? '',
       };
       if (body.isEmpty) return;
+      final senderName = (sender?['display_name'] as String?) ?? '';
+      final isGroup = conv?['type'] == 'group';
+      final title =
+          isGroup ? ((conv?['name'] as String?) ?? t.group) : senderName;
+      if (isGroup) body = '$senderName：$body';
       await PushNotificationService.showChatBanner(
-        title: (sender?['display_name'] as String?) ?? '',
+        title: title,
         body: body,
         conversationId: conversationId,
       );
