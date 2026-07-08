@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'call_service.dart';
 import 'push_notification_service.dart';
@@ -36,6 +37,8 @@ class ActiveMediaSessionController extends ChangeNotifier {
       displayName: displayName,
     );
     _session = next;
+    // 通话期间保持屏幕常亮,会话结束时在 _clear 里恢复
+    unawaited(WakelockPlus.enable().catchError((_) {}));
     notifyListeners();
     return next;
   }
@@ -62,6 +65,8 @@ class ActiveMediaSessionController extends ChangeNotifier {
       groupName: groupName,
     );
     _session = next;
+    // 直播期间保持屏幕常亮(含最小化小窗),会话结束时在 _clear 里恢复
+    unawaited(WakelockPlus.enable().catchError((_) {}));
     notifyListeners();
     return next;
   }
@@ -69,6 +74,7 @@ class ActiveMediaSessionController extends ChangeNotifier {
   void _clear(ActiveMediaSession session) {
     if (identical(_session, session)) {
       _session = null;
+      unawaited(WakelockPlus.disable().catchError((_) {}));
       notifyListeners();
     }
   }

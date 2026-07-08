@@ -33,6 +33,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         autoPlay: widget.autoPlay,
         looping: false,
         allowFullScreen: true,
+        allowedScreenSleep: false,
         aspectRatio: _vpc.value.aspectRatio,
         placeholder: Container(color: Colors.black),
       );
