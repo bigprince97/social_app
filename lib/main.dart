@@ -164,14 +164,55 @@ class _SocialAppState extends State<SocialApp> {
           // 全局键盘兜底：点击任何非交互区域收回键盘。
           // 交互控件（按钮/输入框/列表项）自己消费手势不受影响；
           // 一次性覆盖所有现有与将来的页面，避免逐页遗漏。
-          builder: (context, child) => GestureDetector(
-            behavior: HitTestBehavior.deferToChild,
-            onTap: () {
-              final focus = FocusManager.instance.primaryFocus;
-              if (focus != null && focus.context != null) focus.unfocus();
-            },
-            child: child,
-          ),
+          builder: (context, child) {
+            // 全局键盘兜底
+            final content = GestureDetector(
+              behavior: HitTestBehavior.deferToChild,
+              onTap: () {
+                final focus = FocusManager.instance.primaryFocus;
+                if (focus != null && focus.context != null) focus.unfocus();
+              },
+              child: child,
+            );
+            // 非 Web 直接返回；Web 窄屏也全宽。
+            if (!kIsWeb) return content;
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth <= 600) return content;
+                // Web 宽屏：把 App 居中约束成手机宽度（带阴影），
+                // 避免移动端 UI 被拉伸到整屏。
+                const frameWidth = 460.0;
+                final media = MediaQuery.of(context);
+                return ColoredBox(
+                  color: const Color(0xFFEAE8F2),
+                  child: Center(
+                    child: SizedBox(
+                      width: frameWidth,
+                      height: constraints.maxHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.10),
+                              blurRadius: 32,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: MediaQuery(
+                          data: media.copyWith(
+                            size: Size(frameWidth, constraints.maxHeight),
+                          ),
+                          child: content,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );

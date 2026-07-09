@@ -1,24 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Omega ST — 经书阅读与学习社区。阅读经典文本，添加书签、高亮和笔记，与同道交流。">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -29,22 +17,56 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Omega</title>
+  <title>Omega ST · 经书阅读与学习社区</title>
   <link rel="manifest" href="manifest.json">
   <!-- Chinese font support -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #5B3FB0; }
+    #omega-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, #7E5CD6 0%, #4E2EA0 100%);
+      transition: opacity .45s ease;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    #omega-splash .mark {
+      color: #fff; font-size: 66px; letter-spacing: 6px;
+      font-family: "Baskerville", "Times New Roman", Georgia, serif;
+    }
+    #omega-splash .name { color: #fff; font-size: 20px; margin-top: 10px; opacity: .95; }
+    #omega-splash .sub  { color: #fff; font-size: 13px; margin-top: 6px; opacity: .7; }
+    #omega-splash .spin {
+      margin-top: 28px; width: 30px; height: 30px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,.3); border-top-color: #fff;
+      animation: omega-rot 0.9s linear infinite;
+    }
+    @keyframes omega-rot { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="omega-splash">
+    <div class="mark">ΑΩ</div>
+    <div class="name">Omega ST</div>
+    <div class="sub">经书阅读与学习社区</div>
+    <div class="spin"></div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    {{flutter_js}}
+    {{flutter_build_config}}
+
+    _flutter.loader.load({
+      onEntrypointLoaded: async function (engineInitializer) {
+        const appRunner = await engineInitializer.initializeEngine();
+        await appRunner.runApp();
+        const splash = document.getElementById('omega-splash');
+        if (splash) { splash.style.opacity = '0'; setTimeout(function () { splash.remove(); }, 450); }
+      }
+    });
+  </script>
 </body>
 </html>
