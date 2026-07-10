@@ -110,6 +110,8 @@
   "bookRevelation": "啟示錄",
   "books": "書卷",
   "chapters": "章",
+  "selectVerse": "選擇節",
+  "verseNumber": "第{number}節",
   "oldTestament": "舊約",
   "newTestament": "新約",
   "selectBookFirst": "請先從書卷中選擇一本書",

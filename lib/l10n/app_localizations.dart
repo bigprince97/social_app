@@ -635,6 +635,18 @@ abstract class AppLocalizations {
   /// **'章'**
   String get chapters;
 
+  /// No description provided for @selectVerse.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择节'**
+  String get selectVerse;
+
+  /// No description provided for @verseNumber.
+  ///
+  /// In zh, this message translates to:
+  /// **'第{number}节'**
+  String verseNumber(Object number);
+
   /// No description provided for @oldTestament.
   ///
   /// In zh, this message translates to:

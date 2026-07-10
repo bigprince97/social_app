@@ -39,6 +39,17 @@ class ChatService {
     return [];
   }
 
+  /// 只刷新一个会话的元数据和成员资料，避免进入聊天/群资料时为了拿最新成员
+  /// 重拉整个会话列表以及所有未读数。
+  Future<Conversation> getConversation(String conversationId) async {
+    final data = await _client
+        .from('conversations')
+        .select('*, conversation_members(*, profiles(*))')
+        .eq('id', conversationId)
+        .single();
+    return Conversation.fromJson(data);
+  }
+
   Future<List<Message>> getCachedMessages(String conversationId) async {
     final cached = await LocalCache.instance.read('messages_$conversationId');
     if (cached is List) {
@@ -284,7 +295,9 @@ class ChatService {
     Map<String, dynamic>? payload,
     List<String>? mentionedUserIds,
   }) async {
-    await _ensureCanSendMessage(conversationId);
+    // 不在发送热路径重复查询会话和拉黑关系：聊天页已提前显示拉黑状态，
+    // 数据库 RLS 仍会在 insert 时做最终权限校验并拒绝被拉黑的直聊。
+    // 这样普通文字消息只需一次网络往返。
     final data = await _client
         .from('messages')
         .insert({
@@ -300,26 +313,6 @@ class ChatService {
         .select('*, profiles(*)')
         .single();
     return Message.fromJson(data);
-  }
-
-  Future<void> _ensureCanSendMessage(String conversationId) async {
-    final userId = _userId;
-    if (userId == null) return;
-    final conversation = await _client
-        .from('conversations')
-        .select('type, conversation_members(user_id)')
-        .eq('id', conversationId)
-        .maybeSingle();
-    if (conversation == null || conversation['type'] != 'direct') return;
-    final members = conversation['conversation_members'] as List? ?? [];
-    final otherIds = members
-        .map((row) => row['user_id'] as String)
-        .where((id) => id != userId)
-        .toList();
-    if (otherIds.isEmpty) return;
-    if (await _blockService.isEitherBlocked(otherIds.first)) {
-      throw const BlockedChatException();
-    }
   }
 
   Future<List<Message>> _filterBlockedMessages(List<Message> messages) async {

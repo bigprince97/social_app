@@ -131,6 +131,15 @@
   "bookRevelation": "启示录",
   "books": "书卷",
   "chapters": "章",
+  "selectVerse": "选择节",
+  "verseNumber": "第{number}节",
+  "@verseNumber": {
+    "placeholders": {
+      "number": {
+        "type": "Object"
+      }
+    }
+  },
   "oldTestament": "旧约",
   "newTestament": "新约",
   "selectBookFirst": "请先从书卷中选择一本书",

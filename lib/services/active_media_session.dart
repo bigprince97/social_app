@@ -161,6 +161,9 @@ class ActiveMediaSession extends ChangeNotifier {
         defaultAudioCaptureOptions: const AudioCaptureOptions(
           noiseSuppression: true,
         ),
+        // 直播/通话页面被最小化后没有 VideoTrackRenderer 参与重建，
+        // 仍由 Room 持有明确的移动端音频输出配置。
+        defaultAudioOutputOptions: const AudioOutputOptions(speakerOn: true),
         defaultCameraCaptureOptions: const CameraCaptureOptions(
           cameraPosition: CameraPosition.front,
         ),
@@ -221,9 +224,7 @@ class ActiveMediaSession extends ChangeNotifier {
       await room.localParticipant?.setCameraEnabled(true);
     }
     // 连接后把音频路由和 UI 状态对齐（speakerOn 默认 true=扬声器）
-    try {
-      await Hardware.instance.setSpeakerphoneOn(speakerOn);
-    } catch (_) {}
+    await _restoreAudioOutput();
     _syncRemoteSnapshot();
     connected = true;
     if (remoteParticipants.isNotEmpty) connectedAt ??= DateTime.now();
@@ -256,6 +257,7 @@ class ActiveMediaSession extends ChangeNotifier {
     );
 
     await room.connect(livekitUrl, livekitToken);
+    await _restoreAudioOutput();
     _syncRemoteSnapshot();
     if (isHost) {
       unawaited(_callService.acceptCall(call.id));
@@ -309,6 +311,9 @@ class ActiveMediaSession extends ChangeNotifier {
     if (ended) return;
     minimized = true;
     pageVisible = false;
+    // 页面退出不等于直播结束；再次应用 Room 的音频输出，避免 iOS/Android
+    // 在视频渲染组件销毁时把播放路由一起释放。
+    unawaited(_restoreAudioOutput());
     unawaited(showSystemNotification());
     ActiveMediaSessionController.instance._notifySessionChanged();
     _changed();
@@ -318,6 +323,7 @@ class ActiveMediaSession extends ChangeNotifier {
     if (ended) return;
     minimized = false;
     pageVisible = true;
+    unawaited(_restoreAudioOutput());
     unawaited(PushNotificationService.cancelActiveMediaNotification());
     ActiveMediaSessionController.instance._notifySessionChanged();
     _changed();
@@ -361,13 +367,22 @@ class ActiveMediaSession extends ChangeNotifier {
 
   Future<void> setSpeaker(bool enabled) async {
     speakerOn = enabled;
-    // 真正切换音频路由（扬声器/听筒）；旧实现只翻标志位不生效
+    // 通过 Room 更新路由与默认输出配置，后续音轨重建仍沿用该选择。
     try {
-      await Hardware.instance.setSpeakerphoneOn(enabled);
+      await room.setSpeakerOn(enabled);
     } catch (_) {
       // 个别机型/模拟器不支持路由切换，忽略即可
     }
     _changed();
+  }
+
+  Future<void> _restoreAudioOutput() async {
+    if (ended) return;
+    try {
+      await room.setSpeakerOn(speakerOn);
+    } catch (_) {
+      // 未连接、模拟器或无可用输出设备时不阻断直播。
+    }
   }
 
   Future<void> flipCamera(CameraPosition cameraPosition) async {

@@ -57,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _loadingMore = false;
   bool _hasMore = true;
   int _page = 0;
+  int _messageLoadGeneration = 0;
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _updateChannel;
   RealtimeChannel? _readChannel;
@@ -133,6 +134,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     PushNotificationService.clearConversationNotifications(_conversation.id);
     _computeOtherLastRead();
     _loadBlockState();
+    _refreshConversationMetadata();
     _loadMessages();
     _subscribeToMessages();
     _subscribeToMessageUpdates();
@@ -158,6 +160,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() => _activeLivestream = live);
       _scheduleLivestreamExpiryCheck(live);
     } catch (_) {}
+  }
+
+  /// 页面先使用路由传入的数据立即显示，再在后台只刷新当前会话的名称、
+  /// 公告、成员和用户资料，避免为了一个会话重拉整个列表。
+  Future<void> _refreshConversationMetadata() async {
+    try {
+      final latest = await _chatService.getConversation(_conversation.id);
+      if (!mounted) return;
+      setState(() {
+        _conversation = latest;
+        _computeOtherLastRead();
+      });
+    } catch (_) {
+      // 离线时继续使用路由传入的会话快照。
+    }
   }
 
   void _scheduleLivestreamExpiryCheck(CallInfo? live) {
@@ -321,14 +338,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadMessages() async {
-    setState(() {
-      _page = 0;
-      _hasMore = true;
-    });
+    final generation = ++_messageLoadGeneration;
+    if (mounted) {
+      setState(() {
+        _page = 0;
+        _hasMore = true;
+      });
+    }
     // 缓存优先：先秒显本地缓存的历史消息（不等网络），再后台拉新替换。
     try {
       final cached = await _chatService.getCachedMessages(_conversation.id);
-      if (mounted && cached.isNotEmpty && _messages.isEmpty) {
+      if (mounted &&
+          generation == _messageLoadGeneration &&
+          cached.isNotEmpty &&
+          _messages.isEmpty) {
         setState(() {
           _messages
             ..clear()
@@ -337,23 +360,43 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         });
       }
     } catch (_) {}
-    if (mounted && _messages.isEmpty) setState(() => _loading = true);
+    if (mounted && generation == _messageLoadGeneration && _messages.isEmpty) {
+      setState(() => _loading = true);
+    }
+    final messageIdsBeforeNetwork = _messages.map((m) => m.id).toSet();
     try {
       // 后台拉新（超时兜底，避免 iOS 半开连接永久挂起转圈）
       final msgs = await _chatService
           .getMessages(_conversation.id, page: 0)
           .timeout(const Duration(seconds: 12));
-      if (!mounted) return;
+      if (!mounted || generation != _messageLoadGeneration) return;
       setState(() {
+        // REST 拉取和 Realtime/发送可能并发：保留刷新开始后才出现、且本次
+        // 响应尚未包含的消息，避免网络响应把刚发出/刚收到的气泡覆盖掉。
+        final concurrent = _messages
+            .where(
+              (local) =>
+                  local.isUploading ||
+                  (!messageIdsBeforeNetwork.contains(local.id) &&
+                      !msgs.any((remote) => remote.id == local.id)),
+            )
+            .toList();
         _messages
           ..clear()
-          ..addAll(msgs);
+          ..addAll(msgs)
+          ..addAll(
+            concurrent.where(
+              (local) => !msgs.any((remote) => remote.id == local.id),
+            ),
+          );
         if (msgs.length < 50) _hasMore = false;
       });
     } catch (_) {
       // 超时/网络错误：保留已显示的缓存消息，不弹错（离线优雅降级）
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _messageLoadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -492,43 +535,56 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _sendMessage() async {
     final content = _inputCtrl.text.trim();
     if (content.isEmpty || _sending) return;
+    if (_conversation.type == 'direct' && _isEitherBlocked) {
+      _showSendError(const BlockedChatException());
+      return;
+    }
     final mentionIds = List<String>.from(_mentionedUserIds);
     final replyTo = _replyTo;
+    final payload = replyTo == null
+        ? null
+        : <String, dynamic>{
+            'reply_to': {
+              'id': replyTo.id,
+              'sender': replyTo.sender?.displayName ?? '',
+              'preview': replyTo.displayContent,
+              'type': replyTo.messageType,
+              if ((replyTo.messageType == 'image' ||
+                      replyTo.messageType == 'video') &&
+                  replyTo.mediaUrl != null)
+                'thumb': replyTo.mediaUrl,
+            },
+          };
+    final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
     _inputCtrl.clear();
     _mentionedUserIds.clear();
     setState(() => _sending = true);
+    // 先显示本地气泡，网络确认后原位替换，用户不再感觉“按下发送后顿一下”。
+    _addPendingMedia(
+      tempId: tempId,
+      messageType: 'text',
+      content: content,
+      payload: payload ?? const {},
+    );
     try {
       final msg = await _chatService.sendMessage(
         conversationId: _conversation.id,
         content: content,
         mentionedUserIds: mentionIds.isEmpty ? null : mentionIds,
-        // 引用回复走 payload，无需数据库改动；失败重试时引用条保留
-        payload: replyTo == null
-            ? null
-            : {
-                'reply_to': {
-                  'id': replyTo.id,
-                  'sender': replyTo.sender?.displayName ?? '',
-                  'preview': replyTo.displayContent,
-                  'type': replyTo.messageType,
-                  // 图片/视频：存缩略图 URL，引用块里显示小图
-                  if ((replyTo.messageType == 'image' ||
-                          replyTo.messageType == 'video') &&
-                      replyTo.mediaUrl != null)
-                    'thumb': replyTo.mediaUrl,
-                },
-              },
+        payload: payload,
       );
-      setState(() {
-        _messages.add(msg);
-        _replyTo = null;
-      });
+      _replacePending(tempId, msg);
+      if (mounted) setState(() => _replyTo = null);
       _cacheCurrentMessages();
-      _scrollToBottom();
     } catch (e) {
+      _removePending(tempId);
       if (mounted) {
         _showSendError(e);
         _inputCtrl.text = content;
+        _inputCtrl.selection = TextSelection.collapsed(offset: content.length);
+        _mentionedUserIds
+          ..clear()
+          ..addAll(mentionIds);
       }
     } finally {
       if (mounted) setState(() => _sending = false);

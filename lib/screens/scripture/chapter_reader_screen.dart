@@ -619,6 +619,102 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   /// 点击章节号 → 原详情页「章」选择视图（当前书卷）；选中后原地切章。
   void _openChapterSelector() => _openSelector(chapterView: true);
 
+  /// 当前章按“节”直接选择并滚动定位。
+  Future<void> _openVerseSelector() async {
+    final verses = _parseBibleVerses(_displayText);
+    if (verses.isEmpty) return;
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.58,
+        minChildSize: 0.35,
+        maxChildSize: 0.86,
+        builder: (context, controller) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 2, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$_bibleBookName $_localChapterNum · '
+                      '${AppLocalizations.of(context).selectVerse}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: GridView.builder(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                ),
+                itemCount: verses.length,
+                itemBuilder: (context, index) {
+                  final number = verses[index].number;
+                  final active = number == _targetVerse;
+                  return Semantics(
+                    button: true,
+                    selected: active,
+                    label: AppLocalizations.of(context).verseNumber(number),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.pop(context, number),
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          color: active
+                              ? _bibleAccent
+                              : _bibleAccent.withAlpha(18),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: active
+                                ? _bibleAccent
+                                : _bibleAccent.withAlpha(55),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$number',
+                            style: TextStyle(
+                              color: active ? Colors.white : _bibleAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      _targetVerse = selected;
+      _flashVerse = selected;
+      _selectedVerses.clear();
+    });
+    _scheduleVerseScroll();
+    _clearVerseFlashLater();
+  }
+
   Future<void> _openSelector({required bool chapterView}) async {
     final id = await context.push<String>(
       '/scripture/detail/${widget.scripture.id}',
@@ -810,6 +906,14 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       centerTitle: true,
       actions: [
         if (_usesRemoteBible) _buildBibleVersionMenu(),
+        IconButton(
+          icon: const Icon(
+            Icons.format_list_numbered_rounded,
+            color: Colors.white,
+          ),
+          onPressed: _displayText.isEmpty ? null : _openVerseSelector,
+          tooltip: AppLocalizations.of(context).selectVerse,
+        ),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: Colors.white),
           onPressed: _openSearch,
@@ -1209,18 +1313,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                       Expanded(
                         child: Text(
                           AppLocalizations.of(context).chapters,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                       Text(
                         '${_currentIndex + 1}/${widget.allChapters.length}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: s.color),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: s.color),
                       ),
                     ],
                   ),

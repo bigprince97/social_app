@@ -288,6 +288,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chapters => '章';
 
   @override
+  String get selectVerse => '选择节';
+
+  @override
+  String verseNumber(Object number) {
+    return '第$number节';
+  }
+
+  @override
   String get oldTestament => '旧约';
 
   @override
@@ -1740,6 +1748,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chapters => '章';
+
+  @override
+  String get selectVerse => '選擇節';
+
+  @override
+  String verseNumber(Object number) {
+    return '第$number節';
+  }
 
   @override
   String get oldTestament => '舊約';

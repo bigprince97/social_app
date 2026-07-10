@@ -110,6 +110,8 @@
   "bookRevelation": "Revelation",
   "books": "Books",
   "chapters": "Chapters",
+  "selectVerse": "Select verse",
+  "verseNumber": "Verse {number}",
   "oldTestament": "Old Testament",
   "newTestament": "New Testament",
   "selectBookFirst": "Please select a book first",

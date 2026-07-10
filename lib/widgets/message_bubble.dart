@@ -216,8 +216,7 @@ class MessageBubble extends StatelessWidget {
                                   onReply?.call();
                                 },
                               ),
-                            if (canReply &&
-                                (isText || _canRecall || !isMe))
+                            if (canReply && (isText || _canRecall || !isMe))
                               _ActionDivider(isDark: isDark),
                             if (isText)
                               _MenuActionBtn(
@@ -657,28 +656,98 @@ class _TextBubble extends StatelessWidget {
     this.onSenderTap,
   });
 
-  // Highlight @mentions in the text
-  Widget _buildText(String text, Color textColor) {
-    // 样式提为 const：旧实现每个 TextSpan 都 new 一个 TextStyle
+  static const _urlPattern =
+      r'(?:(?:https?://|www\.)[^\s<]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|cn|jp|io|me|center|app)(?:/[^\s<]*)?)';
+
+  Future<void> _openLink(BuildContext context, String raw) async {
+    final normalized =
+        raw.startsWith(RegExp(r'https?://', caseSensitive: false))
+        ? raw
+        : 'https://$raw';
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return;
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && context.mounted) {
+        showPremiumToast(context, '无法打开这个链接', kind: ToastKind.error);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showPremiumToast(context, '无法打开这个链接', kind: ToastKind.error);
+      }
+    }
+  }
+
+  // 同一次扫描同时识别网页链接和 @提及，避免多层字符串拆分。
+  Widget _buildText(BuildContext context, String text) {
     final baseStyle = isMe ? _kMsgTextMe : _kMsgTextOther;
-    if (groupMemberNames.isEmpty || !text.contains('@')) {
+    final containsPossibleLink = RegExp(
+      _urlPattern,
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (!containsPossibleLink &&
+        (groupMemberNames.isEmpty || !text.contains('@'))) {
       return Text(text, style: baseStyle);
     }
-    // 单次正则扫描替代「每段剩余文本 × 全体成员名 indexOf」的嵌套循环。
-    // 成员名按长度降序拼接，保证前缀撞名时（@王 vs @王明）优先匹配最长者。
     final names = [...groupMemberNames]
       ..sort((a, b) => b.length.compareTo(a.length));
-    final mentionRe = RegExp(
-      '@(?:${names.map(RegExp.escape).join('|')})',
+    final mentionPattern = names.isEmpty
+        ? null
+        : '@(?:${names.map(RegExp.escape).join('|')})';
+    final tokenRe = RegExp(
+      mentionPattern == null ? _urlPattern : '$_urlPattern|$mentionPattern',
+      caseSensitive: false,
     );
     final mentionStyle = isMe ? _kMentionMe : _kMentionOther;
+    final linkStyle = baseStyle.copyWith(
+      color: isMe ? Colors.white : const Color(0xFF5E35B1),
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+      decorationColor: isMe ? Colors.white70 : const Color(0xFF7E57C2),
+    );
     final spans = <InlineSpan>[];
     var last = 0;
-    for (final m in mentionRe.allMatches(text)) {
+    for (final m in tokenRe.allMatches(text)) {
       if (m.start > last) {
-        spans.add(TextSpan(text: text.substring(last, m.start), style: baseStyle));
+        spans.add(
+          TextSpan(text: text.substring(last, m.start), style: baseStyle),
+        );
       }
-      spans.add(TextSpan(text: m.group(0), style: mentionStyle));
+      final token = m.group(0)!;
+      final isMention = token.startsWith('@');
+      // 邮箱里的域名不是聊天链接，按普通文字显示。
+      final isEmailDomain =
+          !isMention && m.start > 0 && text[m.start - 1] == '@';
+      if (isMention || isEmailDomain) {
+        spans.add(
+          TextSpan(text: token, style: isMention ? mentionStyle : baseStyle),
+        );
+      } else {
+        // 句末标点不属于 URL，避免把“https://a.com。”中的句号传给系统。
+        final trailing = RegExp(r'[.,!?;:，。！？；：、）)\]】}>》]+$').firstMatch(token);
+        final link = trailing == null
+            ? token
+            : token.substring(0, trailing.start);
+        final suffix = trailing?.group(0) ?? '';
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Semantics(
+              link: true,
+              label: link,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openLink(context, link),
+                child: Text(link, style: linkStyle),
+              ),
+            ),
+          ),
+        );
+        if (suffix.isNotEmpty) {
+          spans.add(TextSpan(text: suffix, style: baseStyle));
+        }
+      }
       last = m.end;
     }
     if (spans.isEmpty) return Text(text, style: baseStyle);
@@ -863,7 +932,7 @@ class _TextBubble extends StatelessWidget {
               ),
             ),
           ] else ...[
-            _buildText(message.content ?? '', textColor),
+            _buildText(context, message.content ?? ''),
           ],
           const SizedBox(height: 3),
           _TimeStamp(

@@ -289,6 +289,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chapters => 'Chapters';
 
   @override
+  String get selectVerse => 'Select verse';
+
+  @override
+  String verseNumber(Object number) {
+    return 'Verse $number';
+  }
+
+  @override
   String get oldTestament => 'Old Testament';
 
   @override

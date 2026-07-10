@@ -110,6 +110,8 @@
   "bookRevelation": "ヨハネの黙示録",
   "books": "書巻",
   "chapters": "章",
+  "selectVerse": "節を選択",
+  "verseNumber": "第{number}節",
   "oldTestament": "旧約聖書",
   "newTestament": "新約聖書",
   "selectBookFirst": "先に書巻を選んでください",

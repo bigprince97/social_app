@@ -288,6 +288,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chapters => '章';
 
   @override
+  String get selectVerse => '節を選択';
+
+  @override
+  String verseNumber(Object number) {
+    return '第$number節';
+  }
+
+  @override
   String get oldTestament => '旧約聖書';
 
   @override

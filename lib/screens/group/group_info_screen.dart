@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,6 +52,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     _myId = _client.auth.currentUser?.id ?? '';
     _members = List.of(widget.conversation.members);
     _recomputeIsAdmin();
+    // 路由快照先显示，随后只刷新当前群的成员资料，保证用户名和 ID 最新。
+    _reloadMembers();
   }
 
   // ─── Group name & avatar ───────────────────────────────────────────────────
@@ -145,8 +148,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   /// 成员变更后就地刷新名单，不退出页面
   Future<void> _reloadMembers() async {
     try {
-      final convs = await _chatService.getConversations();
-      final conv = convs.firstWhere((c) => c.id == widget.conversation.id);
+      final conv = await _chatService.getConversation(widget.conversation.id);
       if (mounted) {
         setState(() {
           _members = List.of(conv.members);
@@ -158,6 +160,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         widget.onGroupUpdated?.call();
       }
     } catch (_) {}
+  }
+
+  Future<void> _copyMemberId(String userId) async {
+    await Clipboard.setData(ClipboardData(text: userId));
+    if (!mounted) return;
+    showPremiumToast(context, '用户 ID 已复制', kind: ToastKind.info);
   }
 
   // ─── Announcement ────────────────────────────────────────────────────────
@@ -665,6 +673,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             final isMe = m.userId == _myId;
             final isOwnerMember = m.userId == widget.conversation.createdBy;
             final avatarUrl = m.profile?.avatarUrl;
+            final displayName = m.profile?.displayName.trim();
+            final username = m.profile?.username.trim();
             return ListTile(
               // 点整行进入该成员个人主页；群管理操作移到右侧 more_vert 按钮
               onTap: () => context.push('/profile/${m.userId}'),
@@ -678,7 +688,10 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 child: (avatarUrl?.isNotEmpty == true)
                     ? null
                     : Text(
-                        (m.profile?.displayName ?? '?')[0].toUpperCase(),
+                        (displayName?.isNotEmpty == true
+                                ? displayName!.characters.first
+                                : '?')
+                            .toUpperCase(),
                         style: TextStyle(
                           color: Theme.of(
                             context,
@@ -687,12 +700,51 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                       ),
               ),
               title: Text(
-                m.profile?.displayName ?? m.userId,
+                displayName?.isNotEmpty == true ? displayName! : m.userId,
                 style: isMe
                     ? const TextStyle(fontWeight: FontWeight.bold)
                     : null,
               ),
-              subtitle: isMe ? Text(AppLocalizations.of(context).you) : null,
+              isThreeLine: true,
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${isMe ? '${AppLocalizations.of(context).you} · ' : ''}'
+                    '${username?.isNotEmpty == true ? '@$username' : '@—'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Tooltip(
+                    message: '点击复制用户 ID',
+                    child: InkWell(
+                      onTap: () => _copyMemberId(m.userId),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'ID: ${m.userId}',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(fontSize: 10.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.copy_rounded, size: 12),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
