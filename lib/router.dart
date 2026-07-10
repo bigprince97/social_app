@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'l10n/app_localizations.dart';
 import 'models/conversation.dart';
 import 'services/chat_service.dart';
+import 'services/push_notification_service.dart';
 import 'models/scripture.dart';
 import 'services/scripture_service.dart';
 import 'screens/auth/login_screen.dart';
@@ -179,6 +180,10 @@ class _ConvLoaderState extends State<_ConvLoader> {
   @override
   void initState() {
     super.initState();
+    // 路由一开始进入就清除该会话通知，不等待会话资料网络加载完成。
+    PushNotificationService.clearConversationNotifications(
+      widget.conversationId,
+    );
     _load();
   }
 

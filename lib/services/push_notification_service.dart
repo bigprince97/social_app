@@ -202,11 +202,13 @@ class PushNotificationService {
           importance: Importance.high,
           priority: Priority.high,
           playSound: false,
+          tag: '$conversationId:foreground',
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: false,
           presentSound: false,
+          threadIdentifier: conversationId,
         ),
       ),
       payload: 'chat|||$conversationId',
@@ -304,12 +306,30 @@ class PushNotificationService {
   static Future<void> clearConversationNotifications(
     String conversationId,
   ) async {
+    if (kIsWeb) return;
+    final localNotificationId = conversationId.hashCode;
+
     try {
-      if (Platform.isIOS) {
-        await _notifChannel.invokeMethod('clearThread', {
-          'threadId': conversationId,
-        });
-      } else if (Platform.isAndroid) {
+      // 前台 realtime 横幅使用固定 id；无论平台，进入会话先直接清掉它。
+      await _localNotifications.cancel(localNotificationId);
+    } catch (e) {
+      debugPrint('Failed to clear local conversation banner: $e');
+    }
+
+    try {
+      // 原生层负责清理系统直接展示的 FCM 通知：iOS 按 thread-id，
+      // Android 按「会话 id:消息 id」tag。这样不会误删其他会话通知。
+      await _notifChannel.invokeMethod('clearThread', {
+        'threadId': conversationId,
+        'localNotificationId': localNotificationId,
+      });
+    } catch (e) {
+      debugPrint('Failed to clear native conversation notifications: $e');
+    }
+
+    if (Platform.isAndroid) {
+      try {
+        // 插件层再做一次兜底，兼容升级前已到达通知和部分系统实现。
         final android = _localNotifications
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
@@ -322,9 +342,9 @@ class PushNotificationService {
             await _localNotifications.cancel(id, tag: tag);
           }
         }
+      } catch (e) {
+        debugPrint('Failed to clear fallback conversation notifications: $e');
       }
-    } catch (e) {
-      debugPrint('Failed to clear conversation notifications: $e');
     }
   }
 
