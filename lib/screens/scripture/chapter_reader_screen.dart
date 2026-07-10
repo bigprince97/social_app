@@ -626,82 +626,68 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final selected = await showModalBottomSheet<int>(
       context: context,
       useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.58,
-        minChildSize: 0.35,
-        maxChildSize: 0.86,
-        builder: (context, controller) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 2, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '$_bibleBookName $_localChapterNum · '
-                      '${AppLocalizations.of(context).selectVerse}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (context) => SizedBox(
+        height: MediaQuery.sizeOf(context).height,
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: _bibleAccent,
+            foregroundColor: Colors.white,
+            leading: IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close_rounded),
+            ),
+            title: Text(
+              '$_bibleBookName $_localChapterNum · '
+              '${AppLocalizations.of(context).selectVerse}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          body: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              childAspectRatio: 1.15,
+            ),
+            itemCount: verses.length,
+            itemBuilder: (context, index) {
+              final number = verses[index].number;
+              final active = number == _targetVerse;
+              return Semantics(
+                button: true,
+                selected: active,
+                label: AppLocalizations.of(context).verseNumber(number),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => Navigator.pop(context, number),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: active ? _bibleAccent : _bibleAccent.withAlpha(18),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: active
+                            ? _bibleAccent
+                            : _bibleAccent.withAlpha(55),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$number',
+                        style: TextStyle(
+                          color: active ? Colors.white : _bibleAccent,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: GridView.builder(
-                controller: controller,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 6,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
                 ),
-                itemCount: verses.length,
-                itemBuilder: (context, index) {
-                  final number = verses[index].number;
-                  final active = number == _targetVerse;
-                  return Semantics(
-                    button: true,
-                    selected: active,
-                    label: AppLocalizations.of(context).verseNumber(number),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => Navigator.pop(context, number),
-                      child: Ink(
-                        decoration: BoxDecoration(
-                          color: active
-                              ? _bibleAccent
-                              : _bibleAccent.withAlpha(18),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: active
-                                ? _bibleAccent
-                                : _bibleAccent.withAlpha(55),
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$number',
-                            style: TextStyle(
-                              color: active ? Colors.white : _bibleAccent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );

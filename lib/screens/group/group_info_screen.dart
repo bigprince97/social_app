@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -161,15 +160,6 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       }
     } catch (_) {}
   }
-
-  Future<void> _copyMemberId(String userId) async {
-    await Clipboard.setData(ClipboardData(text: userId));
-    if (!mounted) return;
-    showPremiumToast(context, '用户 ID 已复制', kind: ToastKind.info);
-  }
-
-  String _shortMemberId(String userId) =>
-      userId.length <= 8 ? userId : '${userId.substring(0, 8)}…';
 
   // ─── Announcement ────────────────────────────────────────────────────────
 
@@ -708,44 +698,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     ? const TextStyle(fontWeight: FontWeight.bold)
                     : null,
               ),
-              isThreeLine: true,
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${isMe ? '${AppLocalizations.of(context).you} · ' : ''}'
-                    '${username?.isNotEmpty == true ? '@$username' : '@—'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Tooltip(
-                    message: '点击复制用户 ID',
-                    child: InkWell(
-                      onTap: () => _copyMemberId(m.userId),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 2, bottom: 2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                'ID: ${_shortMemberId(m.userId)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.bodySmall?.copyWith(fontSize: 11),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.copy_rounded, size: 12),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              subtitle: Text(
+                '${isMe ? '${AppLocalizations.of(context).you} · ' : ''}'
+                '${username?.isNotEmpty == true ? '@$username' : '@—'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
