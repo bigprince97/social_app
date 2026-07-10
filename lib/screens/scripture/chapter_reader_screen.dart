@@ -1290,36 +1290,35 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
           height: 56,
           child: Row(
             children: [
-              // 上一章
-              _BibleBarBtn(
-                icon: Icons.chevron_left,
-                label: AppLocalizations.of(context).previousChapter,
-                onTap: canPrev ? () => _goToChapter(_currentIndex - 1) : null,
-              ),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _BibleBarBtn(
-                      icon: _isBookmarked ? Icons.star : Icons.star_border,
-                      label: AppLocalizations.of(context).bookmark,
-                      active: _isBookmarked,
-                      activeColor: const Color(0xFFE8956D),
-                      onTap: _loadingState ? null : _toggleBookmark,
-                    ),
-                    _BibleBarBtn(
-                      icon: Icons.format_quote_outlined,
-                      label: AppLocalizations.of(context).quote,
-                      onTap: _showQuoteOptions,
-                    ),
-                  ],
+                child: _BibleBarBtn(
+                  icon: Icons.chevron_left,
+                  label: AppLocalizations.of(context).previousChapter,
+                  onTap: canPrev ? () => _goToChapter(_currentIndex - 1) : null,
                 ),
               ),
-              // 下一章
-              _BibleBarBtn(
-                icon: Icons.chevron_right,
-                label: AppLocalizations.of(context).nextChapter,
-                onTap: canNext ? () => _goToChapter(_currentIndex + 1) : null,
+              Expanded(
+                child: _BibleBarBtn(
+                  icon: _isBookmarked ? Icons.star : Icons.star_border,
+                  label: AppLocalizations.of(context).bookmark,
+                  active: _isBookmarked,
+                  activeColor: const Color(0xFFE8956D),
+                  onTap: _loadingState ? null : _toggleBookmark,
+                ),
+              ),
+              Expanded(
+                child: _BibleBarBtn(
+                  icon: Icons.format_quote_outlined,
+                  label: AppLocalizations.of(context).quote,
+                  onTap: _showQuoteOptions,
+                ),
+              ),
+              Expanded(
+                child: _BibleBarBtn(
+                  icon: Icons.chevron_right,
+                  label: AppLocalizations.of(context).nextChapter,
+                  onTap: canNext ? () => _goToChapter(_currentIndex + 1) : null,
+                ),
               ),
             ],
           ),
@@ -1946,8 +1945,7 @@ class _BibleBarBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 56,
+      child: SizedBox.expand(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
