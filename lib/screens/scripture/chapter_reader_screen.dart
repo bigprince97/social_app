@@ -41,8 +41,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   late int _currentIndex;
   late ScriptureChapter _chapter;
   bool _isBookmarked = false;
-  bool _isHighlighted = false;
   String? _userNote;
+  Map<int, String> _verseNotes = {};
   bool _loadingState = true;
   double _fontSize = 20;
   bool _uiBusy = false;
@@ -258,18 +258,29 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
   }
 
   Future<void> _loadUserState() async {
+    final chapterId = _chapter.id;
     setState(() => _loadingState = true);
     try {
-      final state = await _service.getChapterUserState(_chapter.id);
-      if (mounted) {
+      final results = await Future.wait<Object?>([
+        _service.getChapterUserState(chapterId),
+        if (_isBible)
+          _service.getVerseNotes(chapterId)
+        else
+          Future<Map<int, String>>.value(const {}),
+      ]);
+      if (mounted && _chapter.id == chapterId) {
+        final state = results[0] as Map<String, dynamic>;
+        final verseNotes = results[1] as Map<int, String>;
         setState(() {
           _isBookmarked = state['bookmarked'] as bool;
-          _isHighlighted = state['highlighted'] as bool;
-          _userNote = state['note'] as String?;
+          _userNote = _isBible ? null : state['note'] as String?;
+          _verseNotes = verseNotes;
         });
       }
     } finally {
-      if (mounted) setState(() => _loadingState = false);
+      if (mounted && _chapter.id == chapterId) {
+        setState(() => _loadingState = false);
+      }
     }
   }
 
@@ -288,18 +299,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         widget.scripture.id,
       );
       if (mounted) setState(() => _isBookmarked = result);
-      HapticFeedback.lightImpact();
-    } finally {
-      if (mounted) setState(() => _uiBusy = false);
-    }
-  }
-
-  Future<void> _toggleHighlight() async {
-    if (_uiBusy) return;
-    setState(() => _uiBusy = true);
-    try {
-      final result = await _service.toggleHighlight(_chapter.id, _displayText);
-      if (mounted) setState(() => _isHighlighted = result);
       HapticFeedback.lightImpact();
     } finally {
       if (mounted) setState(() => _uiBusy = false);
@@ -357,6 +356,97 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showVerseNoteDialog(int verseNumber) async {
+    final verses = _parseBibleVerses(_displayText);
+    final verse = verses.where((v) => v.number == verseNumber).firstOrNull;
+    if (verse == null) return;
+    final chapterId = _chapter.id;
+    final existing = _verseNotes[verseNumber];
+    final ctrl = TextEditingController(text: existing);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          AppLocalizations.of(context).noteTitle(
+            AppLocalizations.of(
+              context,
+            ).crossRefVerse(_displayTitle, verseNumber),
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _bibleAccent.withAlpha(16),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _bibleAccent.withAlpha(45)),
+                ),
+                child: Text(
+                  '${verse.number} ${verse.text}',
+                  style: const TextStyle(fontSize: 13, height: 1.45),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                maxLines: 6,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: AppLocalizations.of(context).noteHint,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (existing != null)
+            TextButton(
+              onPressed: () async {
+                await _service.deleteVerseNote(chapterId, verseNumber);
+                if (mounted && _chapter.id == chapterId) {
+                  setState(() => _verseNotes.remove(verseNumber));
+                }
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: Text(
+                AppLocalizations.of(context).delete,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(AppLocalizations.of(context).cancel),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final content = ctrl.text.trim();
+              if (content.isEmpty) return;
+              await _service.saveVerseNote(
+                chapterId: chapterId,
+                scriptureId: widget.scripture.id,
+                verseNumber: verseNumber,
+                selectedText: verse.text,
+                content: content,
+              );
+              if (mounted && _chapter.id == chapterId) {
+                setState(() => _verseNotes[verseNumber] = content);
+              }
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: Text(AppLocalizations.of(context).save),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
   }
 
   final _chatService = ChatService();
@@ -465,8 +555,8 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
       _targetVerse = verse;
       _flashVerse = verse;
       _userNote = null;
+      _verseNotes = {};
       _isBookmarked = false;
-      _isHighlighted = false;
       _selectedVerses.clear();
       _crossRefs = {};
       _remoteBibleText = null;
@@ -794,6 +884,22 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
           ),
+          if (_selectedVerses.length == 1)
+            TextButton.icon(
+              onPressed: () => _showVerseNoteDialog(_selectedVerses.first),
+              icon: const Icon(
+                Icons.note_add_outlined,
+                color: Colors.white,
+                size: 17,
+              ),
+              label: Text(
+                AppLocalizations.of(context).note,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
           TextButton.icon(
             onPressed: _quoteSelectedVerses,
             icon: const Icon(
@@ -1015,55 +1121,16 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             ),
           ),
 
-          // 笔记标签
-          if (_userNote != null)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withAlpha(20),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orange.withAlpha(80)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.edit_note, color: Colors.orange, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      _userNote!,
-                      style: const TextStyle(fontSize: 13, height: 1.4),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
           // 全章经文：所有节流排成一段，节号内联绿色
-          Container(
-            width: double.infinity,
-            decoration: _isHighlighted
-                ? BoxDecoration(
-                    border: const Border(
-                      left: BorderSide(color: Color(0xFF5D8A35), width: 3),
-                    ),
-                    color: const Color(0xFFF0F7E8),
-                  )
-                : null,
-            padding: _isHighlighted
-                ? const EdgeInsets.fromLTRB(12, 4, 0, 4)
-                : EdgeInsets.zero,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final v in verses) ...[
-                  // 段落标题(如「预言圣殿被毁」)插在对应经节前
-                  ...?_headingsBefore(v.number)?.map(_buildSectionHeading),
-                  _buildVerseRow(v),
-                ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final v in verses) ...[
+                // 段落标题(如「预言圣殿被毁」)插在对应经节前
+                ...?_headingsBefore(v.number)?.map(_buildSectionHeading),
+                _buildVerseRow(v),
               ],
-            ),
+            ],
           ),
 
           const SizedBox(height: 48),
@@ -1233,23 +1300,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _BibleBarBtn(
-                      icon: _userNote != null
-                          ? Icons.edit_note
-                          : Icons.edit_outlined,
-                      label: AppLocalizations.of(context).note,
-                      active: _userNote != null,
-                      onTap: _showNoteDialog,
-                    ),
-                    _BibleBarBtn(
-                      icon: _isHighlighted
-                          ? Icons.highlight
-                          : Icons.highlight_outlined,
-                      label: AppLocalizations.of(context).highlight,
-                      active: _isHighlighted,
-                      activeColor: const Color(0xFFDDAA00),
-                      onTap: _loadingState ? null : _toggleHighlight,
-                    ),
                     _BibleBarBtn(
                       icon: _isBookmarked ? Icons.star : Icons.star_border,
                       label: AppLocalizations.of(context).bookmark,
@@ -1481,42 +1531,15 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                               ],
                             ),
                           ),
-                          if (_isHighlighted)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withAlpha(50),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border(
-                                  left: BorderSide(color: s.color, width: 3),
-                                ),
-                              ),
-                              child: Text(
-                                _displayText,
-                                style: TextStyle(
-                                  fontSize: _fontSize,
-                                  height: 1.9,
-                                  fontWeight: FontWeight.w500,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              _displayText,
-                              style: TextStyle(
-                                fontSize: _fontSize,
-                                height: 1.9,
-                                fontWeight: FontWeight.w500,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
+                          Text(
+                            _displayText,
+                            style: TextStyle(
+                              fontSize: _fontSize,
+                              height: 1.9,
+                              fontWeight: FontWeight.w500,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
+                          ),
                           if (_userNote != null) ...[
                             const SizedBox(height: 24),
                             Container(
@@ -1604,14 +1627,6 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
               ),
               IconButton(
                 icon: Icon(
-                  _isHighlighted ? Icons.highlight : Icons.highlight_outlined,
-                  color: _isHighlighted ? Colors.amber.shade700 : null,
-                ),
-                onPressed: _loadingState ? null : _toggleHighlight,
-                tooltip: AppLocalizations.of(context).highlight,
-              ),
-              IconButton(
-                icon: Icon(
                   _userNote != null ? Icons.edit_note : Icons.note_add_outlined,
                   color: _userNote != null ? Colors.orange : null,
                 ),
@@ -1644,9 +1659,11 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
     final isTarget = _flashVerse == verse.number;
     final refs = _crossRefs[verse.number];
     final hasRefs = refs != null && refs.isNotEmpty;
+    final note = _verseNotes[verse.number];
     return GestureDetector(
       key: _verseKeys.putIfAbsent(verse.number, GlobalKey.new),
       onTap: () => _toggleVerseSelection(verse.number),
+      onLongPress: () => _showVerseNoteDialog(verse.number),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -1673,71 +1690,110 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
                 )
               : null,
         ),
-        child: RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: '${verse.number} ',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: _bibleVerseColor,
-                  fontWeight: FontWeight.bold,
-                  height: 1.9,
-                ),
-              ),
-              TextSpan(
-                text: verse.text,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  height: 1.9,
-                  color: const Color(0xFF222222),
-                ),
-              ),
-              if (hasRefs)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: GestureDetector(
-                    onTap: () => _showCrossRefs(verse.number, refs),
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 5),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppStyle.orange.withAlpha(30),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(
-                          color: AppStyle.orange.withAlpha(70),
-                          width: 0.7,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.auto_stories_rounded,
-                            size: 11,
-                            color: AppStyle.orange,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            AppLocalizations.of(
-                              context,
-                            ).oldTestamentCount(refs.length),
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppStyle.orange,
-                            ),
-                          ),
-                        ],
-                      ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${verse.number} ',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: _bibleVerseColor,
+                      fontWeight: FontWeight.bold,
+                      height: 1.9,
                     ),
                   ),
+                  TextSpan(
+                    text: verse.text,
+                    style: TextStyle(
+                      fontSize: _fontSize,
+                      height: 1.9,
+                      color: const Color(0xFF222222),
+                    ),
+                  ),
+                  if (hasRefs)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: GestureDetector(
+                        onTap: () => _showCrossRefs(verse.number, refs),
+                        child: Container(
+                          margin: const EdgeInsets.only(left: 5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppStyle.orange.withAlpha(30),
+                            borderRadius: BorderRadius.circular(7),
+                            border: Border.all(
+                              color: AppStyle.orange.withAlpha(70),
+                              width: 0.7,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.auto_stories_rounded,
+                                size: 11,
+                                color: AppStyle.orange,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).oldTestamentCount(refs.length),
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppStyle.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (note != null)
+              GestureDetector(
+                onTap: () => _showVerseNoteDialog(verse.number),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 4, bottom: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withAlpha(18),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withAlpha(65)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.edit_note_rounded,
+                        size: 16,
+                        color: Colors.orange,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          note,
+                          style: const TextStyle(fontSize: 12.5, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

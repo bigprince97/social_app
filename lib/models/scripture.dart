@@ -40,25 +40,24 @@ class Scripture {
 
   String get displayTitle => _meta('title', title);
   String get displayCategory => _meta('category', category);
-  String? get displayAuthor =>
-      author == null ? null : _meta('author', author!);
+  String? get displayAuthor => author == null ? null : _meta('author', author!);
   String? get displayDynasty =>
       dynasty == null ? null : _meta('dynasty', dynasty!);
   String? get displayDescription =>
       description == null ? null : _meta('description', description!);
 
   factory Scripture.fromJson(Map<String, dynamic> json) => Scripture(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        category: json['category'] as String,
-        author: json['author'] as String?,
-        dynasty: json['dynasty'] as String?,
-        description: json['description'] as String?,
-        coverColor: (json['cover_color'] as String?) ?? '#8B4513',
-        chaptersCount: (json['chapters_count'] as int?) ?? 0,
-        metaI18n: json['meta_i18n'] as Map<String, dynamic>?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    category: json['category'] as String,
+    author: json['author'] as String?,
+    dynasty: json['dynasty'] as String?,
+    description: json['description'] as String?,
+    coverColor: (json['cover_color'] as String?) ?? '#8B4513',
+    chaptersCount: (json['chapters_count'] as int?) ?? 0,
+    metaI18n: json['meta_i18n'] as Map<String, dynamic>?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
 
   Color get color {
     try {
@@ -70,8 +69,18 @@ class Scripture {
   }
 
   static const List<Map<String, dynamic>> categoryDefs = [
-    {'key': '道', 'label': '道家', 'icon': Icons.blur_circular, 'color': 0xFF2F4F4F},
-    {'key': '佛', 'label': '佛经', 'icon': Icons.self_improvement, 'color': 0xFF4A2F8B},
+    {
+      'key': '道',
+      'label': '道家',
+      'icon': Icons.blur_circular,
+      'color': 0xFF2F4F4F,
+    },
+    {
+      'key': '佛',
+      'label': '佛经',
+      'icon': Icons.self_improvement,
+      'color': 0xFF4A2F8B,
+    },
     {'key': '基督', 'label': '基督教', 'icon': Icons.church, 'color': 0xFF8B1A1A},
   ];
 }
@@ -104,7 +113,6 @@ class ScriptureChapter {
   // 段落标题（中文圣经，按节号插入），无数据时为 null
   final List<ChapterHeading>? headings;
   bool isBookmarked;
-  bool isHighlighted;
   String? userNote;
 
   ScriptureChapter({
@@ -120,7 +128,6 @@ class ScriptureChapter {
     this.headings,
     required this.createdAt,
     this.isBookmarked = false,
-    this.isHighlighted = false,
     this.userNote,
   });
 
@@ -151,7 +158,8 @@ class ScriptureChapter {
         titleI18n: json['title_i18n'] as Map<String, dynamic>?,
         headings: (json['headings'] as List?)
             ?.map(
-              (e) => ChapterHeading.fromJson(Map<String, dynamic>.from(e as Map)),
+              (e) =>
+                  ChapterHeading.fromJson(Map<String, dynamic>.from(e as Map)),
             )
             .toList(),
         createdAt: DateTime.parse(json['created_at'] as String),
@@ -180,20 +188,21 @@ class UserBookmark {
   });
 
   factory UserBookmark.fromJson(Map<String, dynamic> json) => UserBookmark(
-        id: json['id'] as String,
-        userId: json['user_id'] as String,
-        chapterId: json['chapter_id'] as String,
-        scriptureId: json['scripture_id'] as String,
-        note: json['note'] as String?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-        chapter: json['scripture_chapters'] != null
-            ? ScriptureChapter.fromJson(
-                json['scripture_chapters'] as Map<String, dynamic>)
-            : null,
-        scripture: json['scriptures'] != null
-            ? Scripture.fromJson(json['scriptures'] as Map<String, dynamic>)
-            : null,
-      );
+    id: json['id'] as String,
+    userId: json['user_id'] as String,
+    chapterId: json['chapter_id'] as String,
+    scriptureId: json['scripture_id'] as String,
+    note: json['note'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+    chapter: json['scripture_chapters'] != null
+        ? ScriptureChapter.fromJson(
+            json['scripture_chapters'] as Map<String, dynamic>,
+          )
+        : null,
+    scripture: json['scriptures'] != null
+        ? Scripture.fromJson(json['scriptures'] as Map<String, dynamic>)
+        : null,
+  );
 }
 
 /// 经文交叉引用：本章某节（fromVerse）引用了另一处经文（目标章 + 节范围）。

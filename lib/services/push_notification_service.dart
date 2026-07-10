@@ -53,7 +53,32 @@ class PushNotificationService {
 
   /// 收到来电类推送时回调（前台/后台点开都会触发），由 HomeScreen 注册，
   /// 用 call_id 拉取通话并弹来电界面。
-  static void Function(Map<String, dynamic> data)? onCallPush;
+  static void Function(Map<String, dynamic> data)? _onCallPush;
+  static Map<String, dynamic>? _pendingCallPush;
+
+  static set onCallPush(void Function(Map<String, dynamic> data)? callback) {
+    _onCallPush = callback;
+    if (callback == null) {
+      _pendingCallPush = null;
+      return;
+    }
+    final pending = _pendingCallPush;
+    if (pending != null) {
+      _pendingCallPush = null;
+      scheduleMicrotask(() => callback(pending));
+    }
+  }
+
+  static void _dispatchCallPush(Map<String, dynamic> data) {
+    final callback = _onCallPush;
+    if (callback == null) {
+      // 冷启动时推送可能早于 HomeScreen 完成注册，先暂存，注册后立即补弹。
+      _pendingCallPush = Map<String, dynamic>.from(data);
+      return;
+    }
+    callback(Map<String, dynamic>.from(data));
+  }
+
   static VoidCallback? onActiveMediaTap;
   static void Function(
     String? postId,
@@ -111,7 +136,7 @@ class PushNotificationService {
     _foregroundMessageSub ??= FirebaseMessaging.onMessage.listen((msg) {
       // 来电：前台直接弹来电界面（兜底 realtime），不走系统通知
       if (msg.data['type'] == 'call') {
-        onCallPush?.call(Map<String, dynamic>.from(msg.data));
+        _dispatchCallPush(msg.data);
         return;
       }
       final notif = msg.notification;
@@ -142,7 +167,7 @@ class PushNotificationService {
     // 点击通知打开 app（后台 → 前台）
     _messageOpenedSub ??= FirebaseMessaging.onMessageOpenedApp.listen((msg) {
       if (msg.data['type'] == 'call') {
-        onCallPush?.call(Map<String, dynamic>.from(msg.data));
+        _dispatchCallPush(msg.data);
         return;
       }
       _handleTapWithCurrentCallback(msg.data);
@@ -152,7 +177,7 @@ class PushNotificationService {
     final initial = await _messaging.getInitialMessage();
     if (initial != null) {
       if (initial.data['type'] == 'call') {
-        onCallPush?.call(Map<String, dynamic>.from(initial.data));
+        _dispatchCallPush(initial.data);
       } else {
         _handleTapWithCurrentCallback(initial.data);
       }

@@ -446,11 +446,11 @@ class ChatService {
     final uid = _userId;
     if (uid == null) return;
     try {
-      await _client
-          .from('conversation_members')
-          .update({'last_read_at': DateTime.now().toIso8601String()})
-          .eq('conversation_id', conversationId)
-          .eq('user_id', uid);
+      // 使用数据库 now()，避免设备时间偏差导致刚读过的消息仍被统计为未读。
+      await _client.rpc(
+        'mark_conversation_read',
+        params: {'p_conversation_id': conversationId},
+      );
     } catch (_) {
       // 已读回执失败无需打扰用户，也不应抛未捕获异常
     }

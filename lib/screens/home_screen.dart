@@ -49,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     PushNotificationService.onActiveMediaTap = _restoreMediaSession;
     // 来电推送兜底：FCM 收到 type=call 时用 call_id 拉取并弹来电界面
     PushNotificationService.onCallPush = _onIncomingCallFromPush;
+    _recoverIncomingCall();
   }
 
   Future<void> _onIncomingCallFromPush(Map<String, dynamic> data) async {
@@ -57,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (callId == null || callId.isEmpty) return;
     try {
       final call = await _callService.getCallById(callId);
-      if (call != null) _onIncomingCall(call);
+      if (call != null) await _onIncomingCall(call);
     } catch (_) {}
   }
 
@@ -70,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _removeCh(_callChannel);
       _subscribeToMessages();
       _subscribeToIncomingCalls();
+      _recoverIncomingCall();
       final session = _mediaController.session;
       if (session != null && !session.minimized) {
         PushNotificationService.cancelActiveMediaNotification();
@@ -98,6 +100,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── 全局来电监听 ─────────────────────────────────────────────────────────
   void _subscribeToIncomingCalls() {
     _callChannel = _callService.subscribeToIncomingCalls(_onIncomingCall);
+  }
+
+  Future<void> _recoverIncomingCall() async {
+    if (_handlingCall || !mounted) return;
+    try {
+      final call = await _callService.getRingingIncomingCall();
+      if (call != null && mounted) await _onIncomingCall(call);
+    } catch (_) {}
   }
 
   Future<void> _onIncomingCall(CallInfo call) async {
@@ -199,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadBadges() async {
     try {
       final counts = await _chatService.getUnreadCounts();
-      final msgCount = counts.values.where((count) => count > 0).length;
+      final msgCount = counts.values.fold<int>(0, (sum, count) => sum + count);
       await PushNotificationService.syncAppIconBadge(msgCount);
       if (mounted) setState(() => _unreadMessages = msgCount);
     } catch (_) {}
@@ -257,8 +267,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (body.isEmpty) return;
       final senderName = (sender?['display_name'] as String?) ?? '';
       final isGroup = conv?['type'] == 'group';
-      final title =
-          isGroup ? ((conv?['name'] as String?) ?? t.group) : senderName;
+      final title = isGroup
+          ? ((conv?['name'] as String?) ?? t.group)
+          : senderName;
       if (isGroup) body = '$senderName：$body';
       await PushNotificationService.showChatBanner(
         title: title,

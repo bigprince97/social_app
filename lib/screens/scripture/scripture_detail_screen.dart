@@ -1212,8 +1212,6 @@ class _DefaultContents extends StatelessWidget {
                     style: const TextStyle(fontSize: 15),
                   ),
                 ),
-                if (ch.isHighlighted)
-                  Icon(Icons.highlight, size: 14, color: color),
                 Icon(
                   Icons.chevron_right,
                   size: 16,

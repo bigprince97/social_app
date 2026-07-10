@@ -245,10 +245,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await _chatService.updateLastRead(_conversation.id);
     try {
       final counts = await _chatService.getUnreadCounts();
-      final unreadConversationCount = counts.entries
-          .where((entry) => entry.key != _conversation.id && entry.value > 0)
-          .length;
-      await PushNotificationService.syncAppIconBadge(unreadConversationCount);
+      final unreadMessageCount = counts.entries
+          .where((entry) => entry.key != _conversation.id)
+          .fold<int>(0, (sum, entry) => sum + entry.value);
+      await PushNotificationService.syncAppIconBadge(unreadMessageCount);
     } catch (_) {}
   }
 

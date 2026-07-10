@@ -216,17 +216,46 @@ class CallService {
     return CallInfo.fromJson(data);
   }
 
+  /// 冷启动、回前台或 Realtime 重连后主动补查仍在振铃的私聊来电，
+  /// 避免事件发生在监听建立之前而漏掉全屏提醒。
+  Future<CallInfo?> getRingingIncomingCall() async {
+    final uid = _userId;
+    if (uid == null) return null;
+    final cutoff = DateTime.now()
+        .subtract(const Duration(seconds: 90))
+        .toIso8601String();
+    final data = await _client
+        .from('calls')
+        .select()
+        .eq('callee_id', uid)
+        .eq('status', 'ringing')
+        .inFilter('call_type', ['voice', 'video'])
+        .gte('created_at', cutoff)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (data == null) return null;
+    return CallInfo.fromJson(data);
+  }
+
   // Subscribe to incoming calls for current user
   RealtimeChannel subscribeToIncomingCalls(
     void Function(CallInfo call) onIncomingCall,
   ) {
     final uid = _userId;
-    return _client
+    var channel = _client
         .channel('incoming_calls:$uid')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'calls',
+          filter: uid == null
+              ? null
+              : PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'callee_id',
+                  value: uid,
+                ),
           callback: (payload) {
             final row = payload.newRecord;
             // Only notify if we are the callee
@@ -234,8 +263,8 @@ class CallService {
               onIncomingCall(CallInfo.fromJson(row));
             }
           },
-        )
-        .subscribe();
+        );
+    return channel.subscribe();
   }
 
   // Subscribe to call status changes (e.g., callee accepted/declined)

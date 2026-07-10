@@ -269,12 +269,19 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   child: _ConversationTile(
                                     conversation: conv,
                                     currentUserId: userId,
-                                    onTap: () => context
-                                        .push('/chat/${conv.id}', extra: conv)
-                                        .then((_) {
-                                          _loadConversations(silent: true);
-                                          widget.onUnreadChanged?.call();
-                                        }),
+                                    onTap: () async {
+                                      // 进入会话即本地清零，避免返回列表时旧红点闪一下；
+                                      // 聊天页同时会把 last_read_at 写入数据库。
+                                      if (conv.unreadCount > 0 && mounted) {
+                                        setState(() => conv.unreadCount = 0);
+                                      }
+                                      await context.push(
+                                        '/chat/${conv.id}',
+                                        extra: conv,
+                                      );
+                                      await _loadConversations(silent: true);
+                                      widget.onUnreadChanged?.call();
+                                    },
                                   ),
                                 );
                               },
@@ -428,7 +435,7 @@ class _ConversationTile extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF9575CD),
+                            color: AppStyle.red,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(

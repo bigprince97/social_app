@@ -87,36 +87,23 @@ class ScriptureService {
       }
     }
 
-    // 只有章节数量合理时才批量预取书签/划线状态（防止 URL 超长 400）
+    // 只有章节数量合理时才批量预取书签状态（防止 URL 超长 400）
     final uid = _userId;
     if (uid != null && all.isNotEmpty && all.length <= 200) {
-      // 书签/划线是联网增强项，离线跳过
+      // 书签是联网增强项，离线跳过
       try {
         final ids = all.map((c) => c.id).toList();
-        final results = await Future.wait([
-          _client
-              .from('bookmarks')
-              .select('chapter_id')
-              .eq('user_id', uid)
-              .inFilter('chapter_id', ids),
-          _client
-              .from('highlights')
-              .select('chapter_id')
-              .eq('user_id', uid)
-              .inFilter('chapter_id', ids),
-        ]);
-        final bkIds = {
-          for (final r in results[0] as List) r['chapter_id'] as String,
-        };
-        final hlIds = {
-          for (final r in results[1] as List) r['chapter_id'] as String,
-        };
+        final rows = await _client
+            .from('bookmarks')
+            .select('chapter_id')
+            .eq('user_id', uid)
+            .inFilter('chapter_id', ids);
+        final bkIds = {for (final r in rows as List) r['chapter_id'] as String};
         for (final c in all) {
           c.isBookmarked = bkIds.contains(c.id);
-          c.isHighlighted = hlIds.contains(c.id);
         }
       } catch (_) {
-        /* 离线忽略书签/划线 */
+        /* 离线忽略书签 */
       }
     }
     return all;
@@ -279,7 +266,7 @@ class ScriptureService {
   Future<Map<String, dynamic>> getChapterUserState(String chapterId) async {
     final uid = _userId;
     if (uid == null) {
-      return {'bookmarked': false, 'highlighted': false, 'note': null};
+      return {'bookmarked': false, 'note': null};
     }
     final results = await Future.wait([
       _client
@@ -289,23 +276,14 @@ class ScriptureService {
           .eq('chapter_id', chapterId)
           .maybeSingle(),
       _client
-          .from('highlights')
-          .select('id')
-          .eq('user_id', uid)
-          .eq('chapter_id', chapterId)
-          .maybeSingle(),
-      _client
           .from('reading_notes')
           .select('content')
           .eq('user_id', uid)
           .eq('chapter_id', chapterId)
+          .isFilter('verse_number', null)
           .maybeSingle(),
     ]);
-    return {
-      'bookmarked': results[0] != null,
-      'highlighted': results[1] != null,
-      'note': results[2]?['content'],
-    };
+    return {'bookmarked': results[0] != null, 'note': results[1]?['content']};
   }
 
   Future<bool> toggleBookmark(String chapterId, String scriptureId) async {
@@ -331,31 +309,6 @@ class ScriptureService {
     return true;
   }
 
-  Future<bool> toggleHighlight(String chapterId, String text) async {
-    final uid = requireUid(_client);
-    final existing = await _client
-        .from('highlights')
-        .select('id')
-        .eq('user_id', uid)
-        .eq('chapter_id', chapterId)
-        .maybeSingle();
-    if (existing != null) {
-      await _client
-          .from('highlights')
-          .delete()
-          .eq('id', existing['id'] as String);
-      return false;
-    }
-    await _client.from('highlights').insert({
-      'user_id': uid,
-      'chapter_id': chapterId,
-      'selected_text': text,
-      'start_offset': 0,
-      'end_offset': text.length,
-    });
-    return true;
-  }
-
   Future<void> saveNote(
     String chapterId,
     String scriptureId,
@@ -367,6 +320,7 @@ class ScriptureService {
         .select('id')
         .eq('user_id', uid)
         .eq('chapter_id', chapterId)
+        .isFilter('verse_number', null)
         .maybeSingle();
     if (existing != null) {
       await _client
@@ -382,6 +336,7 @@ class ScriptureService {
         'chapter_id': chapterId,
         'scripture_id': scriptureId,
         'content': content,
+        'verse_number': null,
       });
     }
   }
@@ -392,7 +347,70 @@ class ScriptureService {
         .from('reading_notes')
         .delete()
         .eq('user_id', uid)
-        .eq('chapter_id', chapterId);
+        .eq('chapter_id', chapterId)
+        .isFilter('verse_number', null);
+  }
+
+  Future<Map<int, String>> getVerseNotes(String chapterId) async {
+    final uid = _userId;
+    if (uid == null) return {};
+    final rows = await _client
+        .from('reading_notes')
+        .select('verse_number, content')
+        .eq('user_id', uid)
+        .eq('chapter_id', chapterId)
+        .not('verse_number', 'is', null)
+        .order('verse_number');
+    return {
+      for (final row in rows as List)
+        (row['verse_number'] as num).toInt(): row['content'] as String,
+    };
+  }
+
+  Future<void> saveVerseNote({
+    required String chapterId,
+    required String scriptureId,
+    required int verseNumber,
+    required String selectedText,
+    required String content,
+  }) async {
+    final uid = requireUid(_client);
+    final existing = await _client
+        .from('reading_notes')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('chapter_id', chapterId)
+        .eq('verse_number', verseNumber)
+        .maybeSingle();
+    final values = {
+      'content': content,
+      'selected_text': selectedText,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (existing != null) {
+      await _client
+          .from('reading_notes')
+          .update(values)
+          .eq('id', existing['id'] as String);
+      return;
+    }
+    await _client.from('reading_notes').insert({
+      'user_id': uid,
+      'chapter_id': chapterId,
+      'scripture_id': scriptureId,
+      'verse_number': verseNumber,
+      ...values,
+    });
+  }
+
+  Future<void> deleteVerseNote(String chapterId, int verseNumber) async {
+    final uid = requireUid(_client);
+    await _client
+        .from('reading_notes')
+        .delete()
+        .eq('user_id', uid)
+        .eq('chapter_id', chapterId)
+        .eq('verse_number', verseNumber);
   }
 
   Future<List<UserBookmark>> getMyBookmarks() async {
