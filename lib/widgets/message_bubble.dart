@@ -1254,6 +1254,8 @@ class _VideoBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumb = message.payload?['thumbnail'] as String?;
+    final rawLocalThumb = message.payload?['thumbnail_bytes'];
+    final localThumb = rawLocalThumb is Uint8List ? rawLocalThumb : null;
     final uploading = message.isUploading;
     return GestureDetector(
       onTap: (uploading || message.mediaUrl == null)
@@ -1267,7 +1269,15 @@ class _VideoBubble extends StatelessWidget {
         borderRadius: _radius(isMe),
         child: Stack(
           children: [
-            thumb != null
+            localThumb != null
+                ? Image.memory(
+                    localThumb,
+                    width: 220,
+                    height: 165,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  )
+                : thumb != null
                 ? CachedNetworkImage(
                     imageUrl: thumb,
                     width: 220,

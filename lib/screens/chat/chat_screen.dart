@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:get_thumbnail_video/video_thumbnail.dart';
 import '../../utils/auth_error.dart' show avatarInitial;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1009,19 +1010,41 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final vsize = await picked.length();
     if (!mounted) return;
     if (_rejectIfTooLarge(vsize)) return;
+    Uint8List? thumbnailBytes;
+    try {
+      thumbnailBytes = await VideoThumbnail.thumbnailData(
+        video: picked.path,
+        maxWidth: 720,
+        timeMs: 100,
+        quality: 80,
+      );
+    } catch (_) {
+      // 极少数系统不支持的视频编码仍允许发送，只退回无封面占位。
+    }
     // 乐观发送：立刻插入占位气泡，上传过程中实时更新进度，不等发完才显示。
     final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
     _addPendingMedia(
       tempId: tempId,
       messageType: 'video',
-      payload: {'local_path': picked.path},
+      payload: {'local_path': picked.path, 'thumbnail_bytes': ?thumbnailBytes},
     );
     try {
       final uploaded = await _storageService.uploadChatVideo(picked);
+      String? thumbnailUrl;
+      if (thumbnailBytes != null) {
+        try {
+          thumbnailUrl = await _storageService.uploadChatVideoThumbnail(
+            thumbnailBytes,
+          );
+        } catch (_) {
+          // 封面上传失败不应阻断视频本身发送。
+        }
+      }
       final msg = await _chatService.sendVideoMessage(
         conversationId: _conversation.id,
         videoUrl: uploaded.url,
         fileSize: uploaded.size,
+        thumbnailUrl: thumbnailUrl,
       );
       _replacePending(tempId, msg);
       _cacheCurrentMessages();

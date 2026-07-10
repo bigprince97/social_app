@@ -207,6 +207,22 @@ class StorageService {
     return (url: url, size: bytes.length);
   }
 
+  Future<String> uploadChatVideoThumbnail(Uint8List bytes) async {
+    final userId = requireUid(_client);
+    final path = 'chat/$userId/video_thumbnails/${_uuid.v4()}.png';
+    await _client.storage
+        .from('media')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(
+            upsert: false,
+            contentType: 'image/png',
+          ),
+        );
+    return _client.storage.from('media').getPublicUrl(path);
+  }
+
   static String _videoMime(String ext) {
     switch (ext.toLowerCase()) {
       case 'mp4':
