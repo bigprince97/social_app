@@ -168,6 +168,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     showPremiumToast(context, '用户 ID 已复制', kind: ToastKind.info);
   }
 
+  String _shortMemberId(String userId) =>
+      userId.length <= 8 ? userId : '${userId.substring(0, 8)}…';
+
   // ─── Announcement ────────────────────────────────────────────────────────
 
   Future<void> _editAnnouncement() async {
@@ -726,14 +729,13 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'ID: ${m.userId}',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontSize: 10.5),
-                                ),
+                              child: Text(
+                                'ID: ${_shortMemberId(m.userId)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(fontSize: 11),
                               ),
                             ),
                             const SizedBox(width: 4),
