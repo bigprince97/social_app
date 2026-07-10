@@ -42,8 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         final l = AppLocalizations.of(context);
         showPremiumToast(
-            context, isNetworkError(e) ? l.networkError : l.loginFailedGeneric,
-            kind: ToastKind.error);
+          context,
+          isNetworkError(e) ? l.networkError : l.loginFailedGeneric,
+          kind: ToastKind.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -61,15 +63,23 @@ class _LoginScreenState extends State<LoginScreen> {
             Container(
               width: double.infinity,
               padding: EdgeInsets.fromLTRB(
-                  32, MediaQuery.of(context).padding.top + 48, 32, 40),
+                32,
+                MediaQuery.of(context).padding.top + 48,
+                32,
+                40,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [primary, Color.lerp(primary, Colors.deepPurple, 0.5)!],
+                  colors: [
+                    primary,
+                    Color.lerp(primary, Colors.deepPurple, 0.5)!,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(32)),
+                  bottom: Radius.circular(32),
+                ),
               ),
               child: Column(
                 children: [
@@ -77,20 +87,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(40),
+                      color: Colors.white.withAlpha(45),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.menu_book_rounded,
-                        size: 40, color: Colors.white),
+                    child: const Icon(
+                      Icons.menu_book_rounded,
+                      color: Colors.white,
+                      size: 40,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     AppLocalizations.of(context).appName,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2),
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
                   ),
                 ],
               ),
@@ -106,10 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Text(
                       AppLocalizations.of(context).welcomeBack,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -119,8 +132,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: AppLocalizations.of(context).email,
                         prefixIcon: const Icon(Icons.email_outlined),
                       ),
-                      validator: (v) =>
-                          v == null || !v.contains('@') ? AppLocalizations.of(context).invalidEmailError : null,
+                      validator: (v) => v == null || !v.contains('@')
+                          ? AppLocalizations.of(context).invalidEmailError
+                          : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
@@ -130,15 +144,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: AppLocalizations.of(context).password,
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure
-                              ? Icons.visibility_off
-                              : Icons.visibility),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure ? Icons.visibility_off : Icons.visibility,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
-                      validator: (v) =>
-                          v == null || v.length < 6 ? AppLocalizations.of(context).passwordTooShortError : null,
+                      validator: (v) => v == null || v.length < 6
+                          ? AppLocalizations.of(context).passwordTooShortError
+                          : null,
                       onFieldSubmitted: (_) => _login(),
                     ),
                     const SizedBox(height: 28),
@@ -155,13 +169,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         TextButton(
                           onPressed: () => context.go('/register'),
-                          child: Text(AppLocalizations.of(context)
-                              .noAccountRegisterNow),
+                          child: Text(
+                            AppLocalizations.of(context).noAccountRegisterNow,
+                          ),
                         ),
                         TextButton(
                           onPressed: () => context.push('/forgot-password'),
                           child: Text(
-                              AppLocalizations.of(context).forgotPassword),
+                            AppLocalizations.of(context).forgotPassword,
+                          ),
                         ),
                       ],
                     ),
@@ -182,13 +198,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LegalScreen(
-                                          doc: LegalDoc.eula,
-                                        ),
-                                      ),
-                                    ),
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const LegalScreen(doc: LegalDoc.eula),
+                                  ),
+                                ),
                             ),
                             TextSpan(text: AppLocalizations.of(context).and),
                             TextSpan(
@@ -199,13 +214,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LegalScreen(
-                                          doc: LegalDoc.privacy,
-                                        ),
-                                      ),
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const LegalScreen(
+                                      doc: LegalDoc.privacy,
                                     ),
+                                  ),
+                                ),
                             ),
                           ],
                         ),

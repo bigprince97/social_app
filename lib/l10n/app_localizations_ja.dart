@@ -797,6 +797,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get blockedCannotSend => '相手にブロックされているため、メッセージを送信できません';
 
   @override
+  String get blockedCannotCall => 'どちらかが相手をブロックしているため、通話を開始できません';
+
+  @override
   String get microphonePermissionRequired => '録音するにはマイクの許可が必要です';
 
   @override
@@ -1108,7 +1111,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accept => '応答';
 
   @override
-  String get appName => 'Omega';
+  String get appName => 'AlphaOmega';
 
   @override
   String get appTagline => '古典を受け継ぎ、ともに築く';

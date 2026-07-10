@@ -78,6 +78,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // 直聊：对方是否已被我拉黑（用于菜单显示 拉黑/取消拉黑）
   bool _isOtherBlocked = false;
+  // 任一方存在拉黑关系：用于禁用语音/视频来电入口。
+  bool _isEitherBlocked = false;
 
   // voice recording state
   bool _recording = false;
@@ -382,7 +384,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _cacheCurrentMessages() {
-    unawaited(_chatService.cacheMessages(_conversation.id, _messages));
+    // 不缓存乐观占位（上传中）消息，否则重启后会残留“发送中”的僵尸气泡
+    final persistable = _messages.where((m) => !m.isUploading).toList();
+    unawaited(_chatService.cacheMessages(_conversation.id, persistable));
   }
 
   void _subscribeToMessages() {
@@ -506,6 +510,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   'id': replyTo.id,
                   'sender': replyTo.sender?.displayName ?? '',
                   'preview': replyTo.displayContent,
+                  'type': replyTo.messageType,
+                  // 图片/视频：存缩略图 URL，引用块里显示小图
+                  if ((replyTo.messageType == 'image' ||
+                          replyTo.messageType == 'video') &&
+                      replyTo.mediaUrl != null)
+                    'thumb': replyTo.mediaUrl,
                 },
               },
       );
@@ -550,6 +560,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (locale.languageCode == 'ja') return 'しばらくしてからもう一度お試しください';
     if (locale.languageCode == 'en') return 'Please try again later';
     return '请稍后重试';
+  }
+
+  // 发送前大小拦截：Supabase 后台上限 500MB，客户端设 490MB 留余量
+  // （multipart 编码会有少量额外字节）。超限直接提示，不再默默失败。
+  static const int _kMaxUploadBytes = 490 * 1000 * 1000;
+
+  /// 文件超过上限则弹提示并返回 true（调用方据此中止发送）。
+  bool _rejectIfTooLarge(int bytes) {
+    if (bytes <= _kMaxUploadBytes) return false;
+    if (mounted) {
+      final mb = (bytes / (1000 * 1000)).round();
+      showPremiumToast(
+        context,
+        '文件过大（约 $mb MB），最大支持 500 MB',
+        kind: ToastKind.error,
+      );
+    }
+    return true;
   }
 
   // ─── @mention picker ────────────────────────────────────────────────────
@@ -922,7 +950,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final picked = await _picker.pickVideo(source: ImageSource.gallery);
     if (!mounted) return;
     if (picked == null) return;
-    setState(() => _sending = true);
+    final vsize = await picked.length();
+    if (!mounted) return;
+    if (_rejectIfTooLarge(vsize)) return;
+    // 乐观发送：立刻插入占位气泡，上传过程中实时更新进度，不等发完才显示。
+    final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
+    _addPendingMedia(
+      tempId: tempId,
+      messageType: 'video',
+      payload: {'local_path': picked.path},
+    );
     try {
       final uploaded = await _storageService.uploadChatVideo(picked);
       final msg = await _chatService.sendVideoMessage(
@@ -930,17 +967,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         videoUrl: uploaded.url,
         fileSize: uploaded.size,
       );
-      if (mounted) {
-        setState(() => _messages.add(msg));
-        _cacheCurrentMessages();
-        _scrollToBottom();
-      }
+      _replacePending(tempId, msg);
+      _cacheCurrentMessages();
     } catch (e) {
-      if (mounted) {
-        _showSendError(e);
-      }
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      _removePending(tempId);
+      if (mounted) _showSendError(e);
     }
   }
 
@@ -957,7 +988,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         (picked.path != null ? await File(picked.path!).readAsBytes() : null);
     if (!mounted) return;
     if (bytes == null) return;
-    setState(() => _sending = true);
+    if (_rejectIfTooLarge(bytes.length)) return;
+    final mime = picked.extension != null
+        ? _mimeFromExt(picked.extension!)
+        : null;
+    // 乐观发送：立刻插入占位气泡（含文件名/大小/图标），上传中实时进度条。
+    final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
+    _addPendingMedia(
+      tempId: tempId,
+      messageType: 'file',
+      content: picked.name,
+      payload: {
+        'name': picked.name,
+        'size': bytes.length,
+        'mime': mime ?? 'application/octet-stream',
+      },
+    );
     try {
       final uploaded = await _storageService.uploadChatFile(bytes, picked.name);
       final msg = await _chatService.sendFileMessage(
@@ -965,22 +1011,57 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         fileUrl: uploaded.url,
         fileName: picked.name,
         fileSize: uploaded.size,
-        mimeType: picked.extension != null
-            ? _mimeFromExt(picked.extension!)
-            : null,
+        mimeType: mime,
       );
-      if (mounted) {
-        setState(() => _messages.add(msg));
-        _cacheCurrentMessages();
-        _scrollToBottom();
-      }
+      _replacePending(tempId, msg);
+      _cacheCurrentMessages();
     } catch (e) {
-      if (mounted) {
-        _showSendError(e);
-      }
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      _removePending(tempId);
+      if (mounted) _showSendError(e);
     }
+  }
+
+  // ─── 乐观发送占位气泡：插入 / 成功替换 / 失败移除 ────────────────────────
+  void _addPendingMedia({
+    required String tempId,
+    required String messageType,
+    String? content,
+    Map<String, dynamic> payload = const {},
+  }) {
+    final pending = Message(
+      id: tempId,
+      conversationId: _conversation.id,
+      senderId: _currentUserId,
+      content: content,
+      messageType: messageType,
+      createdAt: DateTime.now(),
+      // 不带 upload_progress → 气泡显示不确定态转圈（“发送中…”）
+      payload: {'pending': true, ...payload},
+    );
+    setState(() => _messages.add(pending));
+    _scrollToBottom();
+  }
+
+  void _replacePending(String tempId, Message real) {
+    if (!mounted) return;
+    setState(() {
+      final tempIdx = _messages.indexWhere((m) => m.id == tempId);
+      final realIdx = _messages.indexWhere((m) => m.id == real.id);
+      if (realIdx != -1) {
+        // realtime 已抢先插入真实消息：移除临时占位，避免重复
+        if (tempIdx != -1) _messages.removeAt(tempIdx);
+      } else if (tempIdx != -1) {
+        _messages[tempIdx] = real;
+      } else {
+        _messages.add(real);
+      }
+    });
+    _scrollToBottom();
+  }
+
+  void _removePending(String tempId) {
+    if (!mounted) return;
+    setState(() => _messages.removeWhere((m) => m.id == tempId));
   }
 
   String? _mimeFromExt(String ext) {
@@ -1039,6 +1120,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
+        if (e is BlockedCallException ||
+            (e is PostgrestException && e.code == '42501')) {
+          showPremiumToast(
+            context,
+            AppLocalizations.of(context).blockedCannotCall,
+            kind: ToastKind.block,
+          );
+          await _loadBlockState();
+          return;
+        }
         showErrorIfNotNetwork(
           context,
           e,
@@ -1225,8 +1316,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         .firstOrNull;
     if (other == null) return;
     try {
-      final blocked = await _blockService.isBlocked(other.userId);
-      if (mounted) setState(() => _isOtherBlocked = blocked);
+      final results = await Future.wait([
+        _blockService.isBlocked(other.userId),
+        _blockService.isEitherBlocked(other.userId),
+      ]);
+      if (mounted) {
+        setState(() {
+          _isOtherBlocked = results[0];
+          _isEitherBlocked = results[1];
+        });
+      }
     } catch (_) {}
   }
 
@@ -1244,7 +1343,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!confirm) return;
       await _blockService.unblockUser(otherUserId);
       if (mounted) {
-        setState(() => _isOtherBlocked = false);
+        final stillBlocked = await _blockService.isEitherBlocked(otherUserId);
+        if (!mounted) return;
+        setState(() {
+          _isOtherBlocked = false;
+          _isEitherBlocked = stillBlocked;
+        });
         showPremiumToast(
           context,
           t.userUnblocked(otherName),
@@ -1264,7 +1368,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!confirm) return;
     await _blockService.blockUser(otherUserId);
     if (mounted) {
-      setState(() => _isOtherBlocked = true);
+      setState(() {
+        _isOtherBlocked = true;
+        _isEitherBlocked = true;
+      });
       showPremiumToast(
         context,
         t.userBlocked2(otherName),
@@ -1421,14 +1528,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         actions: [
           if (isDirect && otherMember != null) ...[
             IconButton(
-              icon: const Icon(Icons.call_outlined, color: Colors.white),
+              icon: Icon(
+                Icons.call_outlined,
+                color: _isEitherBlocked ? Colors.white38 : Colors.white,
+              ),
               tooltip: AppLocalizations.of(context).voiceCall,
-              onPressed: () => _startCall('voice'),
+              onPressed: _isEitherBlocked ? null : () => _startCall('voice'),
             ),
             IconButton(
-              icon: const Icon(Icons.videocam_outlined, color: Colors.white),
+              icon: Icon(
+                Icons.videocam_outlined,
+                color: _isEitherBlocked ? Colors.white38 : Colors.white,
+              ),
               tooltip: AppLocalizations.of(context).videoCall,
-              onPressed: () => _startCall('video'),
+              onPressed: _isEitherBlocked ? null : () => _startCall('video'),
             ),
             IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -1436,10 +1549,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 // 打开菜单前实时查一次真实拉黑状态，避免 initState 异步竞态
                 // 或入口数据不全导致菜单一直显示「拉黑」
                 try {
-                  final blocked = await _blockService.isBlocked(
-                    otherMember.userId,
-                  );
-                  if (mounted) setState(() => _isOtherBlocked = blocked);
+                  final results = await Future.wait([
+                    _blockService.isBlocked(otherMember.userId),
+                    _blockService.isEitherBlocked(otherMember.userId),
+                  ]);
+                  if (mounted) {
+                    setState(() {
+                      _isOtherBlocked = results[0];
+                      _isEitherBlocked = results[1];
+                    });
+                  }
                 } catch (_) {}
                 if (!context.mounted) return;
                 final t = AppLocalizations.of(context);
@@ -1734,6 +1853,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 10),
+          if ((msg.messageType == 'image' || msg.messageType == 'video') &&
+              msg.mediaUrl != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: CachedNetworkImage(
+                imageUrl: msg.mediaUrl!,
+                width: 34,
+                height: 34,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => Container(
+                  width: 34,
+                  height: 34,
+                  color: Colors.grey.shade200,
+                ),
+                errorWidget: (_, _, _) => Container(
+                  width: 34,
+                  height: 34,
+                  color: Colors.grey.shade200,
+                  child: Icon(
+                    Icons.image_not_supported_outlined,
+                    size: 16,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

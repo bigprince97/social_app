@@ -31,12 +31,21 @@ class Message {
   String? get fileMime => payload?['mime'] as String?;
   bool get isEdited => payload?['edited_at'] != null;
 
+  // ── 本地乐观发送态（仅本地，不入库）：payload 里带 pending/进度/本地路径 ──
+  bool get isUploading => payload?['pending'] == true;
+  bool get isSendFailed => payload?['failed'] == true;
+  double? get uploadProgress => (payload?['upload_progress'] as num?)?.toDouble();
+  String? get localPath => payload?['local_path'] as String?;
+
   // 引用回复（长按消息→回复）：信息存 payload['reply_to']，无需数据库改动
   Map<String, dynamic>? get _replyTo =>
       payload?['reply_to'] is Map ? Map.from(payload!['reply_to'] as Map) : null;
   String? get replyToId => _replyTo?['id'] as String?;
   String? get replyToSender => _replyTo?['sender'] as String?;
   String? get replyToPreview => _replyTo?['preview'] as String?;
+  // 被引用消息若是图片/视频，缩略图 URL 与类型（用于在引用块里显示小图）
+  String? get replyToThumb => _replyTo?['thumb'] as String?;
+  String? get replyToType => _replyTo?['type'] as String?;
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
     id: json['id'] as String,

@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- gal：保存图片到相册（旧版本 Android 需要写权限） -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -10,7 +13,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <application
-        android:label="Omega"
+        android:label="AlphaOmega"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

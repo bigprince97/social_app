@@ -100,19 +100,16 @@ class StorageService {
     final ext = fileName.contains('.') ? fileName.split('.').last : '';
     final safeName = '${_uuid.v4()}${ext.isNotEmpty ? '.$ext' : ''}';
     final path = 'chat/$userId/files/$safeName';
-    // 任意文件类型统一以 application/octet-stream 上传：
-    // media 桶的 allowed_mime_types 白名单只放行少数类型，若让 SDK
-    // 按扩展名推断真实 MIME（如 .pptx → presentationml），白名单外的
-    // 类型会被 Supabase 拒绝。octet-stream 在白名单内，可支持所有类型，
-    // 且强制下载（不内联渲染），更安全。文件名保留原扩展名，下载后正常打开。
+    // 已知类型用其正规 MIME（.m4a→audio/mp4、pdf、office、zip 等），未知类型
+    // 回退 octet-stream。桶已放开 allowed_mime_types，任意类型均可上传。
     await _client.storage
         .from('media')
         .uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(
+          fileOptions: FileOptions(
             upsert: false,
-            contentType: 'application/octet-stream',
+            contentType: _chatFileContentType(ext),
           ),
         );
     final url = _client.storage.from('media').getPublicUrl(path);
@@ -223,6 +220,61 @@ class StorageService {
       default:
         // The media bucket allows application/octet-stream. Use it for less
         // common video containers so uploads do not fail on a MIME whitelist.
+        return 'application/octet-stream';
+    }
+  }
+
+  // 聊天文件上传的 content-type：已知类型返回 media 桶白名单内的正规 MIME，
+  // 未知类型返回 octet-stream 兜底。避免 m4a 等被存储服务探测成白名单外类型。
+  static String _chatFileContentType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'm4a':
+      case 'm4b':
+        return 'audio/mp4';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'aac':
+        return 'audio/aac';
+      case 'ogg':
+      case 'oga':
+      case 'opus':
+        return 'audio/ogg';
+      case 'wav':
+        return 'audio/wav';
+      case 'weba':
+        return 'audio/webm';
+      case 'mp4':
+      case 'm4v':
+        return 'video/mp4';
+      case 'webm':
+        return 'video/webm';
+      case 'mov':
+      case 'qt':
+        return 'video/quicktime';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'zip':
+        return 'application/zip';
+      case 'txt':
+        return 'text/plain';
+      default:
         return 'application/octet-stream';
     }
   }

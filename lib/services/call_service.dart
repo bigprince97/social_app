@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/auth_error.dart' show requireUid;
+import 'block_service.dart';
 
 class CallInfo {
   final String id;
@@ -42,6 +43,7 @@ class CallInfo {
 
 class CallService {
   final _client = Supabase.instance.client;
+  final _blockService = BlockService();
   String? get _userId => _client.auth.currentUser?.id;
 
   // Get LiveKit token from Edge Function
@@ -90,20 +92,37 @@ class CallService {
       );
       return CallInfo.fromJson(data);
     }
+    if (calleeId == null) {
+      throw ArgumentError('Direct calls require a callee');
+    }
+    // 客户端先拦截，给用户即时反馈；数据库 RLS 仍会做最终强制校验，
+    // 防止旧版本客户端或直接调用 API 绕过拉黑关系。
+    if (await _blockService.isEitherBlocked(calleeId)) {
+      throw const BlockedCallException();
+    }
     final roomName = 'call_${DateTime.now().millisecondsSinceEpoch}';
-    final data = await _client
-        .from('calls')
-        .insert({
-          'conversation_id': conversationId,
-          'caller_id': _userId,
-          'callee_id': calleeId,
-          'call_type': callType,
-          'status': 'ringing',
-          'livekit_room': roomName,
-        })
-        .select()
-        .single();
-    return CallInfo.fromJson(data);
+    try {
+      final data = await _client
+          .from('calls')
+          .insert({
+            'conversation_id': conversationId,
+            'caller_id': _userId,
+            'callee_id': calleeId,
+            'call_type': callType,
+            'status': 'ringing',
+            'livekit_room': roomName,
+          })
+          .select()
+          .single();
+      return CallInfo.fromJson(data);
+    } on PostgrestException catch (e) {
+      if (e.code == '42501' ||
+          e.message.contains('row-level security') ||
+          e.message.contains('calls_blocked')) {
+        throw const BlockedCallException();
+      }
+      rethrow;
+    }
   }
 
   Future<void> acceptCall(String callId) async {
@@ -273,4 +292,11 @@ class CallService {
     if (data.isEmpty) return null;
     return CallInfo.fromJson(Map<String, dynamic>.from(data.first as Map));
   }
+}
+
+class BlockedCallException implements Exception {
+  const BlockedCallException();
+
+  @override
+  String toString() => 'BlockedCallException';
 }

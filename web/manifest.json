@@ -1,11 +1,11 @@
 {
-    "name": "Omega",
-    "short_name": "Omega",
+    "name": "AlphaOmega",
+    "short_name": "AlphaOmega",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AlphaOmega — 经书阅读与学习社区",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

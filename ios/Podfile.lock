@@ -79,6 +79,9 @@ PODS:
   - flutter_webrtc (1.4.0):
     - Flutter
     - WebRTC-SDK (= 144.7559.01)
+  - gal (1.0.0):
+    - Flutter
+    - FlutterMacOS
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
@@ -159,6 +162,7 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
+  - gal (from `.symlinks/plugins/gal/darwin`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - just_audio (from `.symlinks/plugins/just_audio/darwin`)
   - livekit_client (from `.symlinks/plugins/livekit_client/ios`)
@@ -210,6 +214,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_local_notifications/ios"
   flutter_webrtc:
     :path: ".symlinks/plugins/flutter_webrtc/ios"
+  gal:
+    :path: ".symlinks/plugins/gal/darwin"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
   just_audio:
@@ -253,6 +259,7 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
   flutter_webrtc: ec91d94b484ad49cf191ef93413f64a40ffd3b4c
+  gal: baecd024ebfd13c441269ca7404792a7152fde89
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326

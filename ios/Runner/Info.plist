@@ -8,6 +8,8 @@
 	<string>需要摄像头权限以发送视频消息和进行视频通话</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>需要相册权限以发送图片和视频</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要相册权限以保存聊天中的图片</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -18,7 +20,7 @@
 		<string>zh-Hant</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Omega</string>
+	<string>AlphaOmega</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,7 +28,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Omega</string>
+	<string>AlphaOmega</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

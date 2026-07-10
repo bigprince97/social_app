@@ -1,5 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
+import 'package:http/http.dart' as http;
+
+import 'premium_toast.dart';
 
 class ImageViewer extends StatefulWidget {
   final List<String> imageUrls;
@@ -37,6 +41,7 @@ class ImageViewer extends StatefulWidget {
 class _ImageViewerState extends State<ImageViewer> {
   late final PageController _pageCtrl;
   late int _current;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -51,6 +56,37 @@ class _ImageViewerState extends State<ImageViewer> {
     super.dispose();
   }
 
+  // 下载当前图片并保存到系统相册。
+  Future<void> _saveCurrent() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final url = widget.imageUrls[_current];
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+      await Gal.putImageBytes(resp.bodyBytes);
+      if (mounted) {
+        showPremiumToast(context, '已保存到相册', kind: ToastKind.success);
+      }
+    } on GalException catch (e) {
+      // 权限被拒或系统错误
+      if (mounted) {
+        final msg = e.type == GalExceptionType.accessDenied
+            ? '没有相册权限，请在系统设置中开启'
+            : '保存失败，请重试';
+        showPremiumToast(context, msg, kind: ToastKind.error);
+      }
+    } catch (_) {
+      if (mounted) {
+        showPremiumToast(context, '保存失败，请检查网络后重试', kind: ToastKind.error);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,6 +98,22 @@ class _ImageViewerState extends State<ImageViewer> {
             ? Text('${_current + 1} / ${widget.imageUrls.length}')
             : null,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: '保存到相册',
+            onPressed: _saving ? null : _saveCurrent,
+            icon: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.download_rounded),
+          ),
+        ],
       ),
       body: GestureDetector(
         onTap: () => Navigator.of(context).pop(),

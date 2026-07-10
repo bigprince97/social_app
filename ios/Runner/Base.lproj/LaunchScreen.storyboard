@@ -15,25 +15,7 @@
                     </layoutGuides>
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <subviews>
-                            <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleAspectFit" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
-                            </imageView>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Omega" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="YES" minimumScaleFactor="0.8" translatesAutoresizingMaskIntoConstraints="NO" id="bqF-ez-Cao">
-                                <fontDescription key="fontDescription" type="boldSystem" pointSize="24"/>
-                                <color key="textColor" red="0.2666666667" green="0.231372549" blue="0.337254902" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <nil key="highlightedColor"/>
-                            </label>
-                        </subviews>
                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                        <constraints>
-                            <constraint firstItem="bqF-ez-Cao" firstAttribute="top" secondItem="YRO-k0-Ey4" secondAttribute="bottom" constant="18" id="0mI-os-m0d"/>
-                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="1a2-6s-vTC"/>
-                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="-28" id="4X2-HB-R7a"/>
-                            <constraint firstItem="bqF-ez-Cao" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="Kti-xB-koh"/>
-                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="height" constant="120" id="P2u-MC-HTv"/>
-                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="width" constant="120" id="m7g-td-VMy"/>
-                            <constraint firstItem="bqF-ez-Cao" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.72" id="zTy-Am-pVq"/>
-                        </constraints>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -41,7 +23,4 @@
             <point key="canvasLocation" x="53" y="375"/>
         </scene>
     </scenes>
-    <resources>
-        <image name="LaunchImage" width="120" height="120"/>
-    </resources>
 </document>

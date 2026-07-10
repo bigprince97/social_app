@@ -800,6 +800,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'You have been blocked; your message can\'t be delivered';
 
   @override
+  String get blockedCannotCall =>
+      'You can\'t call this user because one of you has blocked the other';
+
+  @override
   String get microphonePermissionRequired =>
       'Microphone permission is required to record';
 
@@ -1116,7 +1120,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accept => 'Accept';
 
   @override
-  String get appName => 'Omega';
+  String get appName => 'AlphaOmega';
 
   @override
   String get appTagline => 'Timeless classics, built together';

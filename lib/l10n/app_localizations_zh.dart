@@ -796,6 +796,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get blockedCannotSend => '对方已将你拉黑，消息无法送达';
 
   @override
+  String get blockedCannotCall => '你与该用户之间存在拉黑关系，无法发起通话';
+
+  @override
   String get microphonePermissionRequired => '需要麦克风权限才能录音';
 
   @override
@@ -1107,7 +1110,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accept => '接听';
 
   @override
-  String get appName => 'Omega';
+  String get appName => 'AlphaOmega';
 
   @override
   String get appTagline => '经典传承，社区共建';
@@ -2247,6 +2250,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get blockedCannotSend => '對方已將你封鎖，訊息無法送達';
 
   @override
+  String get blockedCannotCall => '你與該用戶之間存在封鎖關係，無法發起通話';
+
+  @override
   String get microphonePermissionRequired => '需要麥克風權限才能錄音';
 
   @override
@@ -2558,7 +2564,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get accept => '接聽';
 
   @override
-  String get appName => 'Omega';
+  String get appName => 'AlphaOmega';
 
   @override
   String get appTagline => '經典傳承，社群共建';

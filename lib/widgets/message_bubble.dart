@@ -473,10 +473,13 @@ class MessageBubble extends StatelessWidget {
     if (message.messageType == 'audio' && message.mediaUrl != null) {
       return _AudioBubble(message: message, isMe: isMe, isRead: isRead);
     }
-    if (message.messageType == 'video' && message.mediaUrl != null) {
+    // 上传中(乐观发送)也渲染气泡：此时 mediaUrl 尚为空，靠 isUploading 放行
+    if (message.messageType == 'video' &&
+        (message.mediaUrl != null || message.isUploading)) {
       return _VideoBubble(message: message, isMe: isMe, isRead: isRead);
     }
-    if (message.messageType == 'file' && message.mediaUrl != null) {
+    if (message.messageType == 'file' &&
+        (message.mediaUrl != null || message.isUploading)) {
       return _FileBubble(message: message, isMe: isMe, isRead: isRead);
     }
     if (message.messageType == 'call') {
@@ -754,27 +757,63 @@ class _TextBubble extends StatelessWidget {
                   ),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  if (message.replyToSender?.isNotEmpty ?? false)
-                    Text(
-                      message.replyToSender!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isMe ? _kTimeOwn : const Color(0xFF9575CD),
+                  // 被引用消息是图片/视频时，左侧显示缩略图
+                  if (message.replyToThumb != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: CachedNetworkImage(
+                        imageUrl: message.replyToThumb!,
+                        width: 38,
+                        height: 38,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => Container(
+                          width: 38,
+                          height: 38,
+                          color: Colors.grey.shade200,
+                        ),
+                        errorWidget: (_, _, _) => Container(
+                          width: 38,
+                          height: 38,
+                          color: Colors.grey.shade200,
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 16,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
                       ),
                     ),
-                  Text(
-                    message.replyToPreview!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: isMe ? Colors.white70 : Colors.black54,
-                      height: 1.4,
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (message.replyToSender?.isNotEmpty ?? false)
+                          Text(
+                            message.replyToSender!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isMe ? _kTimeOwn : const Color(0xFF9575CD),
+                            ),
+                          ),
+                        Text(
+                          message.replyToPreview!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: isMe ? Colors.white70 : Colors.black54,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1146,12 +1185,15 @@ class _VideoBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumb = message.payload?['thumbnail'] as String?;
+    final uploading = message.isUploading;
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => _FullScreenVideoPage(url: message.mediaUrl!),
-        ),
-      ),
+      onTap: (uploading || message.mediaUrl == null)
+          ? null
+          : () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => _FullScreenVideoPage(url: message.mediaUrl!),
+              ),
+            ),
       child: ClipRRect(
         borderRadius: _radius(isMe),
         child: Stack(
@@ -1173,24 +1215,59 @@ class _VideoBubble extends StatelessWidget {
                     height: 165,
                     color: Colors.grey.shade800,
                   ),
-            // Play icon overlay
-            Positioned.fill(
-              child: Center(
+            // 上传中：进度遮罩(圆环 + 百分比)；否则：播放按钮
+            if (uploading)
+              Positioned.fill(
                 child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(120),
-                    shape: BoxShape.circle,
+                  color: Colors.black.withAlpha(130),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: CircularProgressIndicator(
+                            value: message.uploadProgress,
+                            strokeWidth: 3,
+                            color: Colors.white,
+                            backgroundColor: Colors.white24,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          message.uploadProgress != null
+                              ? '${(message.uploadProgress! * 100).round()}%'
+                              : '发送中…',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.play_arrow,
-                    color: Colors.white,
-                    size: 30,
+                ),
+              )
+            else
+              Positioned.fill(
+                child: Center(
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(120),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow,
+                      color: Colors.white,
+                      size: 30,
+                    ),
                   ),
                 ),
               ),
-            ),
             Positioned(
               right: 8,
               bottom: 6,
@@ -1264,7 +1341,9 @@ class _FileBubble extends StatelessWidget {
     final textColor = isMe ? Colors.white : Colors.black87;
 
     return GestureDetector(
-      onTap: () => _downloadAndOpen(context, message.mediaUrl!, name),
+      onTap: (message.isUploading || message.mediaUrl == null)
+          ? null
+          : () => _downloadAndOpen(context, message.mediaUrl!, name),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 260),
         decoration: BoxDecoration(
@@ -1330,6 +1409,33 @@ class _FileBubble extends StatelessWidget {
                 ),
               ],
             ),
+            // 上传中：线性进度条 + 百分比
+            if (message.isUploading) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: message.uploadProgress,
+                  minHeight: 3,
+                  backgroundColor: isMe
+                      ? Colors.white.withAlpha(60)
+                      : Colors.grey.shade300,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isMe ? Colors.white : const Color(0xFF9575CD),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                message.uploadProgress != null
+                    ? '发送中 ${(message.uploadProgress! * 100).round()}%'
+                    : '发送中…',
+                style: TextStyle(
+                  color: isMe ? _kTimeOwn : _kTimeOther,
+                  fontSize: 11,
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             Align(
               alignment: Alignment.centerRight,

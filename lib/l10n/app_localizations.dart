@@ -1547,6 +1547,12 @@ abstract class AppLocalizations {
   /// **'对方已将你拉黑，消息无法送达'**
   String get blockedCannotSend;
 
+  /// No description provided for @blockedCannotCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'你与该用户之间存在拉黑关系，无法发起通话'**
+  String get blockedCannotCall;
+
   /// No description provided for @microphonePermissionRequired.
   ///
   /// In zh, this message translates to:
@@ -2120,7 +2126,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In zh, this message translates to:
-  /// **'Omega'**
+  /// **'AlphaOmega'**
   String get appName;
 
   /// No description provided for @appTagline.
