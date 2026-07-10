@@ -641,7 +641,10 @@ class _ChapterReaderScreenState extends State<ChapterReaderScreen> {
             title: Text(
               '$_bibleBookName $_localChapterNum · '
               '${AppLocalizations.of(context).selectVerse}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           body: GridView.builder(
