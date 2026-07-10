@@ -3,6 +3,7 @@ import 'package:social_app/models/post.dart';
 import 'package:social_app/models/profile.dart';
 import 'package:social_app/models/conversation.dart';
 import 'package:social_app/models/notification.dart';
+import 'package:social_app/models/message.dart';
 
 void main() {
   // ─── Profile ──────────────────────────────────────────────────────────────
@@ -97,14 +98,12 @@ void main() {
     });
 
     test('handles null image_urls (defaults to empty list)', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..['image_urls'] = null;
+      final json = Map<String, dynamic>.from(basePost)..['image_urls'] = null;
       expect(Post.fromJson(json).imageUrls, isEmpty);
     });
 
     test('handles null topics (defaults to empty list)', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..['topics'] = null;
+      final json = Map<String, dynamic>.from(basePost)..['topics'] = null;
       expect(Post.fromJson(json).topics, isEmpty);
     });
 
@@ -117,16 +116,23 @@ void main() {
       expect(post.commentsCount, 0);
     });
 
-    test('parses dynamic relationship counts from post_likes and post_comments', () {
-      final json = Map<String, dynamic>.from(basePost)
-        ..remove('likes_count')
-        ..remove('comments_count')
-        ..['post_likes'] = [{'count': 5}]
-        ..['post_comments'] = [{'count': 12}];
-      final post = Post.fromJson(json);
-      expect(post.likesCount, 5);
-      expect(post.commentsCount, 12);
-    });
+    test(
+      'parses dynamic relationship counts from post_likes and post_comments',
+      () {
+        final json = Map<String, dynamic>.from(basePost)
+          ..remove('likes_count')
+          ..remove('comments_count')
+          ..['post_likes'] = [
+            {'count': 5},
+          ]
+          ..['post_comments'] = [
+            {'count': 12},
+          ];
+        final post = Post.fromJson(json);
+        expect(post.likesCount, 5);
+        expect(post.commentsCount, 12);
+      },
+    );
 
     test('parses nested profile author', () {
       final json = Map<String, dynamic>.from(basePost)
@@ -198,8 +204,7 @@ void main() {
     });
 
     test('displayName returns fallback for group with no name', () {
-      final json = Map<String, dynamic>.from(baseConv)
-        ..['type'] = 'group';
+      final json = Map<String, dynamic>.from(baseConv)..['type'] = 'group';
       expect(Conversation.fromJson(json).displayName('u1'), '群聊');
     });
 
@@ -242,14 +247,119 @@ void main() {
     });
   });
 
+  // ─── Message reply metadata ──────────────────────────────────────────────
+
+  group('Message reply metadata', () {
+    Map<String, dynamic> messageJson({
+      required String type,
+      String? content,
+      String? mediaUrl,
+      Map<String, dynamic>? payload,
+    }) => {
+      'id': 'm1',
+      'conversation_id': 'cv1',
+      'sender_id': 'u1',
+      'content': content,
+      'message_type': type,
+      'media_url': mediaUrl,
+      'is_deleted': false,
+      'created_at': '2026-07-10T08:30:00.000Z',
+      'payload': payload,
+      'profiles': {
+        'id': 'u1',
+        'username': 'alice',
+        'display_name': 'Alice',
+        'avatar_url': null,
+        'bio': null,
+        'followers_count': 0,
+        'following_count': 0,
+        'posts_count': 0,
+        'created_at': '2024-01-01T00:00:00.000Z',
+      },
+    };
+
+    test('video reply stores its real thumbnail, size and time', () {
+      final video = Message.fromJson(
+        messageJson(
+          type: 'video',
+          mediaUrl: 'https://example.com/video.mp4',
+          payload: {
+            'size': 10 * 1024 * 1024,
+            'thumbnail': 'https://example.com/video-thumb.jpg',
+          },
+        ),
+      );
+
+      final reply = video.toReplyMetadata();
+      expect(reply['sender'], 'Alice');
+      expect(reply['type'], 'video');
+      expect(reply['thumb'], 'https://example.com/video-thumb.jpg');
+      expect(reply['preview'], contains('视频'));
+      expect(reply['preview'], contains('10.0 MB'));
+      expect(reply['sent_at'], isNotNull);
+    });
+
+    test('file reply identifies the exact file name and size', () {
+      final file = Message.fromJson(
+        messageJson(
+          type: 'file',
+          content: 'meeting-notes.pdf',
+          mediaUrl: 'https://example.com/meeting-notes.pdf',
+          payload: {
+            'name': 'meeting-notes.pdf',
+            'size': 2 * 1024 * 1024,
+            'mime': 'application/pdf',
+          },
+        ),
+      );
+
+      final reply = file.toReplyMetadata();
+      expect(file.displayContent, '[文件] meeting-notes.pdf');
+      expect(reply['file_name'], 'meeting-notes.pdf');
+      expect(reply['preview'], contains('meeting-notes.pdf'));
+      expect(reply['preview'], contains('2.0 MB'));
+    });
+
+    test('reply getters remain compatible with stored payload maps', () {
+      final message = Message.fromJson(
+        messageJson(
+          type: 'text',
+          content: '收到',
+          payload: {
+            'reply_to': {
+              'id': 'video-1',
+              'sender': 'Bob',
+              'preview': '视频 · 8.0 MB · 17:20',
+              'type': 'video',
+              'thumb': 'https://example.com/thumb.jpg',
+              'size': 8 * 1024 * 1024,
+              'sent_at': '2026-07-10T08:20:00.000Z',
+            },
+          },
+        ),
+      );
+
+      expect(message.replyToId, 'video-1');
+      expect(message.replyToSender, 'Bob');
+      expect(message.replyToType, 'video');
+      expect(message.replyToThumb, 'https://example.com/thumb.jpg');
+      expect(message.replyToSize, 8 * 1024 * 1024);
+      expect(message.replyToSentAt, isNotNull);
+    });
+  });
+
   // ─── Topic aggregation logic ───────────────────────────────────────────────
 
   group('Topic frequency aggregation', () {
     // Mirrors the logic in _TopicsTab._loadHotTopics
-    List<String> aggregateTopics(List<Map<String, dynamic>> rows, {int take = 30}) {
+    List<String> aggregateTopics(
+      List<Map<String, dynamic>> rows, {
+      int take = 30,
+    }) {
       final Map<String, int> freq = {};
       for (final row in rows) {
-        final tags = (row['topics'] as List<dynamic>?)
+        final tags =
+            (row['topics'] as List<dynamic>?)
                 ?.map((e) => e as String)
                 .toList() ??
             [];
@@ -264,21 +374,31 @@ void main() {
 
     test('returns topics sorted by frequency', () {
       final rows = [
-        {'topics': ['信仰', '祷告']},
-        {'topics': ['信仰', '圣经']},
-        {'topics': ['信仰']},
-        {'topics': ['祷告']},
+        {
+          'topics': ['信仰', '祷告'],
+        },
+        {
+          'topics': ['信仰', '圣经'],
+        },
+        {
+          'topics': ['信仰'],
+        },
+        {
+          'topics': ['祷告'],
+        },
       ];
       final result = aggregateTopics(rows);
       expect(result.first, '信仰'); // appears 3 times
-      expect(result[1], '祷告');   // appears 2 times
-      expect(result[2], '圣经');   // appears 1 time
+      expect(result[1], '祷告'); // appears 2 times
+      expect(result[2], '圣经'); // appears 1 time
     });
 
     test('handles null topics', () {
       final rows = [
         {'topics': null},
-        {'topics': ['福音']},
+        {
+          'topics': ['福音'],
+        },
       ];
       expect(aggregateTopics(rows), ['福音']);
     });
@@ -286,7 +406,9 @@ void main() {
     test('respects take limit', () {
       final rows = List.generate(
         50,
-        (i) => {'topics': ['topic_$i']},
+        (i) => {
+          'topics': ['topic_$i'],
+        },
       );
       expect(aggregateTopics(rows, take: 10).length, 10);
     });

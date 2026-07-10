@@ -89,6 +89,7 @@ const _kRecallWindow = Duration(minutes: 2);
 
 class MessageBubble extends StatelessWidget {
   final Message message;
+  final Message? replySource;
   final bool isMe;
   final bool showAvatar;
 
@@ -106,6 +107,7 @@ class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    this.replySource,
     required this.isMe,
     this.showAvatar = true,
     this.showSenderName = true,
@@ -466,31 +468,52 @@ class MessageBubble extends StatelessWidget {
 
   Widget _buildBubble(BuildContext context) {
     if (message.isDeleted) return _DeletedBubble(isMe: isMe);
+    late final Widget bubble;
+    var replyIsRenderedInsideBubble = false;
     if (message.messageType == 'image' && message.mediaUrl != null) {
-      return _ImageBubble(message: message, isMe: isMe, isRead: isRead);
-    }
-    if (message.messageType == 'audio' && message.mediaUrl != null) {
-      return _AudioBubble(message: message, isMe: isMe, isRead: isRead);
-    }
-    // 上传中(乐观发送)也渲染气泡：此时 mediaUrl 尚为空，靠 isUploading 放行
-    if (message.messageType == 'video' &&
+      bubble = _ImageBubble(message: message, isMe: isMe, isRead: isRead);
+    } else if (message.messageType == 'audio' && message.mediaUrl != null) {
+      bubble = _AudioBubble(message: message, isMe: isMe, isRead: isRead);
+    } else if (message.messageType == 'video' &&
         (message.mediaUrl != null || message.isUploading)) {
-      return _VideoBubble(message: message, isMe: isMe, isRead: isRead);
-    }
-    if (message.messageType == 'file' &&
+      // 上传中(乐观发送)也渲染气泡：此时 mediaUrl 尚为空，靠 isUploading 放行
+      bubble = _VideoBubble(message: message, isMe: isMe, isRead: isRead);
+    } else if (message.messageType == 'file' &&
         (message.mediaUrl != null || message.isUploading)) {
-      return _FileBubble(message: message, isMe: isMe, isRead: isRead);
+      bubble = _FileBubble(message: message, isMe: isMe, isRead: isRead);
+    } else if (message.messageType == 'call') {
+      bubble = _CallBubble(message: message, isMe: isMe);
+    } else {
+      replyIsRenderedInsideBubble = true;
+      bubble = _TextBubble(
+        message: message,
+        replySource: replySource,
+        isMe: isMe,
+        showSenderName: !isMe && showSenderName,
+        isRead: isRead,
+        groupMemberNames: groupMemberNames,
+        onSenderTap: () => _openSenderProfile(context),
+      );
     }
-    if (message.messageType == 'call') {
-      return _CallBubble(message: message, isMe: isMe);
+
+    if (message.replyToPreview == null || replyIsRenderedInsideBubble) {
+      return bubble;
     }
-    return _TextBubble(
-      message: message,
-      isMe: isMe,
-      showSenderName: !isMe && showSenderName,
-      isRead: isRead,
-      groupMemberNames: groupMemberNames,
-      onSenderTap: () => _openSenderProfile(context),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: isMe
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        _ReplyPreviewBlock(
+          message: message,
+          source: replySource,
+          isMe: isMe,
+          standalone: true,
+        ),
+        const SizedBox(height: 3),
+        bubble,
+      ],
     );
   }
 }
@@ -637,10 +660,174 @@ class _DeletedBubble extends StatelessWidget {
   );
 }
 
+// ─── Reply preview shared by text and media bubbles ──────────────────────────
+
+class _ReplyPreviewBlock extends StatelessWidget {
+  final Message message;
+  final Message? source;
+  final bool isMe;
+  final bool standalone;
+
+  const _ReplyPreviewBlock({
+    required this.message,
+    this.source,
+    required this.isMe,
+    this.standalone = false,
+  });
+
+  String get _type => source?.messageType ?? message.replyToType ?? 'text';
+  String? get _thumb =>
+      source != null ? source!.replyTargetThumb : message.replyToThumb;
+  String get _sender =>
+      source?.sender?.displayName ?? message.replyToSender ?? '';
+
+  IconData _typeIcon() {
+    switch (_type) {
+      case 'image':
+        return Icons.image_rounded;
+      case 'video':
+        return Icons.play_circle_fill_rounded;
+      case 'file':
+        return Icons.insert_drive_file_rounded;
+      case 'audio':
+        return Icons.mic_rounded;
+      case 'scripture':
+        return Icons.menu_book_rounded;
+      case 'call':
+        return Icons.call_rounded;
+      default:
+        return Icons.chat_bubble_outline_rounded;
+    }
+  }
+
+  String get _preview {
+    if (source != null) return source!.replyTargetPreview;
+    final value = message.replyToPreview ?? '';
+    final fileName = message.replyToFileName;
+    if (message.replyToType == 'file' &&
+        fileName?.isNotEmpty == true &&
+        !value.contains(fileName!)) {
+      return fileName;
+    }
+    return value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = _thumb;
+    final type = _type;
+    final showIcon = thumb == null && type != 'text';
+    final accent = isMe ? Colors.white.withAlpha(150) : const Color(0xFF9575CD);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        margin: standalone ? EdgeInsets.zero : const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color: standalone
+              ? (isMe ? _kSentBg : _kRecvBg)
+              : (isMe ? Colors.white.withAlpha(25) : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(7),
+          border: Border(left: BorderSide(color: accent, width: 3)),
+          boxShadow: standalone ? (isMe ? _kShadowMe : _kShadowOther) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (thumb != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: thumb,
+                      width: 42,
+                      height: 42,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => Container(
+                        width: 42,
+                        height: 42,
+                        color: Colors.grey.shade200,
+                      ),
+                      errorWidget: (_, _, _) => Container(
+                        width: 42,
+                        height: 42,
+                        color: Colors.grey.shade200,
+                        child: Icon(
+                          _typeIcon(),
+                          size: 20,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                    if (type == 'video')
+                      const Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: Colors.white,
+                        size: 23,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+            ] else if (showIcon) ...[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isMe
+                      ? Colors.white.withAlpha(30)
+                      : const Color(0xFF9575CD).withAlpha(24),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(_typeIcon(), size: 19, color: accent),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_sender.isNotEmpty)
+                    Text(
+                      _sender,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isMe ? _kTimeOwn : const Color(0xFF9575CD),
+                      ),
+                    ),
+                  Text(
+                    _preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: isMe ? Colors.white70 : Colors.black54,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Text / Scripture bubble ──────────────────────────────────────────────────
 
 class _TextBubble extends StatelessWidget {
   final Message message;
+  final Message? replySource;
   final bool isMe;
   final bool showSenderName;
   final bool isRead;
@@ -649,6 +836,7 @@ class _TextBubble extends StatelessWidget {
 
   const _TextBubble({
     required this.message,
+    this.replySource,
     required this.isMe,
     required this.showSenderName,
     required this.isRead,
@@ -811,82 +999,10 @@ class _TextBubble extends StatelessWidget {
           ],
           // ── 引用回复块（长按→回复）────────────────────────────────
           if (message.replyToPreview != null)
-            Container(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              margin: const EdgeInsets.only(bottom: 6),
-              decoration: BoxDecoration(
-                color: isMe ? Colors.white.withAlpha(25) : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(6),
-                border: Border(
-                  left: BorderSide(
-                    color: isMe
-                        ? Colors.white.withAlpha(100)
-                        : const Color(0xFF9575CD),
-                    width: 3,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 被引用消息是图片/视频时，左侧显示缩略图
-                  if (message.replyToThumb != null) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: CachedNetworkImage(
-                        imageUrl: message.replyToThumb!,
-                        width: 38,
-                        height: 38,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) => Container(
-                          width: 38,
-                          height: 38,
-                          color: Colors.grey.shade200,
-                        ),
-                        errorWidget: (_, _, _) => Container(
-                          width: 38,
-                          height: 38,
-                          color: Colors.grey.shade200,
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 16,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (message.replyToSender?.isNotEmpty ?? false)
-                          Text(
-                            message.replyToSender!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isMe ? _kTimeOwn : const Color(0xFF9575CD),
-                            ),
-                          ),
-                        Text(
-                          message.replyToPreview!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            _ReplyPreviewBlock(
+              message: message,
+              source: replySource,
+              isMe: isMe,
             ),
           if (isScripture && quote != null) ...[
             Container(

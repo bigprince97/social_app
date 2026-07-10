@@ -331,12 +331,14 @@ class ChatService {
   Future<Message> sendImageMessage({
     required String conversationId,
     required String imageUrl,
+    Map<String, dynamic>? replyPayload,
   }) async {
     return sendMessage(
       conversationId: conversationId,
       content: '',
       messageType: 'image',
       mediaUrl: imageUrl,
+      payload: replyPayload,
     );
   }
 
@@ -344,13 +346,14 @@ class ChatService {
     required String conversationId,
     required String audioUrl,
     required int durationSeconds,
+    Map<String, dynamic>? replyPayload,
   }) async {
     return sendMessage(
       conversationId: conversationId,
       content: '',
       messageType: 'audio',
       mediaUrl: audioUrl,
-      payload: {'duration': durationSeconds},
+      payload: {'duration': durationSeconds, ...?replyPayload},
     );
   }
 
@@ -359,13 +362,14 @@ class ChatService {
     required String videoUrl,
     required int fileSize,
     String? thumbnailUrl,
+    Map<String, dynamic>? replyPayload,
   }) async {
     return sendMessage(
       conversationId: conversationId,
       content: '',
       messageType: 'video',
       mediaUrl: videoUrl,
-      payload: {'size': fileSize, 'thumbnail': thumbnailUrl},
+      payload: {'size': fileSize, 'thumbnail': thumbnailUrl, ...?replyPayload},
     );
   }
 
@@ -375,6 +379,7 @@ class ChatService {
     required String fileName,
     required int fileSize,
     required String? mimeType,
+    Map<String, dynamic>? replyPayload,
     // true=仅存入群文件、不在聊天中显示（群文件页直接上传）
     bool filesOnly = false,
   }) async {
@@ -391,6 +396,7 @@ class ChatService {
             'size': fileSize,
             'mime': mimeType ?? 'application/octet-stream',
             if (filesOnly) 'files_only': true,
+            ...?replyPayload,
           },
         })
         .select('*, profiles(*)')

@@ -533,6 +533,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _inputFocusNode.requestFocus();
   }
 
+  Map<String, dynamic>? _replyPayloadFor(Message? message) => message == null
+      ? null
+      : <String, dynamic>{'reply_to': message.toReplyMetadata()};
+
+  void _clearReplyIfMatches(String? repliedMessageId) {
+    if (!mounted || repliedMessageId == null) return;
+    if (_replyTo?.id == repliedMessageId) setState(() => _replyTo = null);
+  }
+
   Future<void> _sendMessage() async {
     final content = _inputCtrl.text.trim();
     if (content.isEmpty || _sending) return;
@@ -542,20 +551,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     final mentionIds = List<String>.from(_mentionedUserIds);
     final replyTo = _replyTo;
-    final payload = replyTo == null
-        ? null
-        : <String, dynamic>{
-            'reply_to': {
-              'id': replyTo.id,
-              'sender': replyTo.sender?.displayName ?? '',
-              'preview': replyTo.displayContent,
-              'type': replyTo.messageType,
-              if ((replyTo.messageType == 'image' ||
-                      replyTo.messageType == 'video') &&
-                  replyTo.mediaUrl != null)
-                'thumb': replyTo.mediaUrl,
-            },
-          };
+    final payload = _replyPayloadFor(replyTo);
     final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
     _inputCtrl.clear();
     _mentionedUserIds.clear();
@@ -575,7 +571,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         payload: payload,
       );
       _replacePending(tempId, msg);
-      if (mounted) setState(() => _replyTo = null);
+      _clearReplyIfMatches(replyTo?.id);
       _cacheCurrentMessages();
     } catch (e) {
       _removePending(tempId);
@@ -754,6 +750,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     final durationSeconds = (durMs / 1000).round().clamp(1, 6000);
     if (!mounted) return;
+    final replyTo = _replyTo;
+    final replyPayload = _replyPayloadFor(replyTo);
     setState(() => _sending = true);
     try {
       final audioBytes = await File(path).readAsBytes();
@@ -763,9 +761,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         conversationId: _conversation.id,
         audioUrl: url,
         durationSeconds: durationSeconds,
+        replyPayload: replyPayload,
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _clearReplyIfMatches(replyTo?.id);
         _cacheCurrentMessages();
         _scrollToBottom();
       }
@@ -982,15 +982,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _uploadAndSendImage(XFile picked) async {
+    final replyTo = _replyTo;
+    final replyPayload = _replyPayloadFor(replyTo);
     setState(() => _sending = true);
     try {
       final imageUrl = await _storageService.uploadChatImage(picked);
       final msg = await _chatService.sendImageMessage(
         conversationId: _conversation.id,
         imageUrl: imageUrl,
+        replyPayload: replyPayload,
       );
       if (mounted) {
         setState(() => _messages.add(msg));
+        _clearReplyIfMatches(replyTo?.id);
         _cacheCurrentMessages();
         _scrollToBottom();
       }
@@ -1021,12 +1025,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (_) {
       // 极少数系统不支持的视频编码仍允许发送，只退回无封面占位。
     }
+    final replyTo = _replyTo;
+    final replyPayload = _replyPayloadFor(replyTo);
     // 乐观发送：立刻插入占位气泡，上传过程中实时更新进度，不等发完才显示。
     final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
     _addPendingMedia(
       tempId: tempId,
       messageType: 'video',
-      payload: {'local_path': picked.path, 'thumbnail_bytes': ?thumbnailBytes},
+      payload: {
+        'local_path': picked.path,
+        'thumbnail_bytes': ?thumbnailBytes,
+        ...?replyPayload,
+      },
     );
     try {
       final uploaded = await _storageService.uploadChatVideo(picked);
@@ -1045,8 +1055,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         videoUrl: uploaded.url,
         fileSize: uploaded.size,
         thumbnailUrl: thumbnailUrl,
+        replyPayload: replyPayload,
       );
       _replacePending(tempId, msg);
+      _clearReplyIfMatches(replyTo?.id);
       _cacheCurrentMessages();
     } catch (e) {
       _removePending(tempId);
@@ -1071,6 +1083,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final mime = picked.extension != null
         ? _mimeFromExt(picked.extension!)
         : null;
+    final replyTo = _replyTo;
+    final replyPayload = _replyPayloadFor(replyTo);
     // 乐观发送：立刻插入占位气泡（含文件名/大小/图标），上传中实时进度条。
     final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
     _addPendingMedia(
@@ -1081,6 +1095,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         'name': picked.name,
         'size': bytes.length,
         'mime': mime ?? 'application/octet-stream',
+        ...?replyPayload,
       },
     );
     try {
@@ -1091,8 +1106,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         fileName: picked.name,
         fileSize: uploaded.size,
         mimeType: mime,
+        replyPayload: replyPayload,
       );
       _replacePending(tempId, msg);
+      _clearReplyIfMatches(replyTo?.id);
       _cacheCurrentMessages();
     } catch (e) {
       _removePending(tempId);
@@ -1489,6 +1506,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final title = _conversation.displayName(_currentUserId);
     final isGroup = _conversation.type == 'group';
     final isDirect = _conversation.type == 'direct';
+    final messagesById = {for (final message in _messages) message.id: message};
     final otherMember = isDirect
         ? _conversation.members
               .where((m) => m.userId != _currentUserId)
@@ -1887,6 +1905,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           // Flutter 按位置复用 State，导致音频气泡时长/播放器串台
                           key: ValueKey(msg.id),
                           message: msg,
+                          replySource: messagesById[msg.replyToId],
                           isMe: isMe,
                           showAvatar: showAvatar,
                           showSenderName: showSenderName,
@@ -1916,8 +1935,29 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ─── Reply strip（输入栏上方的引用条）──────────────────────────────────
 
+  IconData _replyTypeIcon(String type) {
+    switch (type) {
+      case 'image':
+        return Icons.image_rounded;
+      case 'video':
+        return Icons.play_circle_fill_rounded;
+      case 'file':
+        return Icons.insert_drive_file_rounded;
+      case 'audio':
+        return Icons.mic_rounded;
+      case 'scripture':
+        return Icons.menu_book_rounded;
+      case 'call':
+        return Icons.call_rounded;
+      default:
+        return Icons.chat_bubble_outline_rounded;
+    }
+  }
+
   Widget _buildReplyStrip() {
     final msg = _replyTo!;
+    final thumb = msg.replyTargetThumb;
+    final showTypeIcon = thumb == null && msg.messageType != 'text';
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
@@ -1932,30 +1972,55 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 10),
-          if ((msg.messageType == 'image' || msg.messageType == 'video') &&
-              msg.mediaUrl != null) ...[
+          if (thumb != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: CachedNetworkImage(
-                imageUrl: msg.mediaUrl!,
-                width: 34,
-                height: 34,
-                fit: BoxFit.cover,
-                placeholder: (_, _) => Container(
-                  width: 34,
-                  height: 34,
-                  color: Colors.grey.shade200,
-                ),
-                errorWidget: (_, _, _) => Container(
-                  width: 34,
-                  height: 34,
-                  color: Colors.grey.shade200,
-                  child: Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 16,
-                    color: Colors.grey.shade400,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: thumb,
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => Container(
+                      width: 34,
+                      height: 34,
+                      color: Colors.grey.shade200,
+                    ),
+                    errorWidget: (_, _, _) => Container(
+                      width: 34,
+                      height: 34,
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        _replyTypeIcon(msg.messageType),
+                        size: 17,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
                   ),
-                ),
+                  if (msg.messageType == 'video')
+                    const Icon(
+                      Icons.play_circle_fill_rounded,
+                      size: 19,
+                      color: Colors.white,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+          ] else if (showTypeIcon) ...[
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFF9575CD).withAlpha(24),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                _replyTypeIcon(msg.messageType),
+                size: 18,
+                color: const Color(0xFF9575CD),
               ),
             ),
             const SizedBox(width: 8),
@@ -1966,7 +2031,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  msg.sender?.displayName ?? '',
+                  msg.sender?.displayName ??
+                      (msg.senderId == _currentUserId ? '我' : ''),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1976,7 +2042,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 Text(
-                  msg.displayContent,
+                  msg.replyTargetPreview,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
