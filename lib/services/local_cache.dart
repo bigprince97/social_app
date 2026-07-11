@@ -15,6 +15,15 @@ class LocalCache {
 
   Directory? _dir;
   final _memory = <String, dynamic>{}; // 进程内二级缓存，避免重复读盘
+  Future<void> _ioQueue = Future<void>.value();
+  int _generation = 0;
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _ioQueue.then((_) => action());
+    // 队列自身始终恢复为成功态，单次磁盘错误不会阻断后续缓存操作。
+    _ioQueue = next.catchError((_) {});
+    return _ioQueue;
+  }
 
   Future<Directory> _cacheDir() async {
     if (_dir != null) return _dir!;
@@ -30,33 +39,43 @@ class LocalCache {
   Future<void> write(String key, Object json) async {
     if (kIsWeb) return; // web 不做文件缓存
     _memory[key] = json;
-    try {
-      final d = await _cacheDir();
-      final f = File('${d.path}/${_safe(key)}.json');
-      await f.writeAsString(jsonEncode(json));
-    } catch (_) {}
+    final generation = _generation;
+    await _enqueue(() async {
+      if (generation != _generation) return;
+      try {
+        final d = await _cacheDir();
+        if (generation != _generation) return;
+        final f = File('${d.path}/${_safe(key)}.json');
+        await f.writeAsString(jsonEncode(json));
+      } catch (_) {}
+    });
   }
 
   /// 清空全部缓存（登出时调用，避免下一个登录用户看到上一个用户的缓存）。
   Future<void> clear() async {
+    _generation++;
     _memory.clear();
     if (kIsWeb) return;
-    try {
-      final d = await _cacheDir();
-      if (await d.exists()) await d.delete(recursive: true);
-      _dir = null;
-    } catch (_) {}
+    await _enqueue(() async {
+      try {
+        final d = await _cacheDir();
+        if (await d.exists()) await d.delete(recursive: true);
+        _dir = null;
+      } catch (_) {}
+    });
   }
 
   /// 删除单个 key 的缓存（如账号注销后清掉其幽灵资料缓存）。
   Future<void> remove(String key) async {
     _memory.remove(key);
     if (kIsWeb) return;
-    try {
-      final d = await _cacheDir();
-      final f = File('${d.path}/${_safe(key)}.json');
-      if (await f.exists()) await f.delete();
-    } catch (_) {}
+    await _enqueue(() async {
+      try {
+        final d = await _cacheDir();
+        final f = File('${d.path}/${_safe(key)}.json');
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    });
   }
 
   /// 读缓存；不存在返回 null
@@ -64,6 +83,8 @@ class LocalCache {
     if (_memory.containsKey(key)) return _memory[key];
     if (kIsWeb) return null;
     try {
+      await _ioQueue;
+      if (_memory.containsKey(key)) return _memory[key];
       final d = await _cacheDir();
       final f = File('${d.path}/${_safe(key)}.json');
       if (!await f.exists()) return null;
@@ -105,8 +126,11 @@ void showErrorIfNotNetwork(BuildContext context, Object e, String message) {
       s.contains('JWT expired') ||
       s.contains('statusCode: 401') ||
       s.contains('statusCode: 403')) {
-    showPremiumToast(context, AppLocalizations.of(context).sessionExpired,
-        kind: ToastKind.error);
+    showPremiumToast(
+      context,
+      AppLocalizations.of(context).sessionExpired,
+      kind: ToastKind.error,
+    );
     return;
   }
   showPremiumToast(context, message, kind: ToastKind.error);

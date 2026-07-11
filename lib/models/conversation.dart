@@ -30,26 +30,26 @@ class Conversation {
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
-        id: json['id'] as String,
-        type: json['type'] as String,
-        name: json['name'] as String?,
-        avatarUrl: json['avatar_url'] as String?,
-        createdBy: json['created_by'] as String?,
-        lastMessageAt: json['last_message_at'] != null
-            ? DateTime.parse(json['last_message_at'] as String)
-            : null,
-        lastMessagePreview: json['last_message_preview'] as String?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-        members: (json['conversation_members'] as List<dynamic>?)
-                ?.map((m) =>
-                    ConversationMember.fromJson(m as Map<String, dynamic>))
-                .toList() ??
-            [],
-        announcement: json['announcement'] as String?,
-        announcementUpdatedAt: json['announcement_updated_at'] != null
-            ? DateTime.parse(json['announcement_updated_at'] as String)
-            : null,
-      );
+    id: json['id'] as String,
+    type: json['type'] as String,
+    name: json['name'] as String?,
+    avatarUrl: json['avatar_url'] as String?,
+    createdBy: json['created_by'] as String?,
+    lastMessageAt: json['last_message_at'] != null
+        ? DateTime.parse(json['last_message_at'] as String)
+        : null,
+    lastMessagePreview: json['last_message_preview'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+    members:
+        (json['conversation_members'] as List<dynamic>?)
+            ?.map((m) => ConversationMember.fromJson(m as Map<String, dynamic>))
+            .toList() ??
+        [],
+    announcement: json['announcement'] as String?,
+    announcementUpdatedAt: json['announcement_updated_at'] != null
+        ? DateTime.parse(json['announcement_updated_at'] as String)
+        : null,
+  );
 
   String displayName(String currentUserId) {
     if (type == 'group') return name ?? '群聊';
@@ -69,6 +69,32 @@ class Conversation {
       orElse: () => members.first,
     );
     return other.profile?.avatarUrl;
+  }
+
+  Conversation copyWith({
+    String? name,
+    String? avatarUrl,
+    DateTime? lastMessageAt,
+    String? lastMessagePreview,
+    int? unreadCount,
+    String? announcement,
+    DateTime? announcementUpdatedAt,
+  }) {
+    return Conversation(
+      id: id,
+      type: type,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      createdBy: createdBy,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      createdAt: createdAt,
+      members: members,
+      unreadCount: unreadCount ?? this.unreadCount,
+      announcement: announcement ?? this.announcement,
+      announcementUpdatedAt:
+          announcementUpdatedAt ?? this.announcementUpdatedAt,
+    );
   }
 }
 

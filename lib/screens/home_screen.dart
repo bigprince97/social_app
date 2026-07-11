@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +7,7 @@ import '../services/active_media_session.dart';
 import '../services/local_cache.dart';
 import '../services/active_conversation.dart';
 import '../services/call_service.dart';
-import '../services/chat_service.dart';
+import '../services/message_sync_service.dart';
 import '../services/push_notification_service.dart';
 import '../theme/app_style.dart';
 import 'call/call_screen.dart';
@@ -29,13 +29,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late int _currentIndex;
-  int _unreadMessages = 0;
 
-  final _chatService = ChatService();
   final _callService = CallService();
-  RealtimeChannel? _msgChannel;
+  final _messageSync = MessageSyncService.instance;
+  StreamSubscription<ChatSyncEvent>? _chatEventsSub;
   RealtimeChannel? _callChannel;
   bool _handlingCall = false; // 防止重复弹出来电界面
+  bool _isForeground = true;
   final _mediaController = ActiveMediaSessionController.instance;
 
   @override
@@ -43,8 +43,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _currentIndex = widget.initialIndex;
-    _loadBadges();
-    _subscribeToMessages();
+    _isForeground =
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.inactive;
+    _messageSync.setForeground(_isForeground);
+    unawaited(_messageSync.start());
+    _messageSync.totalUnread.addListener(_syncUnreadBadge);
+    _chatEventsSub = _messageSync.events.listen(_onChatSyncEvent);
+    _syncUnreadBadge();
     _subscribeToIncomingCalls();
     PushNotificationService.onActiveMediaTap = _restoreMediaSession;
     // 来电推送兜底：FCM 收到 type=call 时用 call_id 拉取并弹来电界面
@@ -64,12 +70,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 回前台：后台期间 realtime 事件丢失，重拉角标并重建订阅
     if (state == AppLifecycleState.resumed) {
-      _loadBadges();
-      _removeCh(_msgChannel);
+      _isForeground = true;
+      _messageSync.setForeground(true);
+      unawaited(_messageSync.resume());
       _removeCh(_callChannel);
-      _subscribeToMessages();
       _subscribeToIncomingCalls();
       _recoverIncomingCall();
       final session = _mediaController.session;
@@ -78,6 +83,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
+      _isForeground = false;
+      _messageSync.setForeground(false);
       _mediaController.session?.showSystemNotification();
     }
   }
@@ -90,8 +97,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _removeCh(_msgChannel);
     _removeCh(_callChannel);
+    _messageSync.totalUnread.removeListener(_syncUnreadBadge);
+    _chatEventsSub?.cancel();
     PushNotificationService.onActiveMediaTap = null;
     PushNotificationService.onCallPush = null;
     super.dispose();
@@ -206,71 +214,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _handlingCall = false;
   }
 
-  Future<void> _loadBadges() async {
-    try {
-      final counts = await _chatService.getUnreadCounts();
-      final msgCount = counts.values.fold<int>(0, (sum, count) => sum + count);
-      await PushNotificationService.syncAppIconBadge(msgCount);
-      if (mounted) setState(() => _unreadMessages = msgCount);
-    } catch (_) {}
+  void _syncUnreadBadge() {
+    unawaited(
+      PushNotificationService.syncAppIconBadge(_messageSync.totalUnread.value),
+    );
   }
 
-  void _subscribeToMessages() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    _msgChannel = Supabase.instance.client
-        .channel('home_new_msg_$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'messages',
-          callback: (payload) {
-            final senderId = payload.newRecord['sender_id'] as String?;
-            if (senderId == null || senderId == userId) return;
-            if (mounted) _loadBadges();
-            _maybeShowChatBanner(payload.newRecord);
-          },
-        )
-        .subscribe();
+  void _onChatSyncEvent(ChatSyncEvent event) {
+    if (event is! SyncedMessageEvent || event.isUpdate) return;
+    unawaited(_maybeShowChatBanner(event));
   }
 
   /// 前台收到新消息且不在该会话页时，弹本地通知横幅
-  Future<void> _maybeShowChatBanner(Map<String, dynamic> record) async {
-    final conversationId = record['conversation_id'] as String?;
-    if (conversationId == null) return;
+  Future<void> _maybeShowChatBanner(SyncedMessageEvent event) async {
+    if (!_isForeground || !mounted) return;
+    final message = event.message;
+    final conversationId = message.conversationId;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || message.senderId == userId) return;
     if (ActiveConversation.current == conversationId) return;
-    if (record['is_deleted'] == true) return;
+    if (message.isDeleted) return;
     try {
-      final client = Supabase.instance.client;
-      final sender = await client
-          .from('profiles')
-          .select('display_name')
-          .eq('id', record['sender_id'] as String)
-          .maybeSingle();
-      // 群聊横幅：标题显示群名，正文带发送者名，与后台推送格式一致
-      final conv = await client
-          .from('conversations')
-          .select('type, name')
-          .eq('id', conversationId)
-          .maybeSingle();
       if (!mounted) return;
       final t = AppLocalizations.of(context);
-      final type = record['message_type'] as String? ?? 'text';
-      var body = switch (type) {
+      var body = switch (message.messageType) {
         'image' => t.imagePlaceholder,
         'video' => t.videoPlaceholder,
         'audio' => t.audioPlaceholder,
         'file' => t.filePlaceholder,
         'scripture' => t.scripturePlaceholder,
-        _ => (record['content'] as String?) ?? '',
+        _ => message.content ?? '',
       };
       if (body.isEmpty) return;
-      final senderName = (sender?['display_name'] as String?) ?? '';
-      final isGroup = conv?['type'] == 'group';
+      final senderName = message.sender?.displayName ?? '';
+      final isGroup = event.conversationType == 'group';
       final title = isGroup
-          ? ((conv?['name'] as String?) ?? t.group)
-          : senderName;
-      if (isGroup) body = '$senderName：$body';
+          ? (event.conversationName ?? t.group)
+          : (senderName.isEmpty ? t.messages : senderName);
+      if (isGroup && senderName.isNotEmpty) body = '$senderName：$body';
       await PushNotificationService.showChatBanner(
         title: title,
         body: body,
@@ -283,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() {
       _currentIndex = i;
     });
-    _loadBadges();
   }
 
   @override
@@ -292,17 +272,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final screens = [
       const FeedScreen(),
       const ScriptureHomeScreen(),
-      ConversationsScreen(onUnreadChanged: _loadBadges),
+      const ConversationsScreen(),
       ProfileScreen(userId: userId),
     ];
 
     return Scaffold(
       extendBody: true,
       body: IndexedStack(index: _currentIndex, children: screens),
-      bottomNavigationBar: _GlassNavBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabSelected,
-        unreadMessages: _unreadMessages,
+      bottomNavigationBar: ValueListenableBuilder<int>(
+        valueListenable: _messageSync.totalUnread,
+        builder: (context, unreadMessages, _) => _GlassNavBar(
+          currentIndex: _currentIndex,
+          onTap: _onTabSelected,
+          unreadMessages: unreadMessages,
+        ),
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../utils/auth_error.dart' show avatarInitial;
@@ -6,8 +8,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../services/locale_controller.dart';
 import '../../models/conversation.dart';
+import '../../models/message.dart';
 import '../../models/profile.dart';
 import '../../services/chat_service.dart';
+import '../../services/message_sync_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_style.dart';
 import '../../l10n/app_localizations.dart';
@@ -15,77 +19,147 @@ import '../../services/local_cache.dart';
 import '../../widgets/premium_toast.dart';
 
 class ConversationsScreen extends StatefulWidget {
-  final VoidCallback? onUnreadChanged;
-
-  const ConversationsScreen({super.key, this.onUnreadChanged});
+  const ConversationsScreen({super.key});
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
 }
 
-class _ConversationsScreenState extends State<ConversationsScreen>
-    with WidgetsBindingObserver {
+class _ConversationsScreenState extends State<ConversationsScreen> {
   final _chatService = ChatService();
+  final _messageSync = MessageSyncService.instance;
   final _searchCtrl = TextEditingController();
   List<Conversation> _conversations = [];
   String _query = '';
   bool _loading = true;
-  RealtimeChannel? _msgChannel;
+  StreamSubscription<ChatSyncEvent>? _chatEventsSub;
+  Timer? _unknownConversationRefreshTimer;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _chatEventsSub = _messageSync.events.listen(_onChatSyncEvent);
     _loadConversations();
-    _setupRealtime();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 后台期间 realtime 长连接被系统挂起、事件丢失；
-    // 回前台立即重拉数据并重建订阅，保证列表是最新的。
-    if (state == AppLifecycleState.resumed) {
-      _loadConversations(silent: true);
-      _setupRealtime();
-    }
-  }
-
-  void _setupRealtime() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    _msgChannel?.unsubscribe();
-    _msgChannel = Supabase.instance.client
-        .channel('conv_list_$userId')
-        // 新消息
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'messages',
-          callback: (_) {
-            if (mounted) {
-              _loadConversations(silent: true);
-              widget.onUnreadChanged?.call();
-            }
-          },
-        )
-        // 会话本身的变更：触发器写入的最新预览/时间、撤回刷新、群名修改等
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'conversations',
-          callback: (_) {
-            if (mounted) _loadConversations(silent: true);
-          },
-        )
-        .subscribe();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _msgChannel?.unsubscribe();
+    _chatEventsSub?.cancel();
+    _unknownConversationRefreshTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onChatSyncEvent(ChatSyncEvent event) {
+    if (!mounted) return;
+    if (event is ConversationMembershipChangedEvent) {
+      _scheduleUnknownConversationRefresh();
+      return;
+    }
+    if (event is UnreadCountsChangedEvent) {
+      var changed = false;
+      for (final conversation in _conversations) {
+        final unread = _messageSync.unreadFor(conversation.id);
+        if (conversation.unreadCount != unread) {
+          conversation.unreadCount = unread;
+          changed = true;
+        }
+      }
+      if (changed) setState(() {});
+      return;
+    }
+    if (event is! SyncedMessageEvent) return;
+
+    final message = event.message;
+    final index = _conversations.indexWhere(
+      (conversation) => conversation.id == message.conversationId,
+    );
+    if (index < 0) {
+      // 新加入或之前隐藏的会话只补拉一次；普通已知会话永远局部更新。
+      _scheduleUnknownConversationRefresh();
+      return;
+    }
+
+    final current = _conversations[index];
+    final isLatest =
+        current.lastMessageAt == null ||
+        !message.createdAt.isBefore(current.lastMessageAt!);
+    final unread = _messageSync.unreadFor(current.id);
+    final updated = current.copyWith(
+      lastMessageAt: isLatest ? message.createdAt : current.lastMessageAt,
+      lastMessagePreview: isLatest
+          ? _conversationPreview(message)
+          : current.lastMessagePreview,
+      unreadCount: unread,
+    );
+
+    setState(() {
+      _conversations[index] = updated;
+      if (!event.isUpdate && isLatest && index > 0) {
+        _conversations
+          ..removeAt(index)
+          ..insert(0, updated);
+      }
+    });
+  }
+
+  void _scheduleUnknownConversationRefresh() {
+    _unknownConversationRefreshTimer ??= Timer(
+      const Duration(milliseconds: 300),
+      () {
+        _unknownConversationRefreshTimer = null;
+        unawaited(_loadConversations(silent: true));
+      },
+    );
+  }
+
+  String _conversationPreview(Message message) {
+    if (message.isDeleted) return '[消息已撤回]';
+    return switch (message.messageType) {
+      'text' => message.content ?? '',
+      'image' => '[图片]',
+      'video' => '[视频]',
+      'audio' => '[语音]',
+      'file' => '[文件]',
+      'scripture' => '[经文引用]',
+      _ => '[消息]',
+    };
+  }
+
+  List<Conversation> _mergeLoadedConversations(List<Conversation> loaded) {
+    if (_conversations.isEmpty) return loaded;
+    final localById = {for (final item in _conversations) item.id: item};
+    final merged = loaded.map((remote) {
+      final local = localById[remote.id];
+      if (local == null || local.lastMessageAt == null) return remote;
+      final remoteTime = remote.lastMessageAt;
+      if (remoteTime != null && !local.lastMessageAt!.isAfter(remoteTime)) {
+        return remote;
+      }
+      // 网络刷新与同步事件并发时，保留刷新开始后刚收到的本地最新消息。
+      return remote.copyWith(
+        lastMessageAt: local.lastMessageAt,
+        lastMessagePreview: local.lastMessagePreview,
+        unreadCount: local.unreadCount,
+      );
+    }).toList();
+    merged.sort((a, b) {
+      final aTime = a.lastMessageAt;
+      final bTime = b.lastMessageAt;
+      if (aTime == null && bTime == null) return a.id.compareTo(b.id);
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      final byTime = bTime.compareTo(aTime);
+      return byTime != 0 ? byTime : a.id.compareTo(b.id);
+    });
+    return merged;
+  }
+
+  void _applySyncedUnread(List<Conversation> conversations) {
+    if (!_messageSync.hasUnreadSnapshot) return;
+    for (final conversation in conversations) {
+      conversation.unreadCount = _messageSync.unreadFor(conversation.id);
+    }
   }
 
   Future<bool> _confirmDelete(Conversation conv) async {
@@ -129,6 +203,8 @@ class _ConversationsScreenState extends State<ConversationsScreen>
       try {
         final cached = await _chatService.getCachedConversations();
         if (mounted && cached.isNotEmpty) {
+          _applySyncedUnread(cached);
+          _messageSync.registerConversations(cached);
           setState(() {
             _conversations = cached;
             _loading = false;
@@ -141,7 +217,12 @@ class _ConversationsScreenState extends State<ConversationsScreen>
       final convs = await _chatService.getConversations().timeout(
         const Duration(seconds: 12),
       );
-      if (mounted) setState(() => _conversations = convs);
+      if (mounted) {
+        final merged = _mergeLoadedConversations(convs);
+        _applySyncedUnread(merged);
+        _messageSync.registerConversations(merged);
+        setState(() => _conversations = merged);
+      }
     } catch (e) {
       if (mounted && !silent) {
         showErrorIfNotNetwork(
@@ -275,12 +356,13 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                       if (conv.unreadCount > 0 && mounted) {
                                         setState(() => conv.unreadCount = 0);
                                       }
+                                      _messageSync.markConversationRead(
+                                        conv.id,
+                                      );
                                       await context.push(
                                         '/chat/${conv.id}',
                                         extra: conv,
                                       );
-                                      await _loadConversations(silent: true);
-                                      widget.onUnreadChanged?.call();
                                     },
                                   ),
                                 );
@@ -300,9 +382,16 @@ class _ConversationsScreenState extends State<ConversationsScreen>
       isScrollControlled: true,
       builder: (_) => _NewChatSheet(
         onCreated: (conv) {
-          context
-              .push('/chat/${conv.id}', extra: conv)
-              .then((_) => _loadConversations(silent: true));
+          final index = _conversations.indexWhere((c) => c.id == conv.id);
+          setState(() {
+            if (index < 0) {
+              _conversations.insert(0, conv);
+            } else {
+              _conversations[index] = conv;
+            }
+          });
+          _messageSync.registerConversations([conv]);
+          context.push('/chat/${conv.id}', extra: conv);
         },
       ),
     );

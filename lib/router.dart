@@ -189,11 +189,7 @@ class _ConvLoaderState extends State<_ConvLoader> {
 
   Future<void> _load() async {
     try {
-      final convs = await ChatService().getConversations();
-      final conv = convs.firstWhere(
-        (c) => c.id == widget.conversationId,
-        orElse: () => throw Exception('not found'),
-      );
+      final conv = await ChatService().getConversation(widget.conversationId);
       if (mounted) setState(() => _conv = conv);
     } catch (_) {
       if (mounted) setState(() => _failed = true);

@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +15,7 @@ import 'router.dart';
 import 'services/active_conversation.dart';
 import 'services/locale_controller.dart';
 import 'services/local_cache.dart';
+import 'services/message_sync_service.dart';
 import 'services/bible_version_controller.dart';
 import 'services/push_notification_service.dart';
 import 'utils/timeout_http_client.dart';
@@ -84,21 +87,28 @@ class _SocialAppState extends State<SocialApp> {
           data.event == AuthChangeEvent.signedIn ||
           (data.event == AuthChangeEvent.initialSession &&
               data.session != null);
-      if (!kIsWeb && signedIn) {
-        _registerPushNotifications();
+      if (signedIn) {
+        unawaited(MessageSyncService.instance.start());
+        if (!kIsWeb) _registerPushNotifications();
       } else if (data.event == AuthChangeEvent.signedOut) {
-        // 登出（含 SDK 自动登出）：清本地缓存，避免下个登录用户看到上个用户内容
-        _pushRegistrationUserId = null;
-        LocalCache.instance.clear();
-        if (!kIsWeb) {
-          PushNotificationService.syncAppIconBadge(0);
-          PushNotificationService.deleteToken();
-        }
+        unawaited(_handleSignedOut());
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(MessageSyncService.instance.start());
       if (!kIsWeb) _registerPushNotifications();
     });
+  }
+
+  Future<void> _handleSignedOut() async {
+    // 先断开上一账号的私有消息频道，再清缓存，避免切换账号时串数据。
+    await MessageSyncService.instance.stop();
+    _pushRegistrationUserId = null;
+    await LocalCache.instance.clear();
+    if (!kIsWeb) {
+      await PushNotificationService.syncAppIconBadge(0);
+      await PushNotificationService.deleteToken();
+    }
   }
 
   Future<void> _registerPushNotifications() async {

@@ -20,9 +20,7 @@ class ChatService {
           .select('*, conversation_members(*, profiles(*))')
           .order('last_message_at', ascending: false);
       await LocalCache.instance.write('conversations', data);
-      final convs = _processConversations(data as List);
-      await _applyUnreadCounts(convs); // 用真实未读数覆盖占位值
-      return convs;
+      return _processConversations(data as List);
     } catch (e) {
       if (isNetworkError(e)) {
         final cached = await LocalCache.instance.read('conversations');
@@ -50,7 +48,10 @@ class ChatService {
     return Conversation.fromJson(data);
   }
 
-  Future<List<Message>> getCachedMessages(String conversationId) async {
+  Future<List<Message>> getCachedMessages(
+    String conversationId, {
+    required String conversationType,
+  }) async {
     final cached = await LocalCache.instance.read('messages_$conversationId');
     if (cached is List) {
       final messages = cached
@@ -58,7 +59,10 @@ class ChatService {
           .toList()
           .reversed
           .toList();
-      return _filterBlockedMessages(messages);
+      return _filterBlockedCachedDirectMessages(
+        messages,
+        conversationType: conversationType,
+      );
     }
     return [];
   }
@@ -78,19 +82,6 @@ class ChatService {
       'messages_$conversationId',
       latest.reversed.map((message) => message.toJson()).toList(),
     );
-  }
-
-  /// 拉取每个会话的真实未读数（RPC），覆盖 _processConversations 的占位 1。
-  /// 失败时保留占位值（仍能指示"有未读"），不影响列表显示。
-  Future<void> _applyUnreadCounts(List<Conversation> convs) async {
-    try {
-      final counts = await getUnreadCounts();
-      for (final c in convs) {
-        c.unreadCount = counts[c.id] ?? 0;
-      }
-    } catch (_) {
-      // RPC 不可用：保留布尔占位，不报错
-    }
   }
 
   /// 拉取真实未读消息数。key 是 conversation_id，value 是该会话未读条数。
@@ -248,6 +239,7 @@ class ChatService {
 
   Future<List<Message>> getMessages(
     String conversationId, {
+    required String conversationType,
     int page = 0,
     int limit = 50,
   }) async {
@@ -268,7 +260,8 @@ class ChatService {
           .toList()
           .reversed
           .toList();
-      return _filterBlockedMessages(messages);
+      // 在线结果已由 messages RLS 过滤：直聊应用拉黑规则，群聊不隐藏。
+      return messages;
     } catch (e) {
       if (page == 0 && isNetworkError(e)) {
         final cached = await LocalCache.instance.read(
@@ -280,7 +273,10 @@ class ChatService {
               .toList()
               .reversed
               .toList();
-          return _filterBlockedMessages(messages);
+          return _filterBlockedCachedDirectMessages(
+            messages,
+            conversationType: conversationType,
+          );
         }
       }
       rethrow;
@@ -288,6 +284,7 @@ class ChatService {
   }
 
   Future<Message> sendMessage({
+    String? messageId,
     required String conversationId,
     required String content,
     String messageType = 'text',
@@ -301,6 +298,7 @@ class ChatService {
     final data = await _client
         .from('messages')
         .insert({
+          'id': ?messageId,
           'conversation_id': conversationId,
           'sender_id': _userId,
           'content': content,
@@ -315,8 +313,14 @@ class ChatService {
     return Message.fromJson(data);
   }
 
-  Future<List<Message>> _filterBlockedMessages(List<Message> messages) async {
-    if (messages.isEmpty || _userId == null) return messages;
+  Future<List<Message>> _filterBlockedCachedDirectMessages(
+    List<Message> messages, {
+    required String conversationType,
+  }) async {
+    // 拉黑不影响共同群聊：群消息（含离线缓存）必须完整显示。
+    if (conversationType != 'direct' || messages.isEmpty || _userId == null) {
+      return messages;
+    }
     try {
       final blockedIds = await _blockService.getBlockedIds();
       if (blockedIds.isEmpty) return messages;
@@ -460,74 +464,6 @@ class ChatService {
     } catch (_) {
       // 已读回执失败无需打扰用户，也不应抛未捕获异常
     }
-  }
-
-  // ─── Realtime ─────────────────────────────────────────────────────────────
-
-  RealtimeChannel subscribeToMessages(
-    String conversationId,
-    void Function(Message) onMessage,
-  ) {
-    return _client
-        .channel('messages:$conversationId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'conversation_id',
-            value: conversationId,
-          ),
-          callback: (payload) async {
-            final newRow = payload.newRecord;
-            if (newRow['sender_id'] == _userId) return;
-            final senderId = newRow['sender_id'] as String?;
-            if (senderId != null) {
-              try {
-                if (await _blockService.isBlocked(senderId)) return;
-              } catch (_) {}
-            }
-            final full = await _client
-                .from('messages')
-                .select('*, profiles(*)')
-                .eq('id', newRow['id'] as String)
-                .single();
-            onMessage(Message.fromJson(full));
-          },
-        )
-        .subscribe();
-  }
-
-  // Subscribe to message updates (recall / edit)
-  RealtimeChannel subscribeToMessageUpdates(
-    String conversationId,
-    void Function(Message message) onUpdate,
-  ) {
-    return _client
-        .channel('messages_update:$conversationId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'conversation_id',
-            value: conversationId,
-          ),
-          callback: (payload) async {
-            final updated = payload.newRecord;
-            final id = updated['id'] as String?;
-            if (id == null) return;
-            final full = await _client
-                .from('messages')
-                .select('*, profiles(*)')
-                .eq('id', id)
-                .single();
-            onUpdate(Message.fromJson(full));
-          },
-        )
-        .subscribe();
   }
 }
 

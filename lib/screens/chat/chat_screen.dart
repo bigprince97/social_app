@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/conversation.dart';
 import '../../models/message.dart';
@@ -29,6 +30,7 @@ import '../../widgets/premium_action_sheet.dart';
 import '../../widgets/premium_toast.dart';
 import '../../services/active_conversation.dart';
 import '../../services/local_cache.dart';
+import '../../services/message_sync_service.dart';
 import '../call/call_screen.dart';
 import '../call/livestream_screen.dart';
 import '../group/group_info_screen.dart';
@@ -59,10 +61,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _hasMore = true;
   int _page = 0;
   int _messageLoadGeneration = 0;
-  RealtimeChannel? _msgChannel;
-  RealtimeChannel? _updateChannel;
   RealtimeChannel? _readChannel;
   RealtimeChannel? _convCallChannel;
+  StreamSubscription<ChatSyncEvent>? _messageSyncSubscription;
   CallInfo? _activeLivestream; // 群内进行中的直播（横幅）
   late final String _currentUserId;
   late Conversation _conversation;
@@ -72,6 +73,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // 避免每条消息各触发一次整页重建导致掉帧。
   final List<Message> _pendingIncoming = [];
   Timer? _incomingFlushTimer;
+  Timer? _cacheTimer;
   // 长按消息→回复：待引用的消息（输入栏上方显示引用条）
   Message? _replyTo;
 
@@ -131,14 +133,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _currentUserId = Supabase.instance.client.auth.currentUser!.id;
     _conversation = widget.conversation;
     ActiveConversation.enter(_conversation.id);
+    MessageSyncService.instance.registerConversation(_conversation);
+    unawaited(MessageSyncService.instance.start());
     // 进入会话:清除通知栏里属于本会话的所有通知
     PushNotificationService.clearConversationNotifications(_conversation.id);
     _computeOtherLastRead();
     _loadBlockState();
     _refreshConversationMetadata();
     _loadMessages();
-    _subscribeToMessages();
-    _subscribeToMessageUpdates();
+    _subscribeToMessageSync();
     _subscribeToReadReceipts();
     // 进入聊天立即标记已读一次（清未读 badge），再用定时器跟进后续新消息。
     _markReadAndRefreshBadge();
@@ -173,6 +176,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _conversation = latest;
         _computeOtherLastRead();
       });
+      MessageSyncService.instance.registerConversation(latest);
     } catch (_) {
       // 离线时继续使用路由传入的会话快照。
     }
@@ -243,14 +247,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _markReadAndRefreshBadge() async {
+    MessageSyncService.instance.markConversationRead(_conversation.id);
     await _chatService.updateLastRead(_conversation.id);
-    try {
-      final counts = await _chatService.getUnreadCounts();
-      final unreadMessageCount = counts.entries
-          .where((entry) => entry.key != _conversation.id)
-          .fold<int>(0, (sum, entry) => sum + entry.value);
-      await PushNotificationService.syncAppIconBadge(unreadMessageCount);
-    } catch (_) {}
+    // 回前台时未读校准可能与已读 RPC 并发；落库后再清一次，避免旧快照
+    // 把刚进入的会话红点短暂恢复出来。
+    MessageSyncService.instance.markConversationRead(_conversation.id);
   }
 
   void _computeOtherLastRead() {
@@ -296,17 +297,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 回前台：补拉后台期间漏掉的消息并重建订阅
+    // 回前台：校准一次未读并补拉后台期间可能漏掉的当前会话消息。
     if (state == AppLifecycleState.resumed) {
       // 后台期间该会话可能积了新通知,回前台仍在本页则一并清除
       PushNotificationService.clearConversationNotifications(_conversation.id);
-      _removeCh(_msgChannel);
-      _removeCh(_updateChannel);
       _removeCh(_readChannel);
+      unawaited(MessageSyncService.instance.resume());
       _markReadAndRefreshBadge();
       _loadMessages();
-      _subscribeToMessages();
-      _subscribeToMessageUpdates();
       _subscribeToReadReceipts();
       if (_conversation.type == 'group') {
         _refreshActiveLivestream();
@@ -318,8 +316,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     ActiveConversation.leave(_conversation.id);
-    _removeCh(_msgChannel);
-    _removeCh(_updateChannel);
+    _messageSyncSubscription?.cancel();
     _removeCh(_readChannel);
     _removeCh(_convCallChannel);
     _inputCtrl.removeListener(_onInputChanged);
@@ -331,6 +328,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _recordTimer?.cancel();
     _readTimer?.cancel();
     _incomingFlushTimer?.cancel();
+    _cacheTimer?.cancel();
+    _cacheCurrentMessagesNow();
     _livestreamExpiryTimer?.cancel();
     // 离开聊天时立即落库已读：避免 2s 内快速返回时定时器被取消，
     // 导致 last_read 未更新、会话列表未读 badge 不清除。
@@ -348,7 +347,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     // 缓存优先：先秒显本地缓存的历史消息（不等网络），再后台拉新替换。
     try {
-      final cached = await _chatService.getCachedMessages(_conversation.id);
+      final cached = await _chatService.getCachedMessages(
+        _conversation.id,
+        conversationType: _conversation.type,
+      );
       if (mounted &&
           generation == _messageLoadGeneration &&
           cached.isNotEmpty &&
@@ -368,7 +370,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       // 后台拉新（超时兜底，避免 iOS 半开连接永久挂起转圈）
       final msgs = await _chatService
-          .getMessages(_conversation.id, page: 0)
+          .getMessages(
+            _conversation.id,
+            conversationType: _conversation.type,
+            page: 0,
+          )
           .timeout(const Duration(seconds: 12));
       if (!mounted || generation != _messageLoadGeneration) return;
       setState(() {
@@ -408,6 +414,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final nextPage = _page + 1;
       final older = await _chatService.getMessages(
         _conversation.id,
+        conversationType: _conversation.type,
         page: nextPage,
       );
       if (!mounted) return;
@@ -428,19 +435,54 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _cacheCurrentMessages() {
-    // 不缓存乐观占位（上传中）消息，否则重启后会残留“发送中”的僵尸气泡
+    // 刷屏时合并磁盘写入，避免每 100ms 都序列化并写一遍历史消息。
+    _cacheTimer?.cancel();
+    _cacheTimer = Timer(
+      const Duration(milliseconds: 750),
+      _cacheCurrentMessagesNow,
+    );
+  }
+
+  void _cacheCurrentMessagesNow() {
+    // 不缓存乐观占位（上传中）消息，否则重启后会残留“发送中”的僵尸气泡。
     final persistable = _messages.where((m) => !m.isUploading).toList();
     unawaited(_chatService.cacheMessages(_conversation.id, persistable));
   }
 
-  void _subscribeToMessages() {
-    _msgChannel = _chatService.subscribeToMessages(_conversation.id, (msg) {
+  void _subscribeToMessageSync() {
+    _messageSyncSubscription?.cancel();
+    _messageSyncSubscription = MessageSyncService.instance.events.listen((
+      event,
+    ) {
+      if (event is! SyncedMessageEvent ||
+          event.message.conversationId != _conversation.id ||
+          !mounted) {
+        return;
+      }
+      final msg = event.message;
+      if (event.isUpdate) {
+        final idx = _messages.indexWhere((message) => message.id == msg.id);
+        if (idx == -1) return;
+        setState(() => _messages[idx] = msg);
+        _cacheCurrentMessages();
+        return;
+      }
       if (!mounted) return;
       // 仅进群文件、不在聊天显示的文件跳过
       if (msg.payload?['files_only'] == true) return;
-      // Deduplicate: ignore if we already have this message (REST/local race)
-      if (_messages.any((m) => m.id == msg.id) ||
-          _pendingIncoming.any((m) => m.id == msg.id)) {
+      final existingIndex = _messages.indexWhere(
+        (message) => message.id == msg.id,
+      );
+      if (existingIndex != -1) {
+        // 自己的消息使用同一个 UUID 作为占位和数据库主键。Broadcast 可能
+        // 比 REST 响应更早到达，此时原位确认，不增加第二个气泡。
+        if (_messages[existingIndex].isUploading) {
+          setState(() => _messages[existingIndex] = msg);
+          _cacheCurrentMessages();
+        }
+        return;
+      }
+      if (_pendingIncoming.any((message) => message.id == msg.id)) {
         return;
       }
       _pendingIncoming.add(msg);
@@ -456,33 +498,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _incomingFlushTimer = null;
     if (!mounted || _pendingIncoming.isEmpty) return;
     // flush 时再去重一次：攒批期间 _loadMessages 可能已经拉到同批消息
-    final batch = _pendingIncoming
-        .where((p) => !_messages.any((m) => m.id == p.id))
-        .toList();
+    final batch =
+        _pendingIncoming
+            .where((p) => !_messages.any((m) => m.id == p.id))
+            .toList()
+          ..sort((a, b) {
+            final byTime = a.createdAt.compareTo(b.createdAt);
+            return byTime != 0 ? byTime : a.id.compareTo(b.id);
+          });
     _pendingIncoming.clear();
     if (batch.isEmpty) return;
     // 收到对方新消息：仅当用户已在底部时自动滚动，避免打断上翻阅读
     final wasNearBottom = _isNearBottom;
-    setState(() => _messages.addAll(batch));
+    setState(() {
+      _messages.addAll(batch);
+      _messages.sort((a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
+    });
     _cacheCurrentMessages();
     if (wasNearBottom) _scrollToBottom();
-    _scheduleUpdateLastRead();
-  }
-
-  void _subscribeToMessageUpdates() {
-    _updateChannel = _chatService.subscribeToMessageUpdates(_conversation.id, (
-      updatedMessage,
-    ) {
-      if (mounted) {
-        setState(() {
-          final idx = _messages.indexWhere((m) => m.id == updatedMessage.id);
-          if (idx != -1) {
-            _messages[idx] = updatedMessage;
-          }
-        });
-        _cacheCurrentMessages();
-      }
-    });
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _scheduleUpdateLastRead();
+    }
   }
 
   // 直聊：订阅对方 last_read_at 变化，对方读到我的消息时即时刷新「已读」状态。
@@ -544,7 +583,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _sendMessage() async {
     final content = _inputCtrl.text.trim();
-    if (content.isEmpty || _sending) return;
+    if (content.isEmpty) return;
     if (_conversation.type == 'direct' && _isEitherBlocked) {
       _showSendError(const BlockedChatException());
       return;
@@ -552,10 +591,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final mentionIds = List<String>.from(_mentionedUserIds);
     final replyTo = _replyTo;
     final payload = _replyPayloadFor(replyTo);
-    final tempId = 'pending_${DateTime.now().microsecondsSinceEpoch}';
+    // 客户端先生成最终消息主键：REST 超时但数据库已提交时，Broadcast
+    // 仍能用同一 UUID 确认占位，重试也不会制造第二条消息。
+    final tempId = const Uuid().v4();
     _inputCtrl.clear();
     _mentionedUserIds.clear();
-    setState(() => _sending = true);
+    if (replyTo != null) setState(() => _replyTo = null);
     // 先显示本地气泡，网络确认后原位替换，用户不再感觉“按下发送后顿一下”。
     _addPendingMedia(
       tempId: tempId,
@@ -565,6 +606,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
     try {
       final msg = await _chatService.sendMessage(
+        messageId: tempId,
         conversationId: _conversation.id,
         content: content,
         mentionedUserIds: mentionIds.isEmpty ? null : mentionIds,
@@ -574,17 +616,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _clearReplyIfMatches(replyTo?.id);
       _cacheCurrentMessages();
     } catch (e) {
-      _removePending(tempId);
-      if (mounted) {
-        _showSendError(e);
-        _inputCtrl.text = content;
-        _inputCtrl.selection = TextSelection.collapsed(offset: content.length);
-        _mentionedUserIds
-          ..clear()
-          ..addAll(mentionIds);
+      final confirmed = _messages.any(
+        (message) => message.id == tempId && !message.isUploading,
+      );
+      if (confirmed) {
+        _cacheCurrentMessages();
+      } else {
+        _removePending(tempId);
       }
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && !confirmed) {
+        _showSendError(e);
+        // 连续快速发送时，较早请求失败不能覆盖用户已经输入的下一条内容。
+        if (_inputCtrl.text.trim().isEmpty) {
+          _inputCtrl.text = content;
+          _inputCtrl.selection = TextSelection.collapsed(
+            offset: content.length,
+          );
+          _mentionedUserIds
+            ..clear()
+            ..addAll(mentionIds);
+          if (replyTo != null && _replyTo == null) {
+            setState(() => _replyTo = replyTo);
+          }
+        }
+      }
     }
   }
 
@@ -1143,7 +1198,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     setState(() {
       final tempIdx = _messages.indexWhere((m) => m.id == tempId);
       final realIdx = _messages.indexWhere((m) => m.id == real.id);
-      if (realIdx != -1) {
+      if (tempIdx != -1 && realIdx == tempIdx) {
+        // UUID 幂等发送：临时占位和服务端真实消息本来就是同一个 id。
+        _messages[tempIdx] = real;
+      } else if (realIdx != -1) {
         // realtime 已抢先插入真实消息：移除临时占位，避免重复
         if (tempIdx != -1) _messages.removeAt(tempIdx);
       } else if (tempIdx != -1) {
@@ -1238,7 +1296,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// 拉取最新消息并并入列表（去重），用于通话结束等场景即时刷新
   Future<void> _reloadLatestMessages() async {
     try {
-      final msgs = await _chatService.getMessages(_conversation.id);
+      final msgs = await _chatService.getMessages(
+        _conversation.id,
+        conversationType: _conversation.type,
+      );
       if (!mounted) return;
       final existing = _messages.map((m) => m.id).toSet();
       final fresh = msgs.where(

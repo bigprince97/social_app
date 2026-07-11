@@ -7,5 +7,8 @@ class ActiveConversation {
 
   static void enter(String conversationId) => _stack.add(conversationId);
 
-  static void leave(String conversationId) => _stack.remove(conversationId);
+  static void leave(String conversationId) {
+    final index = _stack.lastIndexOf(conversationId);
+    if (index != -1) _stack.removeAt(index);
+  }
 }
